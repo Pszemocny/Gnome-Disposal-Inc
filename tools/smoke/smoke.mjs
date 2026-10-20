@@ -1,7 +1,7 @@
 // Headless smoke test over Chrome DevTools Protocol, against the dev server on 5199 (never 5300).
 // Usage: node tools/smoke/smoke.mjs <outDir> <scenarioFile>
 // Env: FULL=1 full Chromium in --headless=new (the headless shell has no pointer lock), DPR=<n> device scale factor,
-// CDP_PORT, MAXPOLL (polls of 250 ms), SW=1 software GL, URL_QUERY (default '?lowfx').
+// CDP_PORT, DEV_PORT (dev server, default 5199), MAXPOLL (polls of 250 ms), SW=1 software GL, URL_QUERY (default '?lowfx').
 import { spawn } from 'node:child_process';
 import { writeFileSync, readFileSync, mkdirSync, rmSync } from 'node:fs';
 
@@ -69,7 +69,7 @@ if (process.env.FULL) {
   await send('Page.bringToFront');
   await send('Emulation.setFocusEmulationEnabled', { enabled: true });
 }
-await send('Page.navigate', { url: 'http://localhost:5199/' + (process.env.URL_QUERY ?? '?lowfx') });
+await send('Page.navigate', { url: `http://localhost:${process.env.DEV_PORT ?? 5199}/` +(process.env.URL_QUERY ?? '?lowfx') });
 await sleep(7000);
 
 const shot = async (name) => {

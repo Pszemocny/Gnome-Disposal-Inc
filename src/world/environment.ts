@@ -17,6 +17,12 @@ const WHITE = new THREE.Color(0xffffff);
 const PURPLE = new THREE.Color(0xc77aff);
 const GOLD = new THREE.Color(0xffd23f);
 const tmpC = new THREE.Color();
+// the sun sits at this offset from the player; its shadow camera axes (three's lookAt with up = +Y) never change
+const SUN_OFFSET = new THREE.Vector3(22, 32, 14);
+const SUN_Z = SUN_OFFSET.clone().normalize();
+const SUN_X = new THREE.Vector3(0, 1, 0).cross(SUN_Z).normalize();
+const SUN_Y = SUN_Z.clone().cross(SUN_X);
+const tmpV = new THREE.Vector3();
 export const HOLE_SLIDE_TIME = 1; // seconds the hole takes to move to a new Land's spot
 
 export class Environment {
@@ -428,8 +434,15 @@ export class Environment {
   update(dt: number): void {
     this.updateSlide(dt);
     const p = ctx.player.position;
-    this.sun.position.set(p.x + 22, 32, p.z + 14);
-    this.sun.target.position.set(p.x, 0, p.z);
+    // move the shadow camera in whole shadow-map texels (also along its view axis, which shifts the stored depths):
+    // a sub-texel move makes still shadow edges crawl
+    const sc = this.sun.shadow.camera;
+    const texel = (sc.right - sc.left) / this.sun.shadow.mapSize.x;
+    const snap = (x: number) => Math.round(x / texel) * texel - x;
+    const t = tmpV.set(p.x, 0, p.z);
+    t.addScaledVector(SUN_X, snap(t.dot(SUN_X))).addScaledVector(SUN_Y, snap(t.dot(SUN_Y))).addScaledVector(SUN_Z, snap(t.dot(SUN_Z)));
+    this.sun.target.position.copy(t);
+    this.sun.position.copy(t).add(SUN_OFFSET);
     this.spinBoost = Math.max(0, this.spinBoost - dt);
     this.swirl.rotation.z -= dt * (0.6 + ctx.state.holeLevel * 0.12 + this.spinBoost * 5);
     // from combo 10 the vortex tints blue -> purple -> gold (white keeps the texture's own blue)
