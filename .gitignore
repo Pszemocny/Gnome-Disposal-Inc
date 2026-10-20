@@ -1,0 +1,8 @@
+node_modules
+dist
+release
+.DS_Store
+*.log
+logs/
+# the agents' task board stays local (PP 2026-10-20)
+BOARD.md

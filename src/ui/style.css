@@ -1,0 +1,289 @@
+@import url('https://fonts.googleapis.com/css2?family=Fredoka:wght@400;600;700&family=Creepster&display=swap');
+
+:root {
+  --ink: #fff;
+  --panel: rgba(18, 22, 30, 0.82);
+  --accent: #ffd23f;
+  --good: #3adf6a;
+  --bad: #ff5a5a;
+  --secret: #c08aff;
+  --font: 'Fredoka', system-ui, sans-serif;
+}
+
+* { box-sizing: border-box; }
+html, body { margin: 0; height: 100%; overflow: hidden; background: #0b0f14; color: var(--ink); font-family: var(--font); user-select: none; }
+canvas { display: block; }
+
+.hud { position: fixed; inset: 0; pointer-events: none; text-shadow: 0 2px 0 rgba(0,0,0,.45); transition: opacity .2s; }
+.hud.dim { opacity: .35; }
+
+.hud-money { position: absolute; top: 14px; right: 20px; text-align: right; }
+.money { font-size: 44px; font-weight: 700; color: var(--accent); letter-spacing: 1px; }
+.shards { font-size: 18px; color: #9fe8ff; }
+
+.hud-hole { position: absolute; top: 14px; left: 50%; transform: translateX(-50%); width: min(440px, 70vw); text-align: center; }
+.hole-label { font-weight: 700; font-size: 16px; letter-spacing: 2px; }
+.hole-bar { height: 22px; background: rgba(0,0,0,.45); border: 2px solid rgba(255,255,255,.7); border-radius: 10px; overflow: hidden; margin: 4px 0; }
+.hole-fill { height: 100%; width: 0; background: linear-gradient(90deg, #2ecc71, #5fd0ff); transition: width .2s; }
+.hole-mult { font-size: 14px; opacity: .9; }
+
+.hud-combo { position: absolute; right: 40px; top: 50%; transform: translateY(-50%); text-align: right; opacity: 0; transition: opacity .2s; transform-origin: right center; }
+.hud-combo.on { opacity: 1; }
+.combo-num { font-size: 40px; font-weight: 700; }
+.combo-mult { font-size: 18px; }
+.combo-ring { position: relative; width: 84px; height: 84px; margin: 4px 0 0 auto; }
+.combo-ring svg { position: absolute; inset: 0; transform: rotate(-90deg); }
+.combo-ring circle { fill: none; stroke-width: 6; }
+.cr-bg { stroke: rgba(0,0,0,.4); }
+.cr-fill { stroke: currentColor; stroke-dasharray: 100; stroke-linecap: round; }
+.combo-ring .combo-mult { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; font-size: 22px; font-weight: 700; }
+.combo-cap { font-size: 13px; opacity: .8; }
+
+/* left column: GOAL, contract, effects, then the messages (newest on top). On body above the shop and menus so messages
+   stay readable there; the panels hide while paused. Bottom clears the magnet panel; the oldest messages clip first. */
+.hud-left { position: fixed; left: 16px; top: 16px; bottom: 94px; width: 300px; display: flex; flex-direction: column; gap: 8px; overflow: visible clip; z-index: 35; pointer-events: none; text-shadow: 0 2px 0 rgba(0,0,0,.45); }
+.hud-left.paused > :not(.hud-toasts) { visibility: hidden; }
+.hud-effects { flex-shrink: 0; background: var(--panel); border: 2px solid var(--secret); border-radius: 10px; padding: 8px 12px; overflow: hidden; }
+.ef-head { font-size: 11px; letter-spacing: 2px; color: var(--secret); font-weight: 700; }
+.ef-row { display: flex; justify-content: space-between; gap: 8px; border-left: 4px solid; padding-left: 8px; margin-top: 4px; font-size: 14px; }
+.hud-toasts { display: flex; flex-direction: column-reverse; flex-shrink: 0; }
+.toast { background: var(--panel); border-left: 5px solid #5fd0ff; padding: 8px 12px; margin-bottom: 6px; border-radius: 6px; font-size: 14px; overflow: hidden; }
+.toast.good { border-color: var(--good); }
+.toast.bad { border-color: var(--bad); }
+.toast.secret { border-color: var(--secret); }
+.toast .n { opacity: .7; margin-left: 6px; }
+.toast.ach { border: 2px solid var(--accent); border-radius: 10px; }
+/* short window: compact panels so GOAL, contract, effects and the newest message fit above the magnet panel */
+@media (max-height: 480px) {
+  .hud-left { gap: 4px; line-height: 1.15; }
+  .hud-left .hud-goal, .hud-left .hud-contract, .hud-left .hud-effects { padding: 4px 8px; }
+  .hud-left .g-head, .hud-left .ct-head { font-size: 10px; }
+  .hud-left .ct-reward { font-size: 12px; }
+  .hud-left .g-text, .hud-left .ct-text { font-size: 12px; margin: 0 0 3px; }
+  .hud-left .g-bar, .hud-left .ct-bar { height: 6px; }
+  .hud-left .g-num, .hud-left .ct-num { font-size: 11px; margin-top: 0; }
+  .hud-left .ef-head { display: none; }
+  .hud-left .ef-row { font-size: 12px; margin-top: 2px; }
+  .hud-left .toast { padding: 4px 8px; margin-bottom: 4px; font-size: 12px; }
+}
+/* narrow window: a narrower column stays left of the tool line over the hotbar */
+@media (max-width: 700px) { .hud-left { width: 210px; } }
+
+/* hotbar centred between the magnet panel (at most 300 px wide) and the same margin on the right; slots shrink to fit */
+.hud-hotbar { position: absolute; bottom: 16px; left: 324px; right: 324px; display: flex; justify-content: center; align-items: flex-end; gap: 6px; }
+.slot { position: relative; flex: 0 1 66px; min-width: 0; aspect-ratio: 1; background: var(--panel); border: 2px solid rgba(255,255,255,.25); border-radius: 10px; display: flex; align-items: center; justify-content: center; }
+.slot.sel { border-color: var(--accent); box-shadow: 0 0 12px var(--accent); }
+.slot.empty { opacity: .45; }
+.slot .k { position: absolute; top: 2px; left: 6px; font-size: 12px; opacity: .8; }
+.slot .i { font-size: 28px; }
+.slot .c { position: absolute; bottom: 2px; right: 6px; font-size: 12px; }
+.slot .n { display: none; }
+.slot.sel .n { display: block; position: absolute; top: -22px; white-space: nowrap; font-size: 13px; }
+
+/* tool line over the hotbar */
+.hud-gear { position: absolute; bottom: 112px; left: 50%; transform: translateX(-50%); background: var(--panel); padding: 4px 12px; border-radius: 8px; font-weight: 700; font-size: 14px; letter-spacing: 1px; }
+.hud-sack { position: absolute; left: 16px; bottom: 16px; max-width: 300px; background: var(--panel); padding: 8px 12px; border-radius: 10px; }
+/* narrow window: the magnet panel as wide as the left column and without the key hint (the H card has it) so it stays
+   under the column; the hotbar right of it with smaller slots, above the help line */
+@media (max-width: 700px) {
+  .hud-sack { max-width: 210px; padding: 6px 10px; }
+  .sack-label { font-size: 12px; }
+  .sack-hint { display: none; }
+  .hud-hotbar { left: 234px; right: 12px; bottom: 20px; gap: 3px; }
+  .slot .i { font-size: 18px; }
+  .slot .k, .slot .c { font-size: 9px; }
+}
+.sack-label { font-weight: 700; font-size: 14px; letter-spacing: 1px; }
+.sack-dots { display: flex; gap: 3px; margin-top: 4px; flex-wrap: wrap; max-width: 220px; }
+.sack-dots i { width: 12px; height: 12px; border-radius: 50%; border: 2px solid rgba(255,255,255,.6); }
+.sack-dots i.f { background: #d8352a; border-color: #fff; }
+.sack-hint { font-size: 11px; opacity: .7; margin-top: 4px; }
+.mag-row { font-size: 13px; margin-top: 3px; }
+.mag-row .worth { color: var(--accent); }
+.tier { display: inline-block; padding: 0 6px; border-radius: 4px; font-size: 11px; letter-spacing: 1px; text-transform: uppercase; color: #111; text-shadow: none; vertical-align: 1px; }
+.t-normal { background: #e8e8e8; }
+.t-heavy { background: #ff9a3a; }
+.t-massive { background: #ff4a6a; color: #fff; }
+
+.hud-goal { flex-shrink: 0; background: var(--panel); border: 2px solid #5fd0ff; border-radius: 10px; padding: 8px 12px; }
+.hud-goal:empty { display: none; }
+.g-head { font-size: 11px; letter-spacing: 2px; color: #5fd0ff; font-weight: 700; }
+.g-text { font-size: 15px; margin: 2px 0 6px; }
+.g-bar { height: 12px; background: rgba(0,0,0,.45); border-radius: 6px; overflow: hidden; }
+.g-fill { height: 100%; background: linear-gradient(90deg, #5fd0ff, #3adf6a); transition: width .25s; }
+.g-num { font-size: 12px; text-align: right; opacity: .85; margin-top: 2px; }
+
+.hud-factory { position: absolute; left: 50%; top: calc(50% + 56px); transform: translateX(-50%); width: 240px; text-align: center; opacity: 0; transition: opacity .2s; }
+.hud-factory.on { opacity: 1; }
+.f-label { font-size: 13px; font-weight: 700; letter-spacing: 2px; color: #ff8a2a; }
+.f-bar { height: 14px; background: rgba(0,0,0,.5); border: 2px solid #ff8a2a; border-radius: 8px; overflow: hidden; margin-top: 3px; }
+.f-fill { height: 100%; width: 0; background: linear-gradient(90deg, #ff8a2a, #ffd23f); }
+.f-fill.jam { background: #e05a5a; }
+
+.crosshair { position: absolute; left: 50%; top: 50%; width: 8px; height: 8px; margin: -4px 0 0 -4px; border-radius: 50%; background: #fff; color: #fff; box-shadow: 0 0 0 2px rgba(0,0,0,.4); z-index: 6; transition: background-color .15s, border-color .15s, color .15s, width .15s, height .15s, margin .15s; }
+/* Trick Scope: a ring with a dot while something is held; green = into the hole, gold = a trick */
+.crosshair.on { width: 14px; height: 14px; margin: -7px 0 0 -7px; background: transparent; border: 2px solid #fff; }
+.crosshair.on::after { content: ''; position: absolute; left: 50%; top: 50%; width: 4px; height: 4px; margin: -2px 0 0 -2px; border-radius: 50%; background: currentColor; }
+.crosshair.hole { color: #3aff8a; border-color: #3aff8a; }
+.crosshair.trick { color: #ffd23f; border-color: #ffd23f; }
+/* Trick Scope Lvl 2+: reflex glass around the crosshair; opacity and scale are set in Hud.update */
+.hud-glass { position: absolute; left: 50%; top: 50%; width: 140px; height: 140px; transform: translate(-50%, -50%); border-radius: 50%; border: 1.5px solid rgba(255,255,255,.6); background: radial-gradient(circle, rgba(255,255,255,.06), rgba(255,255,255,.02) 70%, transparent 72%); opacity: 0; z-index: 5; pointer-events: none; transition: border-color .15s; }
+.hud-glass.hole { border-color: #3aff8a; }
+.hud-glass.trick { border-color: #ffd23f; }
+.glass-read { position: absolute; left: 50%; top: 10px; translate: -50% 0; transform-origin: 50% 50%; white-space: nowrap; font-size: 13px; font-weight: 700; letter-spacing: 1px; color: #fff; paint-order: stroke fill; -webkit-text-stroke: 3px rgba(20,16,4,.75); }
+.hud-glass.hole .glass-read { color: #3aff8a; }
+.hud-glass.trick .glass-read { color: #ffd23f; }
+/* narrow window: a smaller combo hugs the right edge so it stays off the reflex glass */
+@media (max-width: 700px) {
+  .hud-combo { right: 12px; }
+  .combo-num { font-size: 24px; }
+  .combo-ring { width: 56px; height: 56px; }
+  .combo-ring .combo-mult { font-size: 16px; }
+}
+.hud-prompt { position: absolute; left: 50%; top: calc(50% + 26px); transform: translateX(-50%); font-size: 16px; white-space: nowrap; }
+.hud-prompt b { color: var(--accent); }
+
+/* opacity and transform are animated in Hud.update (pop with outBack, fade with inQuad) */
+.hud-big { position: absolute; left: 50%; top: 28%; transform: translate(-50%, -50%); font-size: clamp(20px, 3.6vw, 60px); font-weight: 700; opacity: 0; width: max-content; max-width: 90vw; text-align: center; line-height: 1.1; -webkit-text-stroke: 2px rgba(0,0,0,.6); paint-order: stroke fill; pointer-events: none; z-index: 5; }
+/* first-use tool hint above the hotbar; opacity and transform are animated in Hud.update */
+.hud-hint { position: absolute; left: 50%; bottom: 150px; transform: translateX(-50%); opacity: 0; transform-origin: 50% 100%; background: var(--panel); border: 2px solid var(--accent); border-radius: 10px; padding: 8px 14px; max-width: 560px; width: max-content; text-align: center; }
+.hud-hint .h-title { font-weight: 700; font-size: 18px; color: var(--accent); }
+.hud-hint .h-keys { font-size: 14px; margin-top: 2px; }
+.hud-hint .h-keys b { color: var(--accent); }
+.hud-hint .h-what { font-size: 14px; margin-top: 4px; opacity: .9; }
+.big-sub { font-size: 1.15em; color: #ffd23f; text-shadow: 0 0 16px rgba(255,210,63,.8); }
+
+.hud-banner { position: absolute; left: 50%; top: 90px; transform: translateX(-50%); text-align: center; opacity: 0; }
+.hud-banner.show { animation: banner 5s ease-out forwards; }
+.b-title { font-size: 38px; font-weight: 700; color: var(--accent); letter-spacing: 3px; }
+.b-sub { font-size: 18px; }
+@keyframes banner { 0% { opacity: 0; transform: translate(-50%, -20px); } 8% { opacity: 1; transform: translate(-50%, 0); } 85% { opacity: 1; } 100% { opacity: 0; } }
+/* narrow window: the hole bar, tool line, hint and banner move right of the left column; a smaller money counter leaves the hole bar room */
+@media (max-width: 700px) {
+  .hud-hole { left: 234px; right: 150px; width: auto; transform: none; }
+  .money { font-size: 30px; }
+  .hud-gear { left: calc(50% + 105px); }
+  .hud-hint { left: calc(50% + 113px); max-width: calc(100vw - 242px); }
+  .hud-banner { left: calc(50% + 113px); width: max-content; max-width: calc(100vw - 242px); }
+}
+
+.a-head { font-size: 12px; color: var(--accent); letter-spacing: 2px; text-transform: uppercase; }
+.a-name { font-size: 20px; font-weight: 700; }
+.a-desc { font-size: 14px; opacity: .85; }
+
+.hud-splat { position: absolute; inset: 0; background: radial-gradient(circle at 40% 45%, rgba(120,200,60,.75), rgba(80,160,40,.4) 30%, transparent 60%), radial-gradient(circle at 65% 60%, rgba(120,200,60,.6), transparent 25%); opacity: 0; }
+.hud-splat.show { animation: splat 2.5s ease-out forwards; }
+@keyframes splat { 0% { opacity: 1; } 100% { opacity: 0; } }
+
+.hud-level { position: absolute; left: 50%; top: 42%; transform: translate(-50%, -50%); text-align: center; opacity: 0; }
+.hud-level.show { animation: level 6s ease-out forwards; }
+.l-title { font-size: 72px; font-weight: 700; color: #5fd0ff; -webkit-text-stroke: 2px rgba(0,0,0,.4); }
+.l-mult { font-size: 32px; color: var(--accent); }
+.l-unlock { font-size: 22px; margin-top: 6px; }
+.l-whisper { font-family: 'Creepster', var(--font); font-size: 34px; color: #b0f0ff; margin-top: 12px; letter-spacing: 2px; }
+@keyframes level { 0% { opacity: 0; transform: translate(-50%, -50%) scale(.6); } 10% { opacity: 1; transform: translate(-50%, -50%) scale(1.05); } 80% { opacity: 1; } 100% { opacity: 0; transform: translate(-50%, -50%) scale(1); } }
+
+.hud-help { position: absolute; bottom: 4px; right: 12px; font-size: 11px; opacity: .55; white-space: nowrap; }
+.hud-help b, .hud-helpbox b { color: var(--accent); }
+/* controls card on the right, below the money and the event banner (the left column belongs to GOAL, contract, effects and
+   messages); wide and short, right of the scope glass; while it is open the combo sits lower */
+.hud-helpbox { position: absolute; right: 16px; top: 164px; width: 550px; columns: 2; column-gap: 18px; background: var(--panel); border: 2px solid rgba(255,255,255,.3); border-radius: 10px; padding: 10px 14px; font-size: 13px; line-height: 1.5; }
+.hb-head { column-span: all; font-weight: 700; letter-spacing: 2px; display: flex; justify-content: space-between; }
+.hb-sec { break-after: avoid; }
+.hud:has(.hud-helpbox:not(.hidden)) .hud-combo { top: 70%; }
+@media (max-width: 700px) {
+  .hud-helpbox { width: 340px; columns: 1; top: 76px; font-size: 12px; line-height: 1.35; padding: 6px 10px; }
+}
+.hb-head span { font-weight: 400; letter-spacing: 0; opacity: .7; font-size: 11px; }
+.hb-sec { margin-top: 6px; font-size: 11px; letter-spacing: 2px; color: #5fd0ff; font-weight: 700; text-transform: uppercase; }
+
+.wp-arrow { position: absolute; left: 0; top: 0; font-size: 34px; color: #5fd0ff; text-shadow: 0 0 6px rgba(0,0,0,.7); }
+.wp-mark { position: absolute; left: 0; top: 0; background: rgba(18,22,30,.75); border: 2px solid #5fd0ff; color: #fff; padding: 1px 8px; border-radius: 10px; font-size: 13px; font-weight: 700; white-space: nowrap; }
+.wp-mark::after { content: '▼'; position: absolute; left: 50%; top: 100%; transform: translateX(-50%); color: #5fd0ff; font-size: 10px; }
+
+.aim-label { position: absolute; left: 0; top: 0; color: #ffd23f; font-size: 13px; font-weight: 800; letter-spacing: 1px; white-space: nowrap; pointer-events: none; paint-order: stroke fill; -webkit-text-stroke: 3px rgba(20,16,4,.75); }
+.aim-label:empty { display: none; }
+
+/* tool wheel (hold Tab): pops in over 0.15 s, slices on a ring around the crosshair */
+.hud-wheel { position: absolute; left: 50%; top: 50%; width: 320px; height: 320px; margin: -160px 0 0 -160px; border-radius: 50%; background: radial-gradient(circle, rgba(18,22,30,.35) 0 22%, rgba(18,22,30,.78) 23% 70%, transparent 71%); opacity: 0; transform: scale(.8); transition: opacity .12s ease-out, transform .15s cubic-bezier(.34,1.56,.64,1); pointer-events: none; }
+.hud-wheel.on { opacity: 1; transform: scale(1); }
+.wslice { position: absolute; width: 58px; height: 58px; margin: -29px 0 0 -29px; border-radius: 50%; background: var(--panel); border: 2px solid rgba(255,255,255,.25); display: flex; align-items: center; justify-content: center; transition: transform .1s ease-out; }
+.wslice .i { font-size: 26px; }
+.wslice .c { position: absolute; bottom: -4px; right: -4px; background: #23272e; border-radius: 6px; padding: 0 4px; font-size: 11px; }
+.wslice.on { border-color: var(--accent); box-shadow: 0 0 12px var(--accent); transform: scale(1.18); }
+.wslice.off { opacity: .45; }
+.wcentre { position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); width: 120px; text-align: center; font-weight: 700; font-size: 14px; letter-spacing: 1px; }
+.bubble { position: absolute; left: 0; top: 0; background: #fff; color: #222; padding: 4px 10px; border-radius: 12px; font-size: 14px; font-weight: 600; white-space: nowrap; text-shadow: none; }
+.bubble::after { content: ''; position: absolute; left: 50%; bottom: -6px; border: 6px solid transparent; border-top-color: #fff; border-bottom: 0; transform: translateX(-50%); }
+
+.float-layer { position: fixed; inset: 0; pointer-events: none; }
+.float-text { position: absolute; left: 0; top: 0; font-weight: 700; font-size: 22px; text-shadow: 0 2px 0 rgba(0,0,0,.6); white-space: nowrap; font-family: var(--font); }
+
+.hidden { display: none !important; }
+
+.shop { position: fixed; inset: 0; background: rgba(0,0,0,.55); display: flex; align-items: center; justify-content: center; z-index: 20; }
+.shop-win { width: min(860px, 94vw); max-height: 88vh; display: flex; flex-direction: column; background: #262a30; border: 3px solid #4a5058; border-radius: 6px; box-shadow: 0 20px 60px rgba(0,0,0,.6); font-family: var(--font); }
+.shop-head { display: flex; align-items: center; justify-content: space-between; padding: 12px 18px; font-size: 26px; font-weight: 700; letter-spacing: 3px; border-bottom: 2px solid #3a3f46; }
+.shop-money { color: var(--accent); }
+.shop-money.shake { animation: shake .4s; color: var(--bad); }
+@keyframes shake { 25% { transform: translateX(-6px); } 75% { transform: translateX(6px); } }
+.x { background: none; border: 0; color: #fff; font-size: 22px; cursor: pointer; }
+.shop-tabs { display: flex; gap: 2px; padding: 8px 12px 0; flex-wrap: wrap; }
+.tab { background: none; color: #ccc; border: 0; border-bottom: 3px solid transparent; font: 600 16px var(--font); padding: 8px 14px; cursor: pointer; letter-spacing: 1px; }
+.tab.on { color: #fff; border-color: #fff; }
+.shop-rows { overflow-y: auto; padding: 8px 12px; flex: 1; }
+.row { display: grid; grid-template-columns: 1fr 110px 110px 120px; align-items: center; padding: 6px 10px; border-radius: 4px; font-size: 17px; }
+.row { border-left: 4px solid transparent; }
+.row.afford { border-left-color: var(--good); }
+.row:hover { background: rgba(255,255,255,.07); }
+.badge { display: inline-block; margin-left: 8px; padding: 1px 6px; border-radius: 3px; font-size: 11px; font-weight: 700; letter-spacing: 1px; vertical-align: 2px; }
+.badge.afford { background: var(--good); color: #10301a; }
+.badge.new { background: var(--accent); color: #3a2a00; }
+.row .lv, .row .cost { opacity: .9; }
+.buy { background: #39b54a; color: #fff; border: 0; border-radius: 3px; font: 700 15px var(--font); padding: 6px 0; cursor: pointer; }
+.buy:hover { filter: brightness(1.15); }
+.buy.poor { background: #6a6f76; }
+.tag { text-align: center; font-weight: 700; padding: 6px 0; border-radius: 3px; font-size: 14px; }
+.tag.locked { background: #e05a5a; }
+.tag.owned { background: #3a6ad8; }
+.shop-desc { min-height: 56px; padding: 10px 18px; border-top: 2px solid #3a3f46; font-size: 16px; }
+.shop-foot { padding: 6px 18px 12px; font-size: 12px; opacity: .6; }
+
+/* safe center: the P screenshot copies computed styles, where the card's margin: auto is 0px, so plain center would cut a tall card's top */
+.menu { position: fixed; inset: 0; display: flex; align-items: center; align-items: safe center; justify-content: center; background: radial-gradient(circle at 50% 30%, rgba(20,40,30,.55), rgba(0,0,0,.8)); z-index: 30; overflow-y: auto; padding: 20px; }
+.menu-card { width: min(640px, 94vw); background: rgba(24,28,34,.92); border: 3px solid #3a4048; border-radius: 16px; padding: 24px 28px; text-align: center; margin: auto; }
+.logo { font-size: 72px; line-height: .9; font-weight: 700; color: var(--accent); -webkit-text-stroke: 3px #7a3a10; text-shadow: 0 6px 0 #d8352a; letter-spacing: 3px; }
+.logo.small { font-size: 44px; text-shadow: 0 4px 0 #d8352a; }
+.subtitle { margin: 8px 0 16px; font-size: 18px; opacity: .85; }
+.btn { background: #3a4048; color: #fff; border: 0; border-radius: 10px; font: 600 16px var(--font); padding: 10px 18px; cursor: pointer; margin: 6px; }
+.btn:hover { filter: brightness(1.2); }
+.btn.big { background: #39b54a; font-size: 24px; padding: 14px 40px; box-shadow: 0 5px 0 #23802f; }
+.btn.danger { background: #a03030; margin-top: 12px; }
+.how { text-align: left; font-size: 15px; background: rgba(255,255,255,.05); border-radius: 10px; padding: 8px 16px; margin: 14px 0; }
+.how b { color: var(--accent); }
+.settings { display: flex; gap: 16px; justify-content: center; flex-wrap: wrap; font-size: 14px; margin: 8px 0; }
+.settings label { display: flex; flex-direction: column; gap: 4px; align-items: center; }
+.settings label.cb { flex-direction: row; }
+.stats { margin: 8px 0 14px; opacity: .85; }
+.ach-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 8px; margin: 14px 0; text-align: left; }
+.ach { background: rgba(255,255,255,.05); border-radius: 8px; padding: 8px 10px; opacity: .5; display: flex; flex-direction: column; font-size: 13px; }
+.ach.has { opacity: 1; border: 1px solid var(--accent); }
+.ach b { font-size: 15px; }
+.changelog { text-align: left; font-size: 14px; background: rgba(255,255,255,.05); border-radius: 10px; padding: 4px 16px; margin: 14px 0; max-height: max(120px, calc(100vh - 230px)); overflow-y: auto; }
+.changelog h3 { color: var(--accent); font-size: 16px; margin: 12px 0 4px; }
+.changelog ul { margin: 4px 0; padding-left: 20px; }
+.changelog li { margin: 4px 0; }
+.changelog code { background: rgba(0,0,0,.35); border-radius: 4px; padding: 0 4px; font: 13px ui-monospace, Menlo, monospace; }
+
+.click-to-play { position: fixed; inset: 0; display: flex; align-items: center; justify-content: center; background: rgba(0,0,0,.45); z-index: 25; cursor: pointer; font-size: 56px; font-weight: 700; color: var(--accent); -webkit-text-stroke: 2px #7a3a10; text-shadow: 0 5px 0 #d8352a; letter-spacing: 3px; }
+
+.deep { position: fixed; inset: 0; background: #000; z-index: 50; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 24px; animation: fadein 2s; }
+.deep-line { font-family: 'Creepster', var(--font); font-size: 44px; color: #b0f0ff; text-align: center; padding: 0 20px; animation: fadein 1.2s; letter-spacing: 2px; }
+@keyframes fadein { from { opacity: 0; } }
+
+.crash { position: fixed; left: 12px; bottom: 12px; width: min(560px, 92vw); max-height: 45vh; display: flex; flex-direction: column; background: rgba(40,12,12,.94); border: 2px solid var(--bad); border-radius: 8px; z-index: 100; font-size: 13px; }
+.crash-head { display: flex; align-items: center; gap: 8px; padding: 6px 8px; }
+.crash-head b { color: var(--bad); flex: 1; }
+.crash-more { opacity: .8; }
+.crash-head button { background: #3a4048; color: #fff; border: 0; border-radius: 6px; font: 600 13px var(--font); padding: 4px 10px; cursor: pointer; }
+.crash pre { margin: 0; padding: 6px 8px; overflow: auto; white-space: pre-wrap; word-break: break-all; font: 12px ui-monospace, Menlo, monospace; user-select: text; }
