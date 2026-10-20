@@ -32,6 +32,7 @@ Three.js (render) + Rapier 3D `@dimforge/rapier3d-compat` (physics, WASM) + Vite
 
 No unit test framework. Verification is scripted play in headless Chromium over CDP:
 `node <scratchpad>/smoke/smoke.mjs <outDir> <scenario.js>` with the dev server on 5199 (scripts kept in the session scratchpad; copy them into `tools/smoke/` if they become permanent). In DEV the game exposes `window.gnome` (the `ctx`). Headless rendering runs at about 5 fps, so scenarios wait on frames, not milliseconds.
+Every leaderboard scenario asserts `store.constructor.name === 'LocalStore'` first; the dev server never goes online (`pickStore()` returns `LocalStore` in DEV) and no `.env` file may exist in this folder.
 
 ## Animation rules
 

@@ -1,0 +1,20 @@
+name: Keep the Supabase project awake
+
+# A Free Supabase project pauses after a quiet week; one read a day keeps the online leaderboard up.
+on:
+  schedule:
+    - cron: '0 9 * * *'
+  workflow_dispatch:
+
+permissions: {}
+
+jobs:
+  ping:
+    if: vars.VITE_SUPABASE_URL != ''
+    runs-on: ubuntu-latest
+    steps:
+      - env:
+          URL: ${{ vars.VITE_SUPABASE_URL }}
+          KEY: ${{ vars.VITE_SUPABASE_KEY }}
+        run: |
+          curl --fail -sS -o /dev/null "$URL/rest/v1/scores?select=score&limit=1" -H "apikey: $KEY"

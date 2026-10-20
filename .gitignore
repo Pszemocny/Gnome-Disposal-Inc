@@ -6,3 +6,5 @@ release
 logs/
 # the agents' task board stays local (PP 2026-10-20)
 BOARD.md
+# the Supabase key lives only in GitHub repository variables
+.env*

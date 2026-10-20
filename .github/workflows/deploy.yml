@@ -24,10 +24,21 @@ jobs:
           node-version: 22
           cache: npm
       - run: npm ci
+      - name: Refuse any Supabase key other than the publishable (anon) one
+        if: vars.VITE_SUPABASE_KEY != ''
+        env:
+          KEY: ${{ vars.VITE_SUPABASE_KEY }}
+        run: |
+          case "$KEY" in sb_publishable_*) exit 0;; esac
+          node -e 'let r;try{r=JSON.parse(Buffer.from(process.env.KEY.split(".")[1]??"","base64url")).role}catch{};if(r!=="anon"){console.error("VITE_SUPABASE_KEY has role "+r+": paste the publishable key");process.exit(1)}'
       # Pages serves the site under /<repo>/, so VITE_BASE must match the GitHub repo name
+      # the online leaderboard needs all three repository variables; without them the game keeps the local board
       - run: npm run build
         env:
           VITE_BASE: /${{ github.event.repository.name }}/
+          VITE_SUPABASE_URL: ${{ vars.VITE_SUPABASE_URL }}
+          VITE_SUPABASE_KEY: ${{ vars.VITE_SUPABASE_KEY }}
+          VITE_SUPABASE_SALT: ${{ vars.VITE_SUPABASE_SALT }}
       - uses: actions/upload-pages-artifact@v3
         with:
           path: dist

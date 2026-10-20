@@ -14,7 +14,7 @@ export interface Entry {
   last: string;
   score: number; // money earned in the run (state.totalEarned)
   level: number; // hole level
-  at: number; // Date.now()
+  at: number; // Date.now() locally, created_at online
   board?: string; // 'main' (missing in old entries) or 'daily-YYYY-MM-DD'
 }
 
@@ -22,7 +22,17 @@ export interface Entry {
 export interface LeaderboardStore {
   list(board?: string): Promise<Entry[]>; // best first, one board (default 'main')
   submit(e: Entry): Promise<void>;
+  readonly warning?: string | null; // set by the online store after each call
 }
+
+const W_DOWN = 'Online board unreachable: showing scores saved on this computer.';
+const W_SEND = 'Could not reach the online board: score saved on this computer only.';
+const W_REJECT = 'The online board rejected this score: saved on this computer only.';
+// a resend after this may store a second row: accepted, honest double submits are allowed
+const W_MAYBE = 'The online board did not answer in time: the score is saved on this computer and might have reached the online board too.';
+const W_CLOCK = "The online board rejected this score: check your computer's date and time. Saved on this computer only.";
+const TIMEOUT_MS = 6000;
+const COLS = 'first_name,last_name,score,level,board,created_at';
 
 const byScore = (a: Entry, b: Entry) => b.score - a.score;
 const isEntry = (e: Entry) =>
@@ -62,6 +72,90 @@ export class LocalStore implements LeaderboardStore {
   }
 }
 
+// 'anon' only for the publishable key or an anon JWT: a service_role key in the bundle would open the whole database
+export function keyRole(key: string): 'anon' | null {
+  if (key.startsWith('sb_publishable_')) return 'anon';
+  try {
+    return JSON.parse(atob(key.split('.')[1].replace(/-/g, '+').replace(/_/g, '/'))).role === 'anon' ? 'anon' : null;
+  } catch {
+    return null;
+  }
+}
+
+// hex HMAC-SHA256 over `<score as IEEE-754 hex>|<board>|<UTC date>`; the database trigger recomputes it (supabase/leaderboard.sql)
+export async function scoreKey(salt: string, score: number, board: string, date: string): Promise<string> {
+  const raw = new DataView(new ArrayBuffer(8));
+  raw.setFloat64(0, score); // big-endian, the same bytes as Postgres float8send()
+  const hex = (b: ArrayBuffer) => [...new Uint8Array(b)].map((x) => x.toString(16).padStart(2, '0')).join('');
+  const enc = new TextEncoder();
+  const k = await crypto.subtle.importKey('raw', enc.encode(salt), { name: 'HMAC', hash: 'SHA-256' }, false, ['sign']);
+  return hex(await crypto.subtle.sign('HMAC', k, enc.encode(`${hex(raw.buffer)}|${board}|${date}`)));
+}
+
+// shared board over Supabase REST; every score is written locally first, so the network can only add, never lose one
+export class RemoteStore implements LeaderboardStore {
+  warning: string | null = null;
+  private local = new LocalStore();
+
+  constructor(
+    private url: string,
+    private key: string,
+    private salt: string,
+  ) {}
+
+  private async call(path: string, init: RequestInit = {}): Promise<Response> {
+    const r = await fetch(`${this.url}/rest/v1/${path}`, {
+      ...init,
+      headers: { apikey: this.key, 'Content-Type': 'application/json', ...(init.headers ?? {}) },
+      signal: AbortSignal.timeout(TIMEOUT_MS),
+    });
+    if (!r.ok) throw Object.assign(new Error(`HTTP ${r.status}`), { status: r.status, body: await r.text().catch(() => '') });
+    return r;
+  }
+
+  async list(board = 'main'): Promise<Entry[]> {
+    try {
+      const r = await this.call(`scores?select=${COLS}&board=eq.${encodeURIComponent(board)}&order=score.desc&limit=${SHOW}`);
+      const rows: Record<string, unknown>[] = await r.json();
+      this.warning = null;
+      return rows
+        .map((x) => ({ first: x.first_name, last: x.last_name, score: x.score, level: x.level, board: x.board, at: Date.parse(String(x.created_at)) }) as Entry)
+        .filter(isEntry);
+    } catch {
+      this.warning = W_DOWN;
+      return this.local.list(board);
+    }
+  }
+
+  async submit(e: Entry): Promise<void> {
+    await this.local.submit(e);
+    const board = boardOf(e);
+    try {
+      const key = await scoreKey(this.salt, e.score, board, new Date().toISOString().slice(0, 10));
+      const body = { first_name: e.first, last_name: e.last, score: e.score, level: e.level, board, key };
+      await this.call('scores', { method: 'POST', headers: { Prefer: 'return=minimal' }, body: JSON.stringify(body) });
+      this.warning = null;
+    } catch (err) {
+      const { status, body = '' } = err as { status?: number; body?: string };
+      // both checks use the browser clock (key date, daily board name)
+      if ((err as Error).name === 'TimeoutError') this.warning = W_MAYBE;
+      else if (status === 400 && /bad key|daily board must be today or yesterday/.test(body)) this.warning = W_CLOCK;
+      else this.warning = status !== undefined && status < 500 ? W_REJECT : W_SEND;
+    }
+  }
+}
+
+// online only in a production build with all three variables and the publishable key; the dev server never goes online
+export function pickStore(): LeaderboardStore {
+  const { DEV, VITE_SUPABASE_URL: url, VITE_SUPABASE_KEY: key, VITE_SUPABASE_SALT: salt } = import.meta.env;
+  if (DEV || !url || !key || !salt) return new LocalStore();
+  if (keyRole(String(key)) !== 'anon') {
+    console.warn('VITE_SUPABASE_KEY is not the publishable key: online board off');
+    return new LocalStore();
+  }
+  return new RemoteStore(String(url).replace(/\/$/, ''), String(key), String(salt));
+}
+
 // null when the name is fine, otherwise the message for the player
 export function nameError(label: string, name: string): string | null {
   if (/[<>]/.test(name)) return `${label}: no HTML, please.`;
@@ -95,8 +189,11 @@ export class Leaderboard {
   private tabs: HTMLElement;
   private board = 'main'; // where a submit goes
   private tab = 'main'; // which board the rows show
+  private sending = false; // a POST is in flight: no second submit, no close
+  private renderN = 0; // drops a slow reply for a tab the player already left
+  private submitBtn: HTMLButtonElement;
 
-  constructor(readonly store: LeaderboardStore = new LocalStore()) {
+  constructor(readonly store: LeaderboardStore = pickStore()) {
     const style = document.createElement('style');
     style.textContent = CSS;
     document.head.appendChild(style);
@@ -109,8 +206,8 @@ export class Leaderboard {
       <div class="shop-rows lb-rows"></div>
       <form class="lb-form">
         <div class="lb-run"></div>
-        <input name="first" placeholder="First name" autocomplete="given-name">
-        <input name="last" placeholder="Last name" autocomplete="family-name">
+        <input name="first" placeholder="First name" autocomplete="off">
+        <input name="last" placeholder="Last name" autocomplete="off">
         <button class="buy" type="submit">SUBMIT</button>
         <button class="buy poor" type="button" data-close data-skip>SKIP</button>
         <div class="lb-msg"></div>
@@ -127,6 +224,8 @@ export class Leaderboard {
     this.last = q<HTMLInputElement>('input[name="last"]');
     this.skip = q('[data-skip]');
     this.tabs = q('.shop-tabs');
+    this.submitBtn = q<HTMLButtonElement>('button[type="submit"]');
+    if (store instanceof RemoteStore) q('.shop-foot').textContent = 'Score = money earned this run. Names are shown publicly online. Esc closes.';
     this.el.addEventListener('click', (e) => {
       const t = e.target as HTMLElement;
       if (t.closest('[data-close]')) this.close();
@@ -192,7 +291,8 @@ export class Leaderboard {
   }
 
   close(): void {
-    if (!this.isOpen) return;
+    // while sending, ✕/SKIP/Esc wait: on the daily path done() leaves the page and would abort the POST
+    if (!this.isOpen || this.sending) return;
     this.isOpen = false;
     this.el.classList.add('hidden');
     const done = this.done;
@@ -201,6 +301,7 @@ export class Leaderboard {
   }
 
   private async send(): Promise<void> {
+    if (this.sending) return;
     const first = this.first.value.trim().normalize('NFC');
     const last = this.last.value.trim().normalize('NFC');
     const err = nameError('First name', first) ?? nameError('Last name', last);
@@ -209,17 +310,40 @@ export class Leaderboard {
       this.msg.textContent = err;
       return ctx.audio.deny();
     }
-    await this.store.submit({ first, last, score: ctx.state.totalEarned, level: ctx.state.holeLevel, at: Date.now(), board: this.board });
-    ctx.audio.buy();
-    if (this.done) return this.close();
-    this.msg.textContent = 'Score saved.';
+    this.sending = true;
+    this.submitBtn.disabled = true;
+    this.msg.textContent = 'Sending…';
+    try {
+      await this.store.submit({ first, last, score: ctx.state.totalEarned, level: ctx.state.holeLevel, at: Date.now(), board: this.board });
+    } finally {
+      this.sending = false;
+      this.submitBtn.disabled = false;
+    }
+    // read before render(): the re-fetch GET overwrites the store's warning
+    const w = this.store.warning ?? null;
+    if (w) ctx.audio.deny();
+    else ctx.audio.buy();
+    if (this.done) {
+      if (w) ctx.hud.toast(w, 'bad');
+      return this.close();
+    }
     this.tab = this.board;
     await this.render();
+    this.msg.classList.toggle('ok', !w && !this.store.warning);
+    if (w) this.msg.textContent = w;
+    else if (!this.store.warning) this.msg.textContent = 'Score saved.';
   }
 
   private async render(): Promise<void> {
     for (const b of this.tabs.querySelectorAll<HTMLElement>('[data-tab]')) b.classList.toggle('on', b.dataset.tab === this.tab);
+    const n = ++this.renderN;
+    this.rows.textContent = 'Loading…';
     const top = (await this.store.list(this.tab)).slice(0, SHOW);
+    if (n !== this.renderN) return;
+    if (this.store.warning) {
+      this.msg.classList.remove('ok');
+      this.msg.textContent = this.store.warning;
+    } else if (this.msg.textContent === W_DOWN) this.msg.textContent = '';
     if (!top.length) {
       this.rows.textContent = 'No scores yet.';
       return;
