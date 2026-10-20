@@ -33,7 +33,6 @@ export class Buffs {
     const def = MUSHROOM_BY_ID[id];
     const dur = def.duration * (1 + lvl('mushTime') * 0.2);
     this.timers.set(id, Math.max(this.timers.get(id) ?? 0, 0) + dur);
-    ctx.state.stats.mushrooms++;
     ctx.hud.toast(`${def.name}: ${def.desc}`, 'good');
     ctx.audio.magic();
     if (id === 'chaos' || id === 'rainbow') {

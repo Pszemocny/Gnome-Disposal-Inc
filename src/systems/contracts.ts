@@ -145,7 +145,7 @@ export class Contracts {
   update(dt: number): void {
     this.track();
     if (!this.started) {
-      if (ctx.state.goal < 1 && ctx.time < FIRST_AFTER) return;
+      if (!ctx.goals.firstDone && ctx.time < FIRST_AFTER) return;
       this.started = true;
       this.roll();
     }

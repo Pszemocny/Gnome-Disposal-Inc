@@ -482,8 +482,8 @@ export class Hud {
     if (this.gearEl.textContent !== gl) this.gearEl.textContent = gl;
     this.gearEl.style.display = gl ? '' : 'none';
 
-    // two goal tracks shown together: milestones and skills
-    const tracks = [['GOAL', ctx.goals.progress()], ['SKILL', ctx.goals.progress2()]] as const;
+    // two goal tracks shown together: milestones and lessons
+    const tracks = [['GOAL', ctx.goals.progress()], ['LESSON', ctx.goals.progress2()]] as const;
     const gk = tracks.map(([, gp]) => (gp ? `${gp.text}|${Math.floor(gp.have)}|${gp.need}` : '')).join('#');
     if (gk !== this.goalKey) {
       this.goalKey = gk;

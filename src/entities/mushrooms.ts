@@ -2,6 +2,7 @@ import * as THREE from 'three';
 import { ctx, lvl, rand } from '../core/context';
 import { MUSHROOMS, type MushroomDef } from '../systems/buffs';
 import { mushroomPickupGeometry, vcMat } from '../world/models';
+import { MACHINE_BOX } from './machines';
 
 interface Pickup {
   def: MushroomDef;
@@ -38,8 +39,21 @@ export class Mushrooms {
   }
 
   maybeDrop(pos: THREE.Vector3, bonus = 1): void {
-    const chance = 0.025 * (1 + lvl('mushChance') * 0.3) * bonus;
-    if (Math.random() < chance) this.spawn(this.pickDef(), pos, true);
+    // the mushroom lesson is guaranteed (PP 2026-10-20): the next eaten gnome drops one when none lies on the grass
+    const lesson = ctx.goals.wantsMushroom && this.list.length === 0;
+    const chance = lesson ? 1 : 0.025 * (1 + lvl('mushChance') * 0.3) * bonus;
+    if (Math.random() < chance) this.spawn(this.pickDef(), pos, true, lesson);
+  }
+
+  // true when a mushroom thrown from pos at angle a and speed sp lands inside a placed tool, out of the player's reach
+  private landsInTool(pos: THREE.Vector3, a: number, sp: number): boolean {
+    const t = (9 + Math.sqrt(81 + 40 * pos.y)) / 20; // flight time: up at 9 m/s, gravity 20, down to y 0
+    const x = pos.x + Math.cos(a) * sp * t;
+    const z = pos.z + Math.sin(a) * sp * t;
+    return ctx.machines.list.some((m) => {
+      const b = MACHINE_BOX[m.type];
+      return !!b && Math.hypot(m.pos.x - x, m.pos.z - z) < Math.max(b.half[0], b.half[2]) + 0.3;
+    });
   }
 
   pickDef(): MushroomDef {
@@ -52,7 +66,7 @@ export class Mushrooms {
     return MUSHROOMS[0];
   }
 
-  spawn(def: MushroomDef, pos: THREE.Vector3, fromHole: boolean): void {
+  spawn(def: MushroomDef, pos: THREE.Vector3, fromHole: boolean, clearOfTools = false): void {
     if (this.list.length > 25) return;
     const mesh = new THREE.Mesh(this.geos.get(def.id)!, this.mat);
     mesh.position.copy(pos);
@@ -64,8 +78,10 @@ export class Mushrooms {
     glow.position.y = 0.3;
     mesh.add(glow);
     ctx.scene.add(mesh);
-    const a = rand(0, Math.PI * 2);
+    let a = rand(0, Math.PI * 2);
     const sp = fromHole ? rand(4, 7) : 0;
+    // the lesson mushroom turns by 45 degrees until it lands clear of the tools (8 tries cover the circle)
+    for (let i = 0; clearOfTools && i < 8 && this.landsInTool(pos, a, sp); i++) a += Math.PI / 4;
     this.list.push({ def, mesh, vel: new THREE.Vector3(Math.cos(a) * sp, fromHole ? 9 : 0, Math.sin(a) * sp), age: 0, glow, spin: 0 });
   }
 
@@ -93,6 +109,8 @@ export class Mushrooms {
       m.mesh.visible = blink;
       const d = Math.hypot(m.mesh.position.x - pp.x, m.mesh.position.z - pp.z);
       if (d < 1.6 && Math.abs(m.mesh.position.y - (pp.y - 1)) < 1.8) {
+        // counted here, not in buffs.apply: the BOOZE code must not pass the mushroom lesson
+        ctx.state.stats.mushrooms++;
         ctx.buffs.apply(m.def.id);
         ctx.fx.burst(m.mesh.position.clone().setY(0.5), m.def.cap, 30);
         this.removeAt(i);

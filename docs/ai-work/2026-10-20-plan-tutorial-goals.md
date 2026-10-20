@@ -403,6 +403,7 @@ Crate ($70) and Trampoline ($100) unlock at hole level 1 (`src/data/upgrades.ts:
 33. `npx tsc --noEmit` → clean.
 
 ### Decisions for PP
+PP (2026-10-20 23:00, Slack via hub, verbatim): "9. Od pierwszej minuty, grzybek pewny." → lessons start from the first minute (option b, not from hole level 2), and the lesson mushroom is guaranteed (option a). Remaining items in this block: take the recommendation.
 1. Lekcje (grzybek, typy gnomów, tricki) zaczynają się dopiero po celu „Reach hole level 2". a) tak, wtedy na poziomie 1 gracz widzi jedną linię celu: zrób, złap, nakarm, monety, combo 5, sklep, poziom 2; b) lekcje od razu po „Collect coins", wtedy od pierwszej minuty są dwie linie celów naraz, a grzybki i chciwe gnomy i tak zaczynają się na poziomie 2. (rekomendacja: a)
 2. Gdy lekcja o grzybkach jest aktywna, a na trawie nie leży żaden grzybek, następny zjedzony gnom na pewno wypluwa grzybka. a) tak, wtedy lekcja trwa kilka sekund i gracz od razu widzi, co robi grzybek; b) nie, losowo jak dziś, wtedy gracz czeka średnio 40 gnomów, czyli cały poziom 2. (rekomendacja: a)
 3. [spec silent] Zakładam: SNIPER, STRIKE, salwa (VOLLEY), nastroje dziury, parada i OVERTIME nie dostają lekcji | Dowód: `hole.ts:99-104` SNIPER liczy się w `longShots`, STRIKE i salwa nie mają licznika w `state.ts:31-51`, salwa wymaga Magnet Gun | Jeśli źle: gracz pozna te mnożniki tylko z napisów w grze i legendy | rekomendacja: a) bez lekcji (odpowiedź tylko, gdy PP chce inaczej)

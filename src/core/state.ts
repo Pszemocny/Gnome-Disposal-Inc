@@ -48,6 +48,8 @@ export interface GameState {
     airShots: number;
     bullseyes: number;
     hauls: number;
+    heavies: number; // heavy or massive gnomes eaten, any feeder
+    trickShots: number; // player throws that bounced off a trampoline into the hole
   };
   goal: number;
   goalBase: number;
@@ -98,6 +100,8 @@ export function freshState(keep?: GameState): GameState {
       airShots: 0,
       bullseyes: 0,
       hauls: 0,
+      heavies: 0,
+      trickShots: 0,
     },
     goal: keep?.goal ?? 0,
     goalBase: keep?.goalBase ?? 0,

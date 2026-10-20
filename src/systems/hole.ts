@@ -118,6 +118,7 @@ export class Hole {
         trick *= 3;
         bonus += TRICK_BONUS.trick;
         tricks.push('TRICK x3');
+        s.stats.trickShots++;
       }
     }
     if (g.bullseye) {
@@ -132,6 +133,7 @@ export class Hole {
       tricks.push('HEAVY HAUL');
       s.stats.hauls++;
     }
+    if (g.tier.id !== 'normal') s.stats.heavies++;
     // a perfect shot must not break the economy
     const volley = g.throwPos && g.thrownBy === 'player' && g.volley && g.volley.n > 1 ? g.volley : null;
     const cap = volley ? VOLLEY_CAP : TRICK_CAP;
@@ -511,8 +513,8 @@ export class Hole {
     next.shards = old.shards + shards;
     next.stats.rebirths++;
     next.runEatenStart = next.stats.gnomesEaten;
-    next.goal2 = old.goal2;
-    next.goalBase2 = old.goalBase2;
+    next.goalsDone = old.goalsDone;
+    next.goalStart = old.goalStart;
     const startLvl = deep('dStart');
     next.money = startLvl > 0 ? 100 * Math.pow(3, startLvl) : 0;
     if (deep('dTools')) {
