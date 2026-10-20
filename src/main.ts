@@ -105,9 +105,11 @@ async function boot(): Promise<void> {
   // the gun is the default gear once owned (gear itself is not saved)
   if (lvl('magGun')) ctx.player.setGear('magGun');
 
+  // RESUME in the pause menu works like Esc there: a refused lock still resumes with a free cursor
   const menu = new Menu(() => {
     ctx.audio.ensure();
-    ctx.input.lock();
+    if (started) resume();
+    else ctx.input.lock();
   });
   menu.show('title');
   ctx.leaderboard = new Leaderboard();
@@ -115,22 +117,28 @@ async function boot(): Promise<void> {
   // the shop, the blueprints panel and the legend pause the game and free the pointer themselves
   const overlayOpen = () => ctx.shop.isOpen || ctx.blueprints.isOpen || ctx.legend.isOpen || ctx.leaderboard.isOpen;
 
-  // Chromium refuses pointer lock without a click after the player left it with Esc: one click here resumes
-  const clickToPlay = document.createElement('div');
-  clickToPlay.className = 'click-to-play hidden';
-  clickToPlay.textContent = 'Click to play';
-  document.body.appendChild(clickToPlay);
-  clickToPlay.addEventListener('click', () => ctx.input.lock());
-  const showClickToPlay = () => {
-    ctx.paused = true;
-    ctx.hud.root.classList.add('dim');
-    clickToPlay.classList.remove('hidden');
+  let lastExit = 0;
+  // the browser refuses pointer lock without a click after an Esc exit: the game runs with a free cursor and this hint
+  // until a press of any mouse button or a walk key captures it
+  const mouseHint = document.createElement('div');
+  mouseHint.className = 'click-to-play hidden';
+  mouseHint.textContent = 'Click or press W to capture the mouse';
+  document.body.appendChild(mouseHint);
+  const showMouseHint = () => mouseHint.classList.remove('hidden');
+  const resume = () => {
+    menu.hide();
+    mouseHint.classList.add('hidden');
+    ctx.paused = false;
+    ctx.hud.root.classList.remove('dim');
+    ctx.input.lock();
   };
 
+  // a grant that lands after an overlay opened or after the player paused again is released, the game stays paused
   ctx.input.onLockChange = (locked) => {
     if (locked) {
+      if (overlayOpen() || !ctx.input.wanted || document.querySelector('.deep')) return ctx.input.unlock();
       menu.hide();
-      clickToPlay.classList.add('hidden');
+      mouseHint.classList.add('hidden');
       ctx.paused = false;
       ctx.hud.root.classList.remove('dim');
       if (!started) {
@@ -140,32 +148,42 @@ async function boot(): Promise<void> {
           setTimeout(() => ctx.hud.toast('Follow the GOAL panel in the top left corner.', 'info'), 800);
         }
       }
-    } else if (!overlayOpen() && !document.querySelector('.deep')) showPause();
+    } else {
+      lastExit = performance.now();
+      if (!overlayOpen() && !document.querySelector('.deep')) showPause();
+    }
   };
 
   const showPause = () => {
+    ctx.input.wanted = false;
     ctx.paused = true;
     ctx.hud.root.classList.add('dim');
-    clickToPlay.classList.add('hidden');
+    mouseHint.classList.add('hidden');
     menu.show(started ? 'pause' : 'title');
   };
-  // a refused lock outside the menus (Esc in the pause menu, closing the shop) asks for one click, never opens the pause menu
+  // a refused lock outside the menus (Esc in the pause menu, closing an overlay) keeps the game running with a free
+  // cursor and shows the hint, never the pause menu
   ctx.input.onLockError = () => {
-    if (!overlayOpen() && !ctx.input.locked && !menu.visible) showClickToPlay();
+    if (!overlayOpen() && !ctx.input.locked && !menu.visible) showMouseHint();
   };
-  // Esc toggles: pause menu → game, click-to-play → pause menu. The shop handles its own Esc (preventDefault).
+  const WALK_KEYS = new Set(['KeyW', 'KeyA', 'KeyS', 'KeyD', 'Space', 'ShiftLeft', 'ShiftRight']);
+  // Esc: locked → unlock (pause via onLockChange); pause menu → resume at once; free cursor → pause. Repeats ignored
+  // (held Esc must not toggle). The 200 ms guard skips the exiting Esc when a browser delivers it after
+  // pointerlockchange. Overlays handle their own Esc (preventDefault).
   window.addEventListener('keydown', (e) => {
-    if (e.code !== 'Escape' || e.defaultPrevented || overlayOpen() || document.querySelector('.deep')) return;
-    // the key reaches the page while locked only where the browser lets it (headless, keyboard lock); Brave exits the lock itself
+    // repeats on purpose: a held W retries across the browser's short refusal window after an Esc exit
+    if (!ctx.paused && !ctx.input.locked && !menu.visible && !overlayOpen() && WALK_KEYS.has(e.code)) ctx.input.lock();
+    if (e.code !== 'Escape' || e.repeat || e.defaultPrevented || overlayOpen() || document.querySelector('.deep')) return;
     if (ctx.input.locked) ctx.input.unlock();
-    else if (!clickToPlay.classList.contains('hidden')) showPause();
-    else if (menu.visible && started) {
-      menu.hide();
-      showClickToPlay();
-      ctx.input.lock();
-    }
+    else if (menu.visible && started && performance.now() - lastExit > 200) resume();
+    else if (!ctx.paused) showPause();
   });
-  renderer.domElement.addEventListener('click', () => {
+  // while locked the browser drops the lock itself on blur and onLockChange pauses
+  window.addEventListener('blur', () => {
+    if (started && !ctx.paused && !ctx.input.locked) showPause();
+  });
+  // any mouse button captures a free cursor; Input's own mousedown (registered first) ignores it while unlocked
+  renderer.domElement.addEventListener('mousedown', () => {
     if (!ctx.input.locked && !menu.visible && !overlayOpen()) ctx.input.lock();
   });
 
@@ -273,6 +291,8 @@ async function boot(): Promise<void> {
       ctx.player.update(0);
     }
     ctx.hud.update(realDt);
+    // a free cursor while playing (refused lock after Esc) must not sit over the crosshair; menus and overlays pause
+    canvas.style.cursor = ctx.paused ? '' : 'none';
     canvas.style.filter = ctx.buffs.active('booze') ? `hue-rotate(${Math.sin(ctx.time * 0.8) * 40}deg) saturate(1.5) blur(${0.6 + Math.sin(ctx.time * 2) * 0.4}px)` : '';
     // menus are DOM over the canvas: one frozen frame is enough while paused
     if (!ctx.paused || redraw) {

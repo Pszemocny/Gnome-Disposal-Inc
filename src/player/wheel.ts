@@ -28,9 +28,9 @@ export class ToolWheel {
   timeScale = 1;
 
   // Game speed for this frame; `real` is the unscaled frame time, so the slow-down does not slow itself.
-  // Also closes the wheel (no selection) when the game is paused or the mouse is unlocked.
+  // Also closes the wheel (no selection) when the game pauses.
   slow(real: number): number {
-    if (this.open && (!ctx.input.locked || ctx.paused)) this.close();
+    if (this.open && ctx.paused) this.close();
     // full speed again about 0.3 s after release
     this.timeScale = THREE.MathUtils.damp(this.timeScale, this.open ? SLOW : 1, 16, real);
     if (!this.open && this.timeScale > 0.99) this.timeScale = 1;
@@ -43,7 +43,7 @@ export class ToolWheel {
     this.timeScale = 1;
   }
 
-  // While active (locked, not paused): Tab opens, the mouse picks, releasing Tab takes the slice.
+  // While playing (not paused; the mouse may be free): Tab opens, the mouse picks, releasing Tab takes the slice.
   update(pl: Player): void {
     const inp = ctx.input;
     if (!this.open) {

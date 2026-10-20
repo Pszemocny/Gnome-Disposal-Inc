@@ -5,7 +5,11 @@ export class Input {
   pressed = new Set<string>(); // keys pressed this frame
   mouse = { left: false, right: false, leftPressed: false, rightPressed: false, dx: 0, dy: 0, wheel: 0 };
   locked = false;
+  // set by lock(), cleared by main's showPause(); a grant that arrives after the player paused again is released
+  wanted = false;
   typed = '';
+  // Blink reports the whole outside jump as movementX on the first move after re-entry
+  private skipMove = false;
   onLockChange: (locked: boolean) => void = () => {};
   onLockError: () => void = () => {};
 
@@ -37,13 +41,21 @@ export class Input {
       if (e.button === 2) this.mouse.right = false;
     });
     canvas.addEventListener('contextmenu', (e) => e.preventDefault());
+    // movementX works without the lock; the player gates on `ctx.paused`
+    document.addEventListener('mouseout', (e) => {
+      if (!e.relatedTarget) this.skipMove = true;
+    });
+    document.documentElement.addEventListener('mouseenter', () => (this.skipMove = true));
     window.addEventListener('mousemove', (e) => {
-      if (!this.locked) return;
+      if (this.skipMove) {
+        this.skipMove = false;
+        return;
+      }
       this.mouse.dx += e.movementX * prefs.sensitivity;
       this.mouse.dy += e.movementY * prefs.sensitivity * (prefs.invertY ? -1 : 1);
     });
     window.addEventListener('wheel', (e) => {
-      if (this.locked) this.mouse.wheel += Math.sign(e.deltaY);
+      this.mouse.wheel += Math.sign(e.deltaY);
     });
     document.addEventListener('pointerlockchange', () => {
       this.locked = document.pointerLockElement === this.canvas;
@@ -55,6 +67,7 @@ export class Input {
   }
 
   lock(): void {
+    this.wanted = true;
     try {
       const p = this.canvas.requestPointerLock() as unknown as Promise<void> | undefined;
       p?.catch?.(() => this.onLockError());

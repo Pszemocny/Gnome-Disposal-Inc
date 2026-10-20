@@ -393,7 +393,7 @@ export class Player {
     const inp = ctx.input;
     this.frameDt = dt;
     // while placing, RMB + mouse rotates the tool instead of the camera; the open tool wheel takes the mouse
-    if (inp.locked && !(this.placing && inp.mouse.right) && !this.wheel.open) {
+    if (!ctx.paused && !(this.placing && inp.mouse.right) && !this.wheel.open) {
       // the sensitivity slider is applied to the mouse deltas in input.ts (settings cookie)
       const sens = 0.0022;
       this.yaw -= inp.mouse.dx * sens;
@@ -404,7 +404,7 @@ export class Player {
     if (gear !== 'hands' && !lvl(gear)) this.setGear('hands');
     this.move(dt);
     this.updateLook();
-    const active = inp.locked && !ctx.paused;
+    const active = !ctx.paused;
     if (active) {
       this.wheel.update(this);
       if (this.placing) this.updatePlacement();
@@ -432,10 +432,10 @@ export class Player {
     const right = new THREE.Vector3(-fwd.z, 0, fwd.x);
     const wish = fwd.multiplyScalar(f).add(right.multiplyScalar(s));
     if (wish.lengthSq() > 0) wish.normalize().multiplyScalar(speed);
-    if (!inp.locked || ctx.paused) wish.set(0, 0, 0);
+    if (ctx.paused) wish.set(0, 0, 0);
 
     if (this.grounded) this.jumps = 0;
-    if (inp.hit('Space') && inp.locked) {
+    if (inp.hit('Space') && !ctx.paused) {
       const jumpV = 7.8 * (1 + lvl('jump') * 0.15) * (zoom ? 1.35 : 1);
       if (this.grounded) {
         this.vy = jumpV;

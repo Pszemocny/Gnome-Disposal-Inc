@@ -57,7 +57,7 @@ export class Pound {
     }
     // J, not Ctrl: Ctrl held while pressing W closes the browser tab (Ctrl+W), and a page cannot block that
     const ctrl = inp.hit('KeyJ');
-    if (ctrl && !grounded && !onTractor && this.cd <= 0 && inp.locked && !ctx.paused) {
+    if (ctrl && !grounded && !onTractor && this.cd <= 0 && !ctx.paused) {
       this.phase = 'wind';
       this.t = WIND_T;
       ctx.audio.whoosh();

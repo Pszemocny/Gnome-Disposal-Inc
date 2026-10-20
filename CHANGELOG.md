@@ -2,6 +2,10 @@
 
 Newest build first. Each build lists what changed and what to test. Shown in the start menu (button "What's new").
 
+## 2026-10-20 22:50
+
+- Esc takes you straight back into the game: one Esc in the pause menu resumes, one Esc in the shop (also blueprints and legend) closes it and you can walk at once. No more "Click to play" screen. When the browser does not give the mouse back right away, the game still runs and a small "Click or press W to capture the mouse" note shows under the hole bar; until then the mouse turns the view only up to the window edge (leaving the window and coming back does not spin the view), and the first click (any button) only captures the mouse (it does not throw). RESUME in the pause menu works like Esc. The Tab tool wheel works then too, and switching to another window pauses the game. Test: press Esc in the game, then Esc in the pause menu and walk with W; open the shop with B, press Esc and walk; hold Esc for a second in the shop.
+
 ## 2026-10-20 21:46
 
 - The game is now called Gnome Disposal Inc.: new logo in the start menu and new browser tab title. Your save, blueprints and leaderboard stay. Test: open the game, check the logo and the tab title, press Continue and check your money is still there.

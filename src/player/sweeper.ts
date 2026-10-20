@@ -91,7 +91,7 @@ export class Sweeper {
     return lvl('magGun') ? 'magGun' : null;
   }
 
-  // `active`: input locked and not paused, the only time anything is pushed.
+  // `active`: not paused (the mouse may be free), the only time anything is pushed.
   update(dt: number, pl: Player, active: boolean): void {
     fwd.set(-Math.sin(pl.yaw), 0, -Math.cos(pl.yaw));
     const fs = pl.vel.x * fwd.x + pl.vel.z * fwd.z;

@@ -159,7 +159,7 @@ export class Factory {
     const p = ctx.player.position;
     this.near = Math.hypot(p.x - this.pos.x, p.z - this.pos.z) < 4.5;
     // E on the lever flips it and must not crank
-    const holding = this.near && ctx.input.locked && ctx.input.down('KeyE') && !ctx.player.lookAt.switch;
+    const holding = this.near && !ctx.paused && ctx.input.down('KeyE') && !ctx.player.lookAt.switch;
     this.animLever(dt);
     this.jammed = ctx.gnomes.list.length >= ctx.gnomes.maxGnomes;
     this.rush = Math.max(0, this.rush - dt);
