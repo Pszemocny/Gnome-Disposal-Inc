@@ -14,3 +14,7 @@ PP (2026-10-21, Slack): "gnomy nie mają dawać dużo grzybków to ma być combo
 
 - `tools/smoke/scenario-small-batch.js` D20: with the random/lesson drop stubbed, crossing combo 5, 15, 30, 60, 100, 200 spawns mushrooms exactly at `[15,30,60,100,200]`. The C1/C2 drop-count helper now resets the combo before each eaten gnome, so combo mushrooms do not mix into the per-gnome drop counts.
 - small-batch with `URL_QUERY='' FAKELOCK=1`: 61 PASS, 0 FAIL, `LOGS:` empty. `npx tsc --noEmit -p .` clean.
+
+## Side change: mouse-jump log only while captured
+
+PP (2026-10-21) agreed to stop logging mouse jumps while the cursor is free: all 12 rows in `public.errors` were `mouse-jump` with `locked:false`, which never turn the camera. `src/main.ts` now notes a jump only when `locked` is true. tsc clean.

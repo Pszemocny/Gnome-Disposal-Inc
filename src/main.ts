@@ -301,7 +301,8 @@ async function boot(): Promise<void> {
     // measurement for the factory mouse jump (PP 2026-10-20): `tail logs/errors.log` after a 5300 session, or the
     // browser console ("[gnome] mouse-jump", "[gnome] slow-frame") on GitHub Pages
     const shake = +ctx.fx.shakeLevel.toFixed(2);
-    for (const j of ctx.input.jumps.splice(0)) note(`mouse-jump ${JSON.stringify({ ...j, dt: +rawDt.toFixed(3), near: ctx.factory.near, paused: ctx.paused, shake })}`);
+    // only while the mouse is captured: a free cursor does not turn the camera, so its jumps only fill the log (PP 2026-10-21)
+    for (const j of ctx.input.jumps.splice(0)) if (j.locked) note(`mouse-jump ${JSON.stringify({ ...j, dt: +rawDt.toFixed(3), near: ctx.factory.near, paused: ctx.paused, shake })}`);
     // a paused frame says nothing about a jump in play, and `near` is not updated while paused
     if (!ctx.paused && ctx.factory.near && rawDt > 0.1 && slowNotes < 5) {
       slowNotes++;
