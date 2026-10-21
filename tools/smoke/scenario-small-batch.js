@@ -265,7 +265,7 @@ setTimeout(() => { if (!window.__done) window.__done = JSON.stringify({ ...R, ch
         Math.random = () => r;
         try { drop0(pos, bonus); } finally { Math.random = rnd; }
       };
-      const eatN = async (type, n) => { seqI = 0; drops = 0; bonuses.length = 0; for (let i = 0; i < n; i++) { const x = spawnAt(type, new V3(0, -10, 0)); if (x) g.hole.consume(x); } return { drops, bonuses: [...new Set(bonuses)] }; };
+      const eatN = async (type, n) => { seqI = 0; drops = 0; bonuses.length = 0; for (let i = 0; i < n; i++) { const x = spawnAt(type, new V3(0, -10, 0)); if (x) { g.hole.combo = 0; g.hole.consume(x); } } return { drops, bonuses: [...new Set(bonuses)] }; };
       clearGnomes();
       const classic = await eatN('classic', 200);
       const golden = await eatN('golden', 200);
@@ -420,6 +420,18 @@ setTimeout(() => { if (!window.__done) window.__done = JSON.stringify({ ...R, ch
       Object.assign(C, { current: null, leaving: true, wait: 1e9 });
       U().frenzy = 0;
       ok('D18', run0 === 'haul' && lv18 === 1 && run1 === 'haul' && !toasts.includes('Contract failed'), `before ${run0} frenzy ${lv18} after ${run1} toasts ${JSON.stringify(toasts)}`);
+      // D20: every big combo text (15, 30, 60, 100, 200) spits one mushroom, Nice! (5) does not (PP 2026-10-21 "C")
+      {
+        const sp = g.mushrooms.spawn.bind(g.mushrooms); const at = [];
+        g.mushrooms.spawn = (def, pos, ...r) => { at.push(g.hole.combo); return sp(def, pos, ...r); };
+        const md = g.mushrooms.maybeDrop; g.mushrooms.maybeDrop = () => {}; // no random or lesson drops
+        for (const to of [5, 15, 30, 60, 100, 200]) {
+          g.hole.combo = to - 1; g.hole.comboTimer = 5; g.buffs.timers.delete('combo');
+          g.hole.consume(spawnAt('classic', ahead(3, 0, 0.5), { awake: false }));
+        }
+        g.mushrooms.maybeDrop = md; g.mushrooms.spawn = sp; g.hole.combo = 0;
+        ok('D20', JSON.stringify(at) === '[15,30,60,100,200]', `mushrooms at combo ${JSON.stringify(at)}`);
+      }
       // D15: lesson 4 completes once with Frenzy 5
       const st = S(); const gd0 = st.goalsDone; st.goalsDone = ['coins']; st.goalStart = {};
       const goals = new Goals(); g.goals = goals;

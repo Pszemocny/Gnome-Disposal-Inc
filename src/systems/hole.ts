@@ -196,6 +196,8 @@ export class Hole {
         if (n === 60 || n === 100) ctx.audio.rumble(0.3);
         ctx.fx.shake(Math.min(0.15 + n / 200, 0.6));
         this.startRays(color);
+        // every big combo text spits one mushroom, no upgrade needed (PP 2026-10-21 "C")
+        if (n >= 15) ctx.mushrooms.spawn(ctx.mushrooms.pickDef(), this.holeOrigin.clone().setY(0.5), true, true);
       }
     }
     if (lvl('jackpot') && Math.floor(before / 25) < Math.floor(this.combo / 25)) {
