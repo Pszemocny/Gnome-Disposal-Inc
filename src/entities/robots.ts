@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { ctx, lvl, savePose } from '../core/context';
+import { ctx, G, lvl, savePose } from '../core/context';
 import { inQuad, outBack, outCubic } from '../core/ease';
 import { build, robotBedGeometry, robotGeometry, vcMat } from '../world/models';
 import { isFree, type Gnome } from './gnomes';
@@ -111,6 +111,15 @@ export function robotVisual(): { root: THREE.Group; bed: THREE.Object3D } {
 
 // Called by Machines.place: state, the home post with its area ring, an upright body.
 export function initRobot(m: Machine): void {
+  // a post placed from the air (far G move, no surface under the crosshair) lands on the ground or on the tool
+  // under it; old saves with a hovering y get grounded here too
+  const from = { x: m.pos.x, y: m.pos.y + 0.3, z: m.pos.z };
+  const hit = ctx.physics.castRay(new ctx.R.Ray(from, { x: 0, y: -1, z: 0 }), 30, true, undefined, undefined, undefined, m.body,
+    (col) => ((col.collisionGroups() >>> 16) & (G.GROUND | G.STATIC)) !== 0);
+  if (hit) {
+    m.pos.y = from.y - hit.timeOfImpact;
+    m.body.setTranslation({ x: m.pos.x, y: m.pos.y + 0.02, z: m.pos.z }, true);
+  }
   const marker = new THREE.Group();
   marker.add(new THREE.Mesh(build([
     { g: new THREE.CylinderGeometry(0.05, 0.06, 1.1, 8), c: 0xd8dce0, p: [0, 0.55, 0] },

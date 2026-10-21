@@ -140,6 +140,7 @@ Decyzje:
 - Gnomy w powietrzu (rzucone, odbite, dmuchnięte) ignoruje, aż wylądują.
 - Dziura przykrywająca posterunek: robot sam przesuwa posterunek za krawędź. Wpadnięcie do dziury: wraca na posterunek z ładunkiem. Zepsuty: stoi. X zabiera robota (ładunek wysypuje się przy posterunku).
 - Ceny: 12 robotów łącznie ok. $30k (pierwsze 4: $2,5k).
+- (PP, 2026-10-24: „po przeniesieniu robota jego obszar nie rysuje sie”) Posterunek i pierścień obszaru zawsze stoją na ziemi albo na narzędziu pod nimi, także gdy robota postawiono celując daleko przed siebie, i w starym zapisie: bo taki posterunek wisiał w powietrzu, a pierścień był widoczny tylko z boku jako cienka kreska.
 
 Decyzje:
 - (PP, 2026-10-20) Roboty sprzątające, które w obszarze zbierają gnomy na pakę i wywracają do dziury; „niech nie będą super drogie”.

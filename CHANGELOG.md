@@ -2,6 +2,10 @@
 
 Newest build first. Each build lists what changed and what to test. Shown in the start menu (button "What's new").
 
+## 2026-10-25 12:00
+
+- A moved robot's area ring shows again: its post now always lands on the ground, even when you place it aiming far ahead.
+
 ## 2026-10-24 18:00
 
 - You can now own up to 20 Cooling Fans, and they are cheaper per fan than before. Big Blades, a new fan upgrade, makes every fan blow harder.
