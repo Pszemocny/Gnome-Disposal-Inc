@@ -1,17 +1,21 @@
 -- Shared online leaderboard (Supabase). Paste into SQL Editor and run once.
 -- guard: per board 30/min + all boards 2000 per 24 h + today/yesterday + key
 -- Replace __SALT__ only in the SQL Editor after pasting (value of the GitHub variable VITE_SUPABASE_SALT); never in this file: the repo is public.
--- Changing the guard later: run only the "create or replace function" block and new "create index if not exists" lines (create table runs once).
+-- Changing the guard later: run only the "create or replace function" block and new "create index if not exists" lines (create table runs once);
+-- re-creating the function needs the salt again.
+-- name = a first name or nickname only (PP 2026-10-24), never a full official name; board speed = unpaused seconds to hole level 12.
+-- The game's own name rule is stricter (letters, digits, spaces, . _ - '); the database guards only size and markup.
 
 create table public.scores (
   id bigint generated always as identity primary key,
-  first_name text not null check (char_length(first_name) between 1 and 24 and btrim(first_name) <> '' and first_name !~ '[<>[:cntrl:]]'),
-  last_name  text not null check (char_length(last_name)  between 1 and 24 and btrim(last_name)  <> '' and last_name  !~ '[<>[:cntrl:]]'),
+  name text not null constraint scores_name_check check (char_length(name) between 1 and 20 and btrim(name) <> '' and name !~ '[<>[:cntrl:]]'),
   score double precision not null check (score >= 0 and score < 1e300),
   level smallint not null check (level between 1 and 99),
-  board text not null default 'main' check (board ~ '^(main|daily-\d{4}-\d{2}-\d{2})$'),
+  board text not null default 'main' constraint scores_board_check check (board ~ '^(main|speed|daily-\d{4}-\d{2}-\d{2})$'),
   key text not null,
-  created_at timestamptz not null default now()
+  created_at timestamptz not null default now(),
+  -- a guard against nonsense rows, not a skill rule: 20 gnomes/s machine-fed with every XP upgrade is about 24 XP/s, 11 305 XP takes 470 s
+  constraint scores_speed_check check (board <> 'speed' or (level = 12 and score >= 120))
 );
 create index scores_board_score on public.scores (board, score desc);
 create index scores_board_created on public.scores (board, created_at);
@@ -20,7 +24,7 @@ create index if not exists scores_created on public.scores (created_at);
 alter table public.scores enable row level security;
 revoke all on table public.scores from anon, authenticated;
 -- no select on id or key: the browser must always name its columns
-grant select (first_name, last_name, score, level, board, created_at), insert (first_name, last_name, score, level, board, key) on public.scores to anon;
+grant select (name, score, level, board, created_at), insert (name, score, level, board, key) on public.scores to anon;
 create policy "anyone can read scores" on public.scores for select to anon using (true);
 create policy "anyone can add a score" on public.scores for insert to anon with check (true);
 
@@ -34,7 +38,7 @@ declare
   yday  text := to_char((now() at time zone 'utc') - interval '1 day', 'YYYY-MM-DD');
   msg   text := encode(float8send(new.score), 'hex') || '|' || new.board || '|';
 begin
-  if new.board <> 'main' and new.board not in ('daily-' || today, 'daily-' || yday) then
+  if new.board like 'daily-%' and new.board not in ('daily-' || today, 'daily-' || yday) then
     raise exception 'daily board must be today or yesterday (UTC)';
   end if;
   -- yesterday too: a score sent just after midnight UTC still passes

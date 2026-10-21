@@ -17,6 +17,13 @@ export function num(v: number): string {
   return money(v).replace('$', '');
 }
 
+// h:mm:ss, hours unbounded (a long run can pass 24 h)
+export function clock(t: number): string {
+  const s = Math.floor(t);
+  const two = (n: number) => String(n).padStart(2, '0');
+  return `${Math.floor(s / 3600)}:${two(Math.floor(s / 60) % 60)}:${two(s % 60)}`;
+}
+
 export function secs(t: number): string {
   return Math.ceil(t) + 's';
 }

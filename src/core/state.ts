@@ -58,6 +58,8 @@ export interface GameState {
   seenIntro: boolean;
   seenHints: string[]; // tool / gear ids whose first-use hint was shown
   factoryAuto: boolean; // the lever beside the factory: false switches Auto Crank off
+  runTime: number; // unpaused real seconds of this run (FASTEST LVL 12 board)
+  maxLevelAt: number | null; // runTime when the hole reached MAX_HOLE_LEVEL in this run
 }
 
 // keeps the game's old slug on purpose: a new key would wipe existing saves (same for the other storage keys)
@@ -112,6 +114,8 @@ export function freshState(keep?: GameState): GameState {
     seenIntro: keep?.seenIntro ?? false,
     seenHints: keep?.seenHints ?? [],
     factoryAuto: true,
+    runTime: 0,
+    maxLevelAt: null,
   };
 }
 
@@ -151,6 +155,8 @@ export function loadState(): GameState {
       ...parsed,
       stats: { ...base.stats, ...(parsed.stats ?? {}) },
       settings: base.settings,
+      // a save from before the run clock: its total play time (exact on the first run, slower after a rebirth)
+      runTime: parsed.runTime ?? parsed.stats?.playTime ?? 0,
     };
   } catch {
     return freshState();

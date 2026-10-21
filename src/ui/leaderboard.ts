@@ -1,21 +1,22 @@
 import { ctx } from '../core/context';
-import { money } from '../core/format';
+import { clock, money } from '../core/format';
+import { MAX_HOLE_LEVEL } from '../data/holeLevels';
 import { daily } from '../systems/daily';
 
 const KEY = 'gnome-boozed-leaderboard';
 const KEEP = 50; // entries kept in storage
 const SHOW = 10; // rows on the board
-const MAX_NAME = 24;
-// letters of any alphabet (Polish diacritics too), spaces, hyphen, apostrophe; at least one letter
-const NAME = /^(?=.*\p{L})[\p{L}\p{M} '’-]+$/u;
+const MAX_NAME = 20; // PP 2026-10-24: a first name or nickname, at most 20 characters
+// letters of any alphabet (Polish diacritics too), digits, spaces, . _ - '; at least one letter or digit
+const NAME = /^(?=.*[\p{L}\p{N}])[\p{L}\p{M}\p{N} ._'’-]+$/u;
+const SPEED = 'speed'; // FASTEST LVL 12: score = runTime in seconds, lower is better
 
 export interface Entry {
-  first: string;
-  last: string;
-  score: number; // money earned in the run (state.totalEarned)
+  name: string; // a first name or nickname, never a full official name (PP 2026-10-24)
+  score: number; // money earned in the run (state.totalEarned); seconds to hole level 12 on the speed board
   level: number; // hole level
   at: number; // Date.now() locally, created_at online
-  board?: string; // 'main' (missing in old entries) or 'daily-YYYY-MM-DD'
+  board?: string; // 'main' (missing in old entries), 'speed' or 'daily-YYYY-MM-DD'
 }
 
 // swap point for a shared board (PP's decision: BOARD "Pytania do PP na rano", question 1)
@@ -32,12 +33,18 @@ const W_REJECT = 'The online board rejected this score: saved on this computer o
 const W_MAYBE = 'The online board did not answer in time: the score is saved on this computer and might have reached the online board too.';
 const W_CLOCK = "The online board rejected this score: check your computer's date and time. Saved on this computer only.";
 const TIMEOUT_MS = 6000;
-const COLS = 'first_name,last_name,score,level,board,created_at';
+const COLS = 'name,score,level,board,created_at';
 
-const byScore = (a: Entry, b: Entry) => b.score - a.score;
-const isEntry = (e: Entry) =>
-  !!e && typeof e.first === 'string' && typeof e.last === 'string' && Number.isFinite(e.score) && Number.isFinite(e.level) && Number.isFinite(e.at);
+const isEntry = (e: Entry) => !!e && typeof e.name === 'string' && Number.isFinite(e.score) && Number.isFinite(e.level) && Number.isFinite(e.at);
 const boardOf = (e: Entry) => e.board ?? 'main';
+const rank = (e: Entry) => (boardOf(e) === SPEED ? e.score : -e.score);
+const byRank = (a: Entry, b: Entry) => rank(a) - rank(b);
+// entries saved before 2026-10-24 have first and last instead of name: shown as typed, rewritten on the next submit
+const legacy = (e: Entry & { first?: unknown; last?: unknown }): Entry => {
+  if (!e || e.name !== undefined || typeof e.first !== 'string') return e;
+  const { first, last, ...rest } = e;
+  return { ...rest, name: [first, last].filter(Boolean).join(' ') };
+};
 const DAILY_BOARDS = 7; // daily boards kept: the newest dates
 const HOME = daily.active ? daily.board : 'main'; // this page's board
 
@@ -45,7 +52,7 @@ export class LocalStore implements LeaderboardStore {
   private all(): Entry[] {
     try {
       const v = JSON.parse(localStorage.getItem(KEY) ?? '[]');
-      if (Array.isArray(v)) return v.filter(isEntry).sort(byScore);
+      if (Array.isArray(v)) return v.map(legacy).filter(isEntry).sort(byRank);
     } catch {
       // a broken entry reads as an empty board
     }
@@ -57,10 +64,10 @@ export class LocalStore implements LeaderboardStore {
   }
 
   async submit(e: Entry): Promise<void> {
-    const all = [...this.all(), e].sort(byScore);
+    const all = [...this.all(), e].sort(byRank);
     // 'daily-YYYY-MM-DD' sorts by date
     const daily = [...new Set(all.map(boardOf).filter((b) => b.startsWith('daily-')))].sort().reverse();
-    const keep = new Set(['main', ...daily.slice(0, DAILY_BOARDS)]);
+    const keep = new Set(['main', SPEED, ...daily.slice(0, DAILY_BOARDS)]);
     const count = new Map<string, number>();
     const kept = all.filter((x) => {
       const b = boardOf(x);
@@ -120,11 +127,12 @@ export class RemoteStore implements LeaderboardStore {
 
   async list(board = 'main'): Promise<Entry[]> {
     try {
-      const r = await this.call(`scores?select=${COLS}&board=eq.${encodeURIComponent(board)}&order=score.desc&limit=${SHOW}`);
+      const order = board === SPEED ? 'asc' : 'desc';
+      const r = await this.call(`scores?select=${COLS}&board=eq.${encodeURIComponent(board)}&order=score.${order}&limit=${SHOW}`);
       const rows: Record<string, unknown>[] = await r.json();
       this.warning = null;
       return rows
-        .map((x) => ({ first: x.first_name, last: x.last_name, score: x.score, level: x.level, board: x.board, at: Date.parse(String(x.created_at)) }) as Entry)
+        .map((x) => ({ name: x.name, score: x.score, level: x.level, board: x.board, at: Date.parse(String(x.created_at)) }) as Entry)
         .filter(isEntry);
     } catch {
       this.warning = W_DOWN;
@@ -137,7 +145,7 @@ export class RemoteStore implements LeaderboardStore {
     const board = boardOf(e);
     try {
       const key = await scoreKey(this.salt, e.score, board, new Date().toISOString().slice(0, 10));
-      const body = { first_name: e.first, last_name: e.last, score: e.score, level: e.level, board, key };
+      const body = { name: e.name, score: e.score, level: e.level, board, key };
       await this.call('scores', { method: 'POST', headers: { Prefer: 'return=minimal' }, body: JSON.stringify(body) });
       this.warning = null;
     } catch (err) {
@@ -169,7 +177,7 @@ export function pickStore(): LeaderboardStore {
 export function nameError(label: string, name: string): string | null {
   if (/[<>]/.test(name)) return `${label}: no HTML, please.`;
   if (name.length < 1 || name.length > MAX_NAME) return `${label}: 1-${MAX_NAME} characters.`;
-  if (!NAME.test(name)) return `${label}: letters, spaces, - and ' only.`;
+  if (!NAME.test(name)) return `${label}: letters, digits, spaces, . _ - ' only.`;
   return null;
 }
 
@@ -180,7 +188,7 @@ const CSS = `
 .leaderboard .lb-form { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; padding: 10px 18px; border-top: 2px solid #3a3f46; }
 .leaderboard .lb-run { width: 100%; opacity: .8; }
 .leaderboard input { flex: 1; min-width: 120px; font: 16px var(--font); padding: 8px 10px; border-radius: 4px; border: 2px solid #4a5058; background: #1b1e22; color: #fff; }
-.leaderboard .lb-msg { width: 100%; min-height: 20px; color: var(--bad); }
+.leaderboard .lb-msg { min-height: 20px; padding: 0 18px 8px; color: var(--bad); }
 .leaderboard .lb-msg.ok { color: var(--accent); }
 `;
 
@@ -191,9 +199,8 @@ export class Leaderboard {
   private rows: HTMLElement;
   private run: HTMLElement;
   private msg: HTMLElement;
-  private first: HTMLInputElement;
-  private last: HTMLInputElement;
-  private skip: HTMLElement;
+  private name: HTMLInputElement;
+  private form: HTMLElement;
   private done: (() => void) | null = null; // set by offer(): the rebirth waits for submit or skip
   private tabs: HTMLElement;
   private board = 'main'; // where a submit goes
@@ -211,17 +218,16 @@ export class Leaderboard {
     // static markup only; user text goes in through textContent
     this.el.innerHTML = `<div class="shop-win">
       <div class="shop-head"><span class="lb-title"></span><button class="x" data-close>✕</button></div>
-      <div class="shop-tabs"><button class="tab" type="button" data-tab="main">ALL-TIME</button><button class="tab" type="button" data-tab="${daily.board}">DAILY ${daily.date}</button></div>
+      <div class="shop-tabs"><button class="tab" type="button" data-tab="main">MOST MONEY</button><button class="tab" type="button" data-tab="${daily.board}">DAILY ${daily.date}</button><button class="tab" type="button" data-tab="${SPEED}">FASTEST LVL 12</button></div>
       <div class="shop-rows lb-rows"></div>
       <form class="lb-form">
         <div class="lb-run"></div>
-        <input name="first" placeholder="First name" autocomplete="off">
-        <input name="last" placeholder="Last name" autocomplete="off">
+        <input name="name" placeholder="Name or nickname" autocomplete="off" maxlength="${MAX_NAME}">
         <button class="buy" type="submit">SUBMIT</button>
-        <button class="buy poor" type="button" data-close data-skip>SKIP</button>
-        <div class="lb-msg"></div>
+        <button class="buy poor" type="button" data-close>SKIP</button>
       </form>
-      <div class="shop-foot">Score = money earned this run. Esc closes.</div>
+      <div class="lb-msg"></div>
+      <div class="shop-foot">Score = money earned this run, spent or not. FASTEST = time to hole level 12. Esc closes.</div>
     </div>`;
     document.body.appendChild(this.el);
     const q = <T extends HTMLElement>(s: string) => this.el.querySelector<T>(s)!;
@@ -229,12 +235,12 @@ export class Leaderboard {
     this.rows = q('.lb-rows');
     this.run = q('.lb-run');
     this.msg = q('.lb-msg');
-    this.first = q<HTMLInputElement>('input[name="first"]');
-    this.last = q<HTMLInputElement>('input[name="last"]');
-    this.skip = q('[data-skip]');
+    this.name = q<HTMLInputElement>('input[name="name"]');
+    this.form = q('.lb-form');
     this.tabs = q('.shop-tabs');
     this.submitBtn = q<HTMLButtonElement>('button[type="submit"]');
-    if (store instanceof RemoteStore) q('.shop-foot').textContent = 'Score = money earned this run. Names are shown publicly online. Esc closes.';
+    if (store instanceof RemoteStore)
+      q('.shop-foot').textContent = 'Score = money earned this run, spent or not. FASTEST = time to hole level 12. Your name or nickname is shown publicly online. Esc closes.';
     this.el.addEventListener('click', (e) => {
       const t = e.target as HTMLElement;
       if (t.closest('[data-close]')) this.close();
@@ -244,7 +250,7 @@ export class Leaderboard {
         void this.render();
       }
     });
-    q('.lb-form').addEventListener('submit', (e) => {
+    this.form.addEventListener('submit', (e) => {
       e.preventDefault();
       void this.send();
     });
@@ -276,6 +282,7 @@ export class Leaderboard {
     row.appendChild(b);
   }
 
+  // the pause menu shows the boards only: a score is entered only after jumping into the hole (PP 2026-10-24)
   open(): void {
     this.show('LEADERBOARD', false);
   }
@@ -287,16 +294,17 @@ export class Leaderboard {
     this.show(title, true, board);
   }
 
-  private show(title: string, skip: boolean, board = HOME): void {
+  private show(title: string, form: boolean, board = HOME): void {
+    const s = ctx.state;
     this.isOpen = true;
     this.board = this.tab = board;
     this.title.textContent = title;
-    this.skip.classList.toggle('hidden', !skip);
-    this.run.textContent = `Your run: ${money(ctx.state.totalEarned)} · Hole lvl ${ctx.state.holeLevel}`;
+    this.form.classList.toggle('hidden', !form);
+    this.run.textContent = `Your run: ${money(s.totalEarned)} · Hole lvl ${s.holeLevel}` + (s.maxLevelAt !== null ? ` · Lvl 12 in ${clock(s.maxLevelAt)}` : '');
     this.msg.textContent = '';
     this.el.classList.remove('hidden');
     void this.render();
-    this.first.focus();
+    if (form) this.name.focus();
   }
 
   close(): void {
@@ -311,9 +319,8 @@ export class Leaderboard {
 
   private async send(): Promise<void> {
     if (this.sending) return;
-    const first = this.first.value.trim().normalize('NFC');
-    const last = this.last.value.trim().normalize('NFC');
-    const err = nameError('First name', first) ?? nameError('Last name', last);
+    const name = this.name.value.trim().normalize('NFC');
+    const err = nameError('Name', name);
     this.msg.classList.toggle('ok', !err);
     if (err) {
       this.msg.textContent = err;
@@ -322,25 +329,27 @@ export class Leaderboard {
     this.sending = true;
     this.submitBtn.disabled = true;
     this.msg.textContent = 'Sending…';
+    const s = ctx.state;
+    const at = Date.now();
+    let w: string | null;
     try {
-      await this.store.submit({ first, last, score: ctx.state.totalEarned, level: ctx.state.holeLevel, at: Date.now(), board: this.board });
+      await this.store.submit({ name, score: s.totalEarned, level: s.holeLevel, at, board: this.board });
+      w = this.store.warning ?? null;
+      // every run that reached level 12 posts its time with this submit (PP 2026-10-24: "za każdym razem gdy wskoczysz")
+      if (s.maxLevelAt !== null) {
+        await this.store.submit({ name, score: s.maxLevelAt, level: MAX_HOLE_LEVEL, at, board: SPEED });
+        w ??= this.store.warning ?? null;
+      }
     } finally {
       this.sending = false;
       this.submitBtn.disabled = false;
     }
-    // read before render(): the re-fetch GET overwrites the store's warning
-    const w = this.store.warning ?? null;
-    if (w) ctx.audio.deny();
-    else ctx.audio.buy();
-    if (this.done) {
-      if (w) ctx.hud.toast(w, 'bad');
-      return this.close();
-    }
-    this.tab = this.board;
-    await this.render();
-    this.msg.classList.toggle('ok', !w && !this.store.warning);
-    if (w) this.msg.textContent = w;
-    else if (!this.store.warning) this.msg.textContent = 'Score saved.';
+    // the form is shown only by offer(): the board closes after the submit and done() runs
+    if (w) {
+      ctx.audio.deny();
+      ctx.hud.toast(w, 'bad');
+    } else ctx.audio.buy();
+    this.close();
   }
 
   private async render(): Promise<void> {
@@ -361,7 +370,8 @@ export class Leaderboard {
       ...top.map((e, i) => {
         const row = document.createElement('div');
         row.className = 'row';
-        for (const text of [`${i + 1}. ${e.first} ${e.last}`, money(e.score), `Lvl ${e.level}`, new Date(e.at).toLocaleDateString()]) {
+        const score = boardOf(e) === SPEED ? clock(e.score) : money(e.score);
+        for (const text of [`${i + 1}. ${e.name}`, score, `Lvl ${e.level}`, new Date(e.at).toLocaleDateString()]) {
           row.appendChild(document.createElement('span')).textContent = text;
         }
         return row;

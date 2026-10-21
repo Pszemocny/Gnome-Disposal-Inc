@@ -259,7 +259,10 @@ export class Hole {
     }
     ctx.hud.levelUp(s.holeLevel, L.mult, L.unlock, L.whisper);
     if (s.holeLevel === 10) setTimeout(() => ctx.events.start('king'), 6000);
-    if (s.holeLevel === MAX_HOLE_LEVEL) ctx.hud.toast('THE DEEP is open. Jump into the hole when you are ready.', 'secret');
+    if (s.holeLevel === MAX_HOLE_LEVEL) {
+      s.maxLevelAt = s.runTime;
+      ctx.hud.toast('THE DEEP is open. Jump into the hole when you are ready.', 'secret');
+    }
     saveState(s);
   }
 

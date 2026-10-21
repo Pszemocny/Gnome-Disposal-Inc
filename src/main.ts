@@ -236,6 +236,7 @@ async function boot(): Promise<void> {
     if (!replay.playing && !ctx.paused) {
       ctx.time += dt;
       state.stats.playTime += realDt;
+      state.runTime += realDt;
       ctx.player.update(dt);
       ctx.machines.update(dt);
       ctx.factory.update(dt);

@@ -5,6 +5,9 @@ Newest build first. Each build lists what changed and what to test. Shown in the
 ## 2026-10-25 12:00
 
 - A moved robot's area ring shows again: its post now always lands on the ground, even when you place it aiming far ahead.
+- The leaderboard asks for one name or nickname, up to 20 characters; digits and . _ - ' are fine, a full first and last name is no longer asked for.
+- You sign the leaderboard only after jumping into the hole (and at the end of a daily); Leaderboard in the Esc menu just shows the boards.
+- New tab FASTEST LVL 12: your unpaused time to hole level 12, sent with every rebirth. The money tab is now called MOST MONEY and counts money earned in the run, spent or not.
 
 ## 2026-10-24 18:00
 
