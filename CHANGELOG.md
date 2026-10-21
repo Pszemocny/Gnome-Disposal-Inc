@@ -2,6 +2,10 @@
 
 Newest build first. Each build lists what changed and what to test. Shown in the start menu (button "What's new").
 
+## 2026-10-26 18:00
+
+- Trick shot bonuses start small and reach full size at hole level 4, so the golden hoop no longer buys the whole early shop.
+
 ## 2026-10-26 13:00
 
 - Every Fuses upgrade now starts at $1,000. Levels you already bought stay.

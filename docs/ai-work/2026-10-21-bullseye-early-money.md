@@ -62,3 +62,7 @@ Recommendation: a), because it hits exactly the hoop, keeps the x5 celebration f
 ## Work progress
 
 - 2026-10-21: analysis from the code (formulas in `Hole.consume`, `TRICK_BONUS`, `HOLE_LEVELS`), no code change, no scenario run (PP's order). Waiting for PP's choice.
+
+## Decision and change (2026-10-21)
+
+PP (via hub, 19:17): option b. Every flat trick bonus is multiplied by `min(1, holeLevel / 4)` in `Hole.consume` (1/4 at level 1, 1/2 at 2, 3/4 at 3, full from 4); the multipliers (x5 for the hoop, etc.) are unchanged. Price growth stays as it is (PP: "Drożenie jest ok tak ma być"). Check G12 in `scenario-small-batch.js` measures the bonus share at hole levels 1/2/4/6.

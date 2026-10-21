@@ -679,6 +679,19 @@ setTimeout(() => { if (!window.__done) window.__done = JSON.stringify({ ...R, ch
         const rb = { ev: g.events.goldenHour, buff: g.buffs.timers.get('rainbow'), active: g.buffs.active('goldhour') };
         g.buffs.timers.clear(); g.buffs.midasLeft = 0; g.events.goldenHour = 0.001; await frames(3);
         ok('G11', rb.active && rb.ev > 0 && rb.ev === rb.buff, `Rainbow ${JSON.stringify(rb)}`);
+        // G12: the flat trick bonus grows in, 1/4 at hole level 1, full from 4 (PP 2026-10-21 "b")
+        {
+          const lv0 = S().holeLevel; const shares = [];
+          for (const lv of [1, 2, 4, 6]) {
+            S().holeLevel = lv;
+            const one = (bull) => { g.hole.combo = 0; paid = 0; const x = spawnAt('classic', ahead(3, 0, 0.5), { awake: false }); x.bullseye = bull; g.hole.consume(x); return paid; };
+            const plain = one(false); const hoop = one(true);
+            shares.push(+((hoop - 5 * plain) / (60 * g.hole.valueScale)).toFixed(3));
+          }
+          S().holeLevel = lv0; g.hole.combo = 0;
+          // ±0.03: the base gnome value is rounded per coin burst, the share itself is what matters
+          ok('G12', [0.25, 0.5, 1, 1].every((w, i) => Math.abs(shares[i] - w) < 0.03), `bonus share at hole 1/2/4/6 ${shares}`);
+        }
       }
       g.coins.clearAll();
       setState(keep);

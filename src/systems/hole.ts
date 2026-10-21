@@ -166,6 +166,9 @@ export class Hole {
     }
     const rush = ctx.factory.rush > 0 ? 1.5 : 1;
     // stolen loot comes back x1 straight to the counter, not as coins a greedy gnome could steal again (night plan F6)
+    // flat trick bonuses grow in over the first holes: 1/4 at level 1, full from level 4, so hoop shots do not buy the
+    // whole early shop (PP 2026-10-21 "b", docs/ai-work/2026-10-21-bullseye-early-money.md)
+    bonus *= Math.min(1, ctx.state.holeLevel / 4);
     const value = g.type.value * g.tier.value * trick * rush * this.valueScale * this.comboMult * ctx.buffs.valueMult() * g.valueMult * (g.parade >= 0 ? 3 : 1) + bonus * this.valueScale;
     const feed = g.type.id === 'king' || machine === 'crate' ? 1 : machine || g.thrownBy !== 'player' ? FEED_XP : 1 / Math.sqrt(g.xpGroup?.n ?? 1);
     // the weight Feeding Frenzy adds pays money, not XP: levels are not forced (2026-10-25, Q1 a)
