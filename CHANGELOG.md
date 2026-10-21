@@ -2,6 +2,10 @@
 
 Newest build first. Each build lists what changed and what to test. Shown in the start menu (button "What's new").
 
+## 2026-10-27 18:00
+
+- The online version now sends anonymous progress statistics: hole levels, money, purchases and achievements. No names unless you enter one on the leaderboard.
+
 ## 2026-10-27 14:00
 
 - Right-click Strong Arm in the shop to take it one level down. Every change, up or down, costs like the next level, so switching back and forth gets dearer.

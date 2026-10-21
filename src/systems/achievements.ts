@@ -1,6 +1,7 @@
 import { ctx } from '../core/context';
 import { ACHIEVEMENTS } from '../data/achievements';
 import { LAND } from '../data/land';
+import * as progress from './progress';
 
 export class Achievements {
   private t = 0;
@@ -14,6 +15,7 @@ export class Achievements {
     const a = ACHIEVEMENTS.find((x) => x.id === id);
     if (!a) return;
     ctx.state.achievements.push(id);
+    progress.achieved(id);
     ctx.hud.achievement(a.name, a.desc);
     ctx.audio.toast();
   }

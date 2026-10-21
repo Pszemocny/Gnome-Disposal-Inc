@@ -1,14 +1,15 @@
 #!/bin/sh
-# Checks the security of the online leaderboard and the error table against the real project, with the public key only.
-# Usage: [ONLY=errors|scores|all] sh supabase/check.sh <Project URL> <publishable key> [<VITE_SUPABASE_SALT>]
-# The salt is needed only for the scores checks; ONLY=errors needs no secret and never writes to the public board.
+# Checks the security of the online leaderboard, the error table and the progress log against the real project, with the public key only.
+# Usage: [ONLY=errors|scores|progress|all] sh supabase/check.sh <Project URL> <publishable key> [<VITE_SUPABASE_SALT>]
+# The salt is needed only for the scores checks; ONLY=errors and ONLY=progress need no secret and never write to the public board.
 # Every line prints "<case>: got <result> want <result> ok|FAIL". Remove the test rows afterwards in SQL Editor:
 #   delete from public.scores where name like 'Check-%';
 #   delete from public.errors where build = 'check.sh';
+#   delete from public.progress where build = 'check.sh';
 URL="$1"; KEY="$2"; SALT="$3"
-usage() { echo "usage: [ONLY=errors|scores|all] sh supabase/check.sh <url> <key> [<salt>]"; }
+usage() { echo "usage: [ONLY=errors|scores|progress|all] sh supabase/check.sh <url> <key> [<salt>]"; }
 [ -n "$URL" ] && [ -n "$KEY" ] || { usage; exit 2; }
-[ -n "$SALT" ] || [ "${ONLY:-all}" = errors ] || { usage; exit 2; }
+[ -n "$SALT" ] || [ "${ONLY:-all}" = errors ] || [ "${ONLY:-all}" = progress ] || { usage; exit 2; }
 T=$(date -u +%Y-%m-%d)
 Y=$(date -u -v-1d +%Y-%m-%d 2>/dev/null || date -u -d yesterday +%Y-%m-%d)
 O=$(date -u -v-2d +%Y-%m-%d 2>/dev/null || date -u -d '2 days ago' +%Y-%m-%d)
@@ -96,5 +97,26 @@ say "errors: 25 parallel POSTs one session: accepted" "$n" 20
 say "errors: 26th POST" "$(epost "$(erow "$S")")" 4xx
 }
 
-case "${ONLY:-all}" in errors) errors_checks;; scores) scores_checks;; *) scores_checks; errors_checks;; esac
+progress_checks() {
+# prow <rid> <player>: a valid row
+prow() { printf '{"rid":"%s","player":"%s","name":null,"seq":1,"kind":"level","daily":false,"level":2,"run":0,"run_time":60,"play_time":60,"money":10,"earned":50,"gnomes":5,"gnomes_total":5,"land":0,"purchases":[{"id":"kick","lvl":1,"cost":40}],"achievements":[],"build":"check.sh","ua":"check.sh"}' "$1" "$2"; }
+ppost() { code -X POST "$URL/rest/v1/progress" -H "Prefer: return=minimal" -d "$1"; }
+uid() { uuidgen | tr A-F a-f; }
+P=$(uid); R=$(uid)
+say "progress: valid row" "$(ppost "$(prow "$R" "$P")")" 2xx
+say "progress: same rid again" "$(ppost "$(prow "$R" "$P")")" 4xx
+say "progress: GET" "$(code "$URL/rest/v1/progress?select=level&limit=1")" 4xx
+say "progress: PATCH" "$(code -X PATCH "$URL/rest/v1/progress?build=eq.check.sh" -d '{"level":5}')" 4xx
+say "progress: DELETE" "$(code -X DELETE "$URL/rest/v1/progress?build=eq.check.sh")" 4xx
+say "progress: id in body" "$(ppost "$(prow "$(uid)" "$P" | sed 's/^{/{"id":1,/')")" 4xx
+say "progress: kind x" "$(ppost "$(prow "$(uid)" "$P" | sed 's/"kind":"level"/"kind":"x"/')")" 4xx
+say "progress: purchases {}" "$(ppost "$(prow "$(uid)" "$P" | sed 's/"purchases":\[[^]]*\]/"purchases":{}/')")" 4xx
+B=$(for i in $(seq 1 121); do printf '{"id":"kick","lvl":1,"cost":40},'; done | sed 's/,$//')
+say "progress: 121 purchases" "$(ppost "$(prow "$(uid)" "$P" | sed "s/\"purchases\":\[[^]]*\]/\"purchases\":[$B]/")")" 4xx
+say "progress: player abc" "$(ppost "$(prow "$(uid)" abc)")" 4xx
+say "progress: rid abc" "$(ppost "$(prow abc "$P")")" 4xx
+say "progress: 21-char name" "$(ppost "$(prow "$(uid)" "$P" | sed 's/"name":null/"name":"Abcdefghijabcdefghija"/')")" 4xx
+}
+
+case "${ONLY:-all}" in errors) errors_checks;; scores) scores_checks;; progress) progress_checks;; *) scores_checks; errors_checks; progress_checks;; esac
 echo "failed: $FAILS"

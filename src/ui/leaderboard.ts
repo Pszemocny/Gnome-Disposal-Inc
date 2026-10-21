@@ -2,6 +2,7 @@ import { ctx } from '../core/context';
 import { clock, money } from '../core/format';
 import { MAX_HOLE_LEVEL } from '../data/holeLevels';
 import { daily } from '../systems/daily';
+import * as progress from '../systems/progress';
 
 const KEY = 'gnome-boozed-leaderboard';
 const KEEP = 50; // entries kept in storage
@@ -332,6 +333,7 @@ export class Leaderboard {
       this.msg.textContent = err;
       return ctx.audio.deny();
     }
+    progress.setName(name);
     this.sending = true;
     this.submitBtn.disabled = true;
     this.msg.textContent = 'Sending…';

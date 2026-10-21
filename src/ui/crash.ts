@@ -6,7 +6,7 @@ import { online, restCall } from './leaderboard';
 const KEY = 'gnome-boozed-errors';
 // in the release build this is assets/index-<hash>.js, which names the build; on GitHub Pages also @<commit>
 const commit = String(import.meta.env.VITE_COMMIT ?? '');
-const BUILD = new URL(import.meta.url).pathname + (commit ? '@' + commit.slice(0, 7) : '');
+export const BUILD = new URL(import.meta.url).pathname + (commit ? '@' + commit.slice(0, 7) : '');
 
 const MSG_MAX = 1000;
 const STACK_MAX = 3000;

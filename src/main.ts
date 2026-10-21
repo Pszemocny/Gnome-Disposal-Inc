@@ -33,6 +33,7 @@ import { Blueprints } from './ui/blueprints';
 import { Legend } from './ui/legend';
 import { Leaderboard } from './ui/leaderboard';
 import { daily } from './systems/daily';
+import * as progress from './systems/progress';
 import { replay } from './systems/replay';
 import { installCrashReport, note, watchCanvas } from './ui/crash';
 import { shot } from './ui/shot';
@@ -121,6 +122,7 @@ async function boot(): Promise<void> {
   });
   menu.show('title');
   ctx.leaderboard = new Leaderboard();
+  progress.init();
   let started = false;
   // the shop, the blueprints panel and the legend pause the game and free the pointer themselves
   const overlayOpen = () => ctx.shop.isOpen || ctx.blueprints.isOpen || ctx.legend.isOpen || ctx.leaderboard.isOpen;
@@ -272,6 +274,8 @@ async function boot(): Promise<void> {
       ctx.blueprints.update(dt);
       ctx.legend.update();
       daily.update(dt);
+      // here, not in daily.ts: daily.ts importing progress would close the cycle daily → progress → leaderboard → daily
+      if (daily.active && daily.left === 0) progress.end('daily');
       ctx.env.update(dt);
       ctx.fx.update(dt);
       // drawn after every system that can move, spawn or remove a body this frame

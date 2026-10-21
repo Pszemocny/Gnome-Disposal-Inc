@@ -4,6 +4,7 @@ import { saveState } from '../core/state';
 import { massiveOdds } from '../data/gnomeTypes';
 import { changeCost, FUSE_TOOLS, TOOL_IDS, UPGRADE_BY_ID, UPGRADES, type Tab, type Upgrade } from '../data/upgrades';
 import { FALLBACK_ICON, ICONS, MODELS, TAB_ICONS, thumbnail, warmThumbnails } from './icons';
+import * as progress from '../systems/progress';
 
 const TABS: Tab[] = ['Plow', 'Magnet', 'Factory', 'Movement', 'Tools', 'Combos', 'Bonuses', 'Deep'];
 // tree cell (px): a node is 120 x 90, the rest is the gap the edges run through
@@ -237,6 +238,7 @@ export class Shop {
       s.money -= cost;
       s.upgrades[id] = next;
     }
+    progress.bought(id, next, cost);
     if (u.downgrade) {
       const paid = (s.paidChanges ??= {});
       paid[id] = (paid[id] ?? L) + 1;

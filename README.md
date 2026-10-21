@@ -25,6 +25,7 @@ The Pages build talks to Supabase REST straight from the browser for the leaderb
 2. Generate the score secret once: `openssl rand -hex 32`. Paste `supabase/leaderboard.sql` into SQL Editor, replace `__SALT__` there with that value, then Run (once). Never put the value into the file in the repo: the repo is public.
    - 2b. Run `sh supabase/check.sh <Project URL> <publishable key> <secret>` and check that every line ends with `ok` and the last line says `failed: 0`. Then remove its test rows in SQL Editor: `delete from public.scores where name like 'Check-%'; delete from public.errors where build = 'check.sh';`. `ONLY=errors sh supabase/check.sh <url> <key>` checks only the error table and needs no secret.
    - 2c. Paste `supabase/errors.sql` into SQL Editor, Run once.
+   - 2d. Paste `supabase/progress.sql` into SQL Editor, Run (safe to run again). `ONLY=progress sh supabase/check.sh <url> <key>` checks it; then `delete from public.progress where build = 'check.sh';`.
 3. Settings → API Keys (the default tab): copy the **Project URL** and the **publishable** key (`sb_publishable_…`). Never use any other key: the build refuses it.
 4. GitHub repo → Settings → Secrets and variables → Actions → **Variables** tab → New repository variable: `VITE_SUPABASE_URL` = Project URL, `VITE_SUPABASE_KEY` = publishable key, `VITE_SUPABASE_SALT` = the secret from step 2.
 5. Actions → "Deploy to GitHub Pages" → Run workflow (or push to `main`). Open the game, pause, Leaderboard: no warning line under the board and the footer says "Your name or nickname is shown publicly online" = online.
@@ -47,6 +48,26 @@ select created_at, message, level, land, build from public.errors where source =
 ```
 
 The `build` column ends with `@<commit>`, so the stack can be read against that commit. Rows have no names and no addresses: message, stack, browser string, hole level, land and a random id per page load.
+
+Reading a player's run: the online game writes one row to `public.progress` at every hole level-up and at the end of a run (`kind` = `rebirth`, `daily` or `reset`), with money, gnomes fed, and the purchases and achievements since the previous row. `player` is a random id kept in the browser; `name` is filled once the player enters a nickname on the leaderboard. No IP, no computer name. At most 200 rows per player and 3000 in total per 24 hours. One player's run, level by level:
+
+```sql
+select seq, kind, daily, level, run, run_time, play_time, money, earned, gnomes, gnomes_total, land, purchases, achievements, created_at
+from public.progress where player = '<player id>' order by seq, created_at;
+```
+
+By nickname (rows from before the nickname was entered included):
+
+```sql
+select player, seq, kind, daily, level, run, run_time, play_time, money, earned, gnomes, gnomes_total, land, purchases, achievements, created_at
+from public.progress where player in (select player from public.progress where name = '<nickname>') order by player, seq, created_at;
+```
+
+Who is who:
+
+```sql
+select player, max(name) as name, max(created_at) as last_seen, count(*) as rows from public.progress group by player order by last_seen desc;
+```
 
 ## Docs
 

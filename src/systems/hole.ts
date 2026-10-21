@@ -11,6 +11,7 @@ import type { Gnome } from '../entities/gnomes';
 import { boxBottom, machineBox, type Machine } from '../entities/machines';
 import { glowTexture } from '../entities/mushrooms';
 import { inOutSine, inQuad } from '../core/ease';
+import * as progress from './progress';
 
 declare module '../core/state' {
   interface GameState {
@@ -310,6 +311,7 @@ export class Hole {
       s.maxLevelAt = s.runTime;
       ctx.hud.toast('THE DEEP is open. Jump into the hole when you are ready.', 'secret');
     }
+    progress.level();
     saveState(s);
   }
 
@@ -611,6 +613,9 @@ export class Hole {
   rebirth(): void {
     const old = ctx.state;
     old.placed = ctx.machines.serialize();
+    // "Born Again" goes straight into the next state below, past Achievements.unlock: log it on the end row
+    if (!old.achievements.includes('rebirth')) progress.achieved('rebirth');
+    progress.end('rebirth');
     const shards = this.shardsForRebirth();
     const next = freshState(old);
     next.shards = old.shards + shards;

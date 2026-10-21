@@ -4,6 +4,8 @@ import { applyQuality, lowfx, prefs, saveSettings, type Quality } from '../core/
 import { wipeSave } from '../core/state';
 import { ACHIEVEMENTS } from '../data/achievements';
 import { daily, yardUrl } from '../systems/daily';
+import * as progress from '../systems/progress';
+import { online } from './leaderboard';
 import changelog from '../../CHANGELOG.md?raw';
 
 const latestBuild = changelog.match(/^## (.+)$/m)?.[1] ?? '';
@@ -50,7 +52,10 @@ export class Menu {
         q.set('daily', '');
         location.href = `${location.pathname}?${q.toString()}`;
       }
-      if (a === 'yard') location.href = yardUrl();
+      if (a === 'yard') {
+        progress.end('daily'); // leaving a daily run early ends it too
+        location.href = yardUrl();
+      }
       if (a === 'back') this.show(ctx.state.stats.playTime > 1 ? 'pause' : 'title');
       if (a === 'reset') {
         if (!this.resetArmed) {
@@ -58,6 +63,8 @@ export class Menu {
           (e.target as HTMLElement).textContent = 'Click again to delete everything';
           return;
         }
+        progress.end('reset');
+        progress.forget();
         wipeSave();
         location.reload();
       }
@@ -97,6 +104,7 @@ export class Menu {
         <label>Graphics <select name="quality" ${lowfx ? 'disabled title="Low while ?lowfx is in the address"' : ''}>${(['low', 'medium', 'high'] as const)
           .map((q) => `<option value="${q}" ${(lowfx ? 'low' : prefs.quality) === q ? 'selected' : ''}>${q[0].toUpperCase() + q.slice(1)}</option>`)
           .join('')}</select></label>
+        ${online ? '<p class="dim">The game sends anonymous gameplay statistics (hole level, money, purchases, achievements; no names unless you enter one on the leaderboard).</p>' : ''}
       </div>`;
     const news = `<button class="btn" data-a="news">What's new${latestBuild ? ` (${latestBuild})` : ''}</button>`;
     const how = `
