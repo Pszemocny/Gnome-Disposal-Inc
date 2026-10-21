@@ -16,9 +16,9 @@ const NIGHT_TOP = new THREE.Color(0x05061a);
 const NIGHT_BOTTOM = new THREE.Color(0x1a1f3a);
 const SUN_DAY = new THREE.Color(0xfff2d8);
 const SUN_NIGHT = new THREE.Color(0x9ab0ff);
-// s per sky flip under the Eclipse Cap: one swing every 1.5 s stays under the WCAG 3 flashes/s;
-// PP 2026-10-24 "nie" to a reduce-flashing option
-const FLIP_T = 1.5;
+// Eclipse Cap cycle from the pickup: day hold, fade to night, night hold, fade to day (PP 2026-10-21 "co 5 sekund z 5 sekundowym fadem")
+const ECLIPSE_HOLD = 5;
+const ECLIPSE_FADE = 5;
 const WHITE = new THREE.Color(0xffffff);
 const PURPLE = new THREE.Color(0xc77aff);
 const GOLD = new THREE.Color(0xffd23f);
@@ -40,6 +40,7 @@ export class Environment {
   nightShade = 0; // the night the player sees: 0 on Low quality, where the look stays day
   shade = 0; // the night the sky shows: the clock, or the Eclipse Cap swing
   dayClock = 0;
+  eclipseT = 0; // s since the Eclipse Cap started, 0 while it is off
 
   private sun: THREE.DirectionalLight;
   private hemi: THREE.HemisphereLight;
@@ -470,7 +471,13 @@ export class Environment {
     }
     this.night = THREE.MathUtils.damp(this.night, target, 0.8, dt);
     // the Eclipse Cap swings the sky on its own; the clock, `night` and `isNight` (visitors) carry on underneath
-    const want = ctx.buffs.active('daynight') ? 0.5 - 0.5 * Math.cos((Math.PI * ctx.time) / FLIP_T) : this.night;
+    let want = this.night;
+    if (ctx.buffs.active('daynight')) {
+      const p = this.eclipseT % (2 * (ECLIPSE_HOLD + ECLIPSE_FADE));
+      const f = (t: number) => inOutSine(THREE.MathUtils.clamp(t / ECLIPSE_FADE, 0, 1));
+      want = p < ECLIPSE_HOLD + ECLIPSE_FADE ? f(p - ECLIPSE_HOLD) : 1 - f(p - 2 * ECLIPSE_HOLD - ECLIPSE_FADE);
+      this.eclipseT += dt;
+    } else this.eclipseT = 0;
     this.shade = THREE.MathUtils.damp(this.shade, want, 6, dt);
     this.nightShade = lowfx || prefs.quality === 'low' ? 0 : this.shade;
     const n = this.nightShade;

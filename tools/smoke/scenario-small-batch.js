@@ -490,27 +490,27 @@ setTimeout(() => { if (!window.__done) window.__done = JSON.stringify({ ...R, ch
       const lg = g.legend.mushrooms();
       const card = lg.includes('Eclipse Cap') && lg.includes('9.1% of mushroom drops');
       ok('F1', g.buffs.active('daynight') && g.buffs.valueMult() === 2 && row && card, `active ${g.buffs.active('daynight')} valueMult ${g.buffs.valueMult()} row "Eclipse Cap" ${row} legend 9.1% ${card}`);
-      // F2 / F9 / F10: 10 s of the swing; the sun colour blends with the shade on every frame
+      // F2 / F9 / F10: 16 s of the cycle from the pickup (day 5 s, fade 5 s, night 5 s, fade back); the sun colour blends with the shade on every frame
       const SD = new THREE.Color(0xfff2d8); const SN = new THREE.Color(0x9ab0ff);
       const sm = []; let sunErr = 0;
-      const t0 = g.time;
-      while (g.time - t0 < 10) {
+      const eT0 = g.env.eclipseT;
+      while (g.env.eclipseT < 16) {
         await frames(1);
         const n = g.env.nightShade;
-        sm.push({ t: g.time - t0, v: n });
+        sm.push({ t: g.env.eclipseT, v: n });
         sunErr = Math.max(sunErr, Math.abs(g.env.sun.color.r - (SD.r + (SN.r - SD.r) * n)));
       }
+      const win = (a, b) => sm.filter((p) => p.t >= a && p.t <= b).map((p) => p.v);
+      const dayHold = win(0.5, 5); const fade = win(5.5, 9.5); const nightHold = win(11, 15);
+      const fadeMid = fade.filter((v) => v > 0.05 && v < 0.95).length;
+      ok('F2', eT0 < 1 && dayHold.length >= 10 && fade.length >= 10 && nightHold.length >= 10 && Math.max(...dayHold) < 0.05 && fadeMid >= 10 && Math.min(...nightHold) > 0.95,
+        `start ${r2(eT0)} s; day hold max ${r2(Math.max(...dayHold))} (${dayHold.length} frames), fade strictly between ${fadeMid}/${fade.length} frames, night hold min ${r2(Math.min(...nightHold))} (${nightHold.length} frames)`);
       const turns = []; let dir = 0;
       for (let i = 1; i < sm.length; i++) { const d = sm[i].v - sm[i - 1].v; if (Math.abs(d) < 1e-4) continue; const s = Math.sign(d); if (dir && s !== dir) turns.push(sm[i - 1].t); dir = s; }
-      const gaps = turns.slice(1).map((t, i) => t - turns[i]);
-      const steady = turns.filter((t) => t > 0.5);
-      const steadyGaps = steady.slice(1).map((t, i) => t - steady[i]);
-      const vmin = Math.min(...sm.filter((p) => p.t > 0.5).map((p) => p.v)); const vmax = Math.max(...sm.map((p) => p.v));
-      ok('F2', steady.length >= 6 && vmin < 0.1 && vmax > 0.9, `swings ${steady.length} min ${r2(vmin)} max ${r2(vmax)}`);
-      ok('F9', turns.length <= 7 && Math.min(...steadyGaps) >= 1.4 && Math.min(...gaps) >= 1 / 3, `changes ${turns.length} minGap steady ${r2(Math.min(...steadyGaps))} with pickup ${r2(Math.min(...gaps))}`);
+      ok('F9', turns.length === 1 && turns[0] >= 14.5, `direction changes ${turns.length} at ${turns.map(r2)} s (one, when the night hold ends at 15 s)`);
       const maxStep = Math.max(...sm.slice(1).map((p, i) => Math.abs(p.v - sm[i].v)));
-      ok('F10', sunErr < 0.02 && maxStep < 0.1, `sun.r tracks n ±${sunErr.toFixed(4)} over 10 s, max shade step per frame ${r2(maxStep)}`);
-      R.F = { turns: turns.map(r2), frames: sm.length };
+      ok('F10', sunErr < 0.02 && maxStep < 0.1, `sun.r tracks n ±${sunErr.toFixed(4)} over 16 s, max shade step per frame ${r2(maxStep)}`);
+      R.F = { turns: turns.map(r2), frames: sm.length, curve: sm.filter((_, i) => i % 10 === 0).map((p) => [r2(p.t), r2(p.v)]) };
       // F3: the effect ends during the clock's day, then during its night
       g.buffs.timers.set('daynight', 0);
       await gameWait(1);
@@ -521,23 +521,23 @@ setTimeout(() => { if (!window.__done) window.__done = JSON.stringify({ ...R, ch
       const nightEnd = Math.abs(g.env.shade - g.env.night);
       ok('F3', dayEnd < 0.05 && nightEnd < 0.05, `shade≈night after end: day ${r2(dayEnd)} night ${r2(nightEnd)} (night ${r2(g.env.night)})`);
       g.env.dayClock = 0; g.env.night = 0; await gameWait(1);
-      // F4: hole level 1 (no clock) swings too
+      // F4: hole level 1 (no clock) reaches night too (cycle skipped ahead to the end of the day hold)
       S().holeLevel = 1; g.buffs.timers.set('daynight', 5);
-      const s4 = []; const t4 = g.time; while (g.time - t4 < 4) { await frames(1); s4.push(g.env.nightShade); }
-      ok('F4', Math.max(...s4) > 0.9 && Math.min(...s4.slice(Math.floor(s4.length / 3))) < 0.1, `level 1 swings min ${r2(Math.min(...s4))} max ${r2(Math.max(...s4))}`);
-      // F11: pickup at any phase: no jump
-      g.buffs.timers.set('daynight', 0); await gameWait(1.2);
-      const phases = [];
-      for (const wait of [0.4, 1.1]) {
-        await gameWait(wait);
-        const b = g.env.nightShade;
-        g.buffs.apply('daynight');
-        const f = []; const tf = g.time; while (g.time - tf < 0.4) { await frames(1); f.push(g.env.nightShade); }
-        const steps = Math.max(...f.map((v, i) => Math.abs(v - (i ? f[i - 1] : b))));
-        phases.push({ before: r2(b), first: r2(f[0]), steps: r2(steps), mid: f.some((v) => v > b + 0.01 && v < Math.max(...f) - 0.01) });
-        g.buffs.timers.set('daynight', 0); await gameWait(1.2);
-      }
-      ok('F11', phases.every((p) => p.mid && p.steps < 0.1), `pickup: intermediate shade seen ${JSON.stringify(phases)}`);
+      await frames(1); g.env.eclipseT = 8.5;
+      const s4 = []; const t4 = g.time; while (g.time - t4 < 3) { await frames(1); s4.push(g.env.nightShade); }
+      ok('F4', Math.max(...s4) > 0.9 && s4[0] < 0.9, `level 1 first ${r2(s4[0])} max ${r2(Math.max(...s4))}`);
+      // F11: pickup during the clock's night: the timer starts at 0 and the sky fades to the day hold, no jump
+      g.buffs.timers.set('daynight', 0);
+      S().holeLevel = 11; g.env.dayClock = 170; g.env.night = 1; await gameWait(1.5);
+      const b = g.env.nightShade;
+      g.buffs.apply('daynight');
+      const f = []; const tf = g.time; while (g.time - tf < 1) { await frames(1); f.push(g.env.nightShade); }
+      const steps = Math.max(...f.map((v, i) => Math.abs(v - (i ? f[i - 1] : b))));
+      const restart = g.env.eclipseT;
+      // the existing damp (lambda 6) carries this one: about 0.3 s, at most 0.26 per 0.05 s frame
+      ok('F11', b > 0.95 && steps < 0.3 && f.filter((v) => v > 0.05 && v < 0.95).length >= 3 && f[f.length - 1] < 0.05 && restart < 1.2,
+        `before ${r2(b)} first ${r2(f[0])} last ${r2(f[f.length - 1])} max step ${r2(steps)} timer ${r2(restart)} s`);
+      g.buffs.timers.set('daynight', 0); g.env.dayClock = 0; g.env.night = 0; await gameWait(1.2);
       // F5: Low quality: no swing, money x2
       S().holeLevel = 11;
       const q0 = prefs.quality; prefs.quality = 'low';

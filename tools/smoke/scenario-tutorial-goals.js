@@ -8,7 +8,7 @@ const out = [];
 const ok = (n, cond, info = '') => out.push(`${cond ? 'PASS' : 'FAIL'} ${n} ${info}`);
 const KEY = 'gnome-boozed-save-v1';
 const MS = ['make', 'grab', 'feed', 'coins', 'combo5', 'buy', 'lvl2', 'lvl4', 'garden', 'lvl6', 'lvl8', 'lvl10', 'lvl12', 'deep'];
-const LS = ['mushroom', 'greedy', 'heavy', 'angry', 'dwarf', 'haul', 'boom', 'saboteur', 'golden', 'wizard', 'fat', 'king', 'crate', 'dump', 'combo15', 'long', 'air', 'trick', 'bullseye'];
+const LS = ['mushroom', 'greedy', 'heavy', 'angry', 'dwarf', 'haul', 'boom', 'saboteur', 'golden', 'wizard', 'fat', 'king', 'crate', 'dump', 'combo15', 'long', 'air', 'bullseye'];
 const thru = (list, id) => list.slice(0, list.indexOf(id) + 1);
 const goalText = (doc = document) => doc.querySelector('.hud-goal')?.textContent ?? '';
 const heads = (doc = document) => [...doc.querySelectorAll('.hud-goal .g-head')].map((e) => e.textContent);
@@ -179,7 +179,7 @@ setTimeout(() => { if (!window.__done) window.__done = out.join('\n') + '\nTIMEO
 
     // 9 every lesson up to level 2 done -> wait text; bullseye base read at level 4
     {
-      const from2 = ['mushroom', 'greedy', 'heavy', 'boom', 'golden', 'crate', 'dump', 'combo15', 'long', 'air', 'trick'];
+      const from2 = ['mushroom', 'greedy', 'heavy', 'boom', 'golden', 'crate', 'dump', 'combo15', 'long', 'air'];
       const s = reset({ goalsDone: [...thru(MS, 'lvl2'), ...from2], holeLevel: 2 }); upd(); await frames(3);
       const p2 = g.goals.progress2(); const nums = [...document.querySelectorAll('.hud-goal .g-num')].map((e) => e.textContent);
       const tp = g.goals.targetPos();
@@ -204,14 +204,11 @@ setTimeout(() => { if (!window.__done) window.__done = out.join('\n') + '\nTIMEO
       ok(11, a === 0 && b === 1 && st().trickShots === 1, `${a}->${b}->${st().trickShots}`);
     }
 
-    // 18 trampoline waypoint
+    // 18 no trampoline TRICK lesson (PP 2026-10-21): after AIR at level 2 the panel waits for level 3
     {
       reset({ goalsDone: [...thru(MS, 'lvl2'), 'mushroom', 'greedy', 'heavy', 'boom', 'golden', 'crate', 'dump', 'combo15', 'long', 'air'], holeLevel: 2 }); upd();
       const shown = g.goals.progress2().text;
-      const t1 = g.goals.targetPos();
-      const m = g.machines.place('trampoline', g.env.hole.clone().add(new g.camera.position.constructor(6, 0, 6)), new g.camera.quaternion.constructor());
-      const t2 = g.goals.targetPos();
-      ok(18, shown.startsWith('TRICK') && t1 === g.env.deskPos && t2 === m.pos, `shown=${shown.slice(0, 10)} desk=${t1 === g.env.deskPos} tramp=${t2 === m.pos}`);
+      ok(18, shown === 'Next lesson at hole level 3', `shown=${shown}`);
     }
 
     // 26 lesson waypoint wins after lvl2; factory on a fresh save
@@ -251,9 +248,9 @@ setTimeout(() => { if (!window.__done) window.__done = out.join('\n') + '\nTIMEO
       ok(32, s.goalsDone.includes('coins') && s.goalStart.crate === 3 && s.goalStart.long === 2 && s.goalStart.combo15 === undefined, JSON.stringify(s.goalStart));
     }
 
-    // 28 screenshot 640x360: GOAL lvl2 + LESSON trick + a running contract
+    // 28 screenshot 640x360: GOAL lvl2 + LESSON air + a running contract
     {
-      reset({ goalsDone: [...thru(MS, 'buy'), 'mushroom', 'greedy', 'heavy', 'golden', 'crate', 'dump', 'combo15', 'long', 'air'], holeLevel: 1 });
+      reset({ goalsDone: [...thru(MS, 'buy'), 'mushroom', 'greedy', 'heavy', 'golden', 'crate', 'dump', 'combo15', 'long'], holeLevel: 1 });
       upd(); g.time = 200; g.contracts.update(0.016);
       for (const el of document.querySelectorAll('.menu')) el.style.display = 'none';
       await frames(30);
@@ -261,7 +258,7 @@ setTimeout(() => { if (!window.__done) window.__done = out.join('\n') + '\nTIMEO
       const card = document.querySelector('.hud-contract, .contract');
       const cr = card?.getBoundingClientRect();
       await shot('28-goal-lesson-640');
-      ok(28, goalText().includes('Reach hole level 2') && goalText().includes('TRICK x3') && !!g.contracts.current, `goal=${Math.round(goal.top)}-${Math.round(goal.bottom)} card=${cr ? Math.round(cr.top) + '-' + Math.round(cr.bottom) : 'none'} innerH=${innerHeight} (overlap checked by eye)`);
+      ok(28, goalText().includes('Reach hole level 2') && goalText().includes('AIR x2') && !!g.contracts.current, `goal=${Math.round(goal.top)}-${Math.round(goal.bottom)} card=${cr ? Math.round(cr.top) + '-' + Math.round(cr.bottom) : 'none'} innerH=${innerHeight} (overlap checked by eye)`);
       for (const el of document.querySelectorAll('.menu')) el.style.display = '';
     }
 

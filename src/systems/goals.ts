@@ -15,7 +15,7 @@ declare module '../core/state' {
   }
 }
 
-type Where = 'factory' | 'hole' | 'shop' | 'crate' | 'trampoline' | null;
+type Where = 'factory' | 'hole' | 'shop' | 'crate' | null;
 
 interface Goal {
   id: string;
@@ -62,6 +62,7 @@ const MILESTONES: Goal[] = [
 
 // Lessons: one mechanic each. The track opens after "Collect coins" (PP 2026-10-20: "od pierwszej minuty");
 // every unlocked lesson counts at once, the panel shows the first one not done (gnome types before trick shots).
+// No trampoline TRICK lesson: the bounce shot was too hard to pull off on purpose (PP 2026-10-21 "trudno sie robi").
 const LESSONS_AFTER = 'coins';
 const LESSONS: Lesson[] = [
   lesson(1, rel('mushroom', 'Eat a MUSHROOM: the hole spits one out now and then. Walk over it', 1, () => st().mushrooms, 40, 'hole')),
@@ -81,7 +82,6 @@ const LESSONS: Lesson[] = [
   lesson(1, abs('combo15', 'Reach a 15 combo (Gnomazing!)', 15, () => st().maxCombo, 80, 'hole')),
   lesson(1, rel('long', 'LONG SHOT x2.5: throw (RMB) into the hole from 8 m or more', 1, () => st().longShots, 100, 'hole')),
   lesson(1, rel('air', 'AIR x2: 3 throws that fly into the hole without touching grass', 3, () => st().airShots, 60, 'hole')),
-  lesson(1, rel('trick', 'TRICK x3: buy a Trampoline, bounce a thrown gnome off it into the hole', 1, () => st().trickShots, 100, 'trampoline')),
   lesson(4, rel('bullseye', 'BULLSEYE x5: throw through the golden hoop into the hole', 1, () => st().bullseyes, 200, 'hole')),
 ];
 const MUSHROOM_LESSON = LESSONS.find((l) => l.id === 'mushroom')!;
@@ -149,14 +149,13 @@ export class Goals {
   }
 
   // world position of the goal's target; after "Reach hole level 2" the lesson's target wins, because the milestones
-  // left are level goals at the hole; a crate or trampoline goal points to the shop until one is placed
+  // left are level goals at the hole; a crate goal points to the shop until one is placed
   targetPos(): THREE.Vector3 | null {
     const w = (this.done.has('lvl2') ? (this.current2?.where ?? this.current?.where) : this.current?.where) ?? null;
     if (w === 'factory') return ctx.factory.pos;
     if (w === 'hole') return ctx.env.hole;
     if (w === 'shop') return ctx.env.deskPos;
     if (w === 'crate') return ctx.machines.list.find((m) => m.type === 'box')?.pos ?? ctx.env.deskPos;
-    if (w === 'trampoline') return ctx.machines.list.find((m) => m.type === 'trampoline')?.pos ?? ctx.env.deskPos;
     return null;
   }
 

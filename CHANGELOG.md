@@ -2,6 +2,11 @@
 
 Newest build first. Each build lists what changed and what to test. Shown in the start menu (button "What's new").
 
+## 2026-10-25 22:00
+
+- Eclipse Cap changes the sky slower: 5 s of day, a 5 s fade to night, 5 s of night and a 5 s fade back.
+- The lesson that asked for a trick shot off a trampoline is gone. The TRICK x3 bonus still pays when you pull it off.
+
 ## 2026-10-25 20:00
 
 - The secret code is gone: five gold letters G N O M E now lie around the lands, the far ones visible beyond the fence. Feed them all to the hole for BOOZED mode, once per save.
