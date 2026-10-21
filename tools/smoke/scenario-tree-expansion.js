@@ -263,6 +263,14 @@ setTimeout(() => { if (!window.__done) window.__done = JSON.stringify({ ...R, ch
       R.U15 = { ...tl, scale: sc, scrollMax: rowsEl.scrollHeight - rowsEl.clientHeight, cutNames: cut.length, cut };
       await shot('Tools-1280');
       R.U15b = Object.fromEntries(['Plow', 'Magnet', 'Factory', 'Movement', 'Combos', 'Bonuses'].map((t) => [t.toLowerCase(), layout(t).rows]));
+      // Coin Magnet sits in the Magnet tab (PP 2026-10-21): screenshots of both tabs at 1280x720 and 1920x1080, checked by eye
+      for (const [w, hgt] of [[1280, 720], [1920, 1080]]) {
+        await cdp({ method: 'Emulation.setDeviceMetricsOverride', params: { width: w, height: hgt, deviceScaleFactor: 1, mobile: false } });
+        await sleep(300);
+        for (const t of ['Magnet', 'Movement']) { layout(t); await frames(2); await shot(`${t}-${w}`); }
+      }
+      await cdp({ method: 'Emulation.setDeviceMetricsOverride', params: { width: 1280, height: 720, deviceScaleFactor: 1, mobile: false } });
+      await sleep(300);
       // U19: every connector starts at the node's own parent (siblings fork from their root) and ends at the node,
       // stays inside the node's row band, and a parent right before its child is one straight segment
       const pts = (d) => { let x = 0, y = 0; const out = []; for (const [, c, a, b] of d.matchAll(/([MHV])\s*(-?[\d.]+)(?:\s+(-?[\d.]+))?/g)) { if (c === 'M') { x = +a; y = +b; } else if (c === 'H') x = +a; else y = +a; out.push({ x, y }); } return out; };
@@ -567,7 +575,8 @@ setTimeout(() => { if (!window.__done) window.__done = JSON.stringify({ ...R, ch
   ok('U14', R.U14?.legendRows === 63 && R.U14?.upgrades === 63 && R.U14?.fuseRows === 9, J(R.U14));
   // one row per tool (PP 2026-10-24): 11 rows scroll at 1280x720 at full size instead of shrinking
   ok('U15', R.U15?.rows === 11 && R.U15?.cols === 5 && R.U15?.scale === 1 && R.U15?.cutNames === 0, J(R.U15));
-  ok('U15b', J(R.U15b) === J({ plow: 3, magnet: 4, factory: 5, movement: 5, combos: 4, bonuses: 5 }), J(R.U15b));
+  // Coin Magnet moved from Movement to Magnet (PP 2026-10-21): one root row more in Magnet, one less in Movement
+  ok('U15b', J(R.U15b) === J({ plow: 3, magnet: 5, factory: 5, movement: 4, combos: 4, bonuses: 5 }), J(R.U15b));
   ok('U19', R.U19?.children > 0 && R.U19.paths === R.U19.children && !R.U19.missing.length && !R.U19.bent.length && !R.U19.outOfRow.length, J(R.U19));
   ok('U16', R.U16?.fanFusesAfterBoot === 5 && R.U16?.blownAfterClamp <= 5, J(R.U16));
   ok('U17', R.U17?.fanFuses === 4 && R.U17?.trampolineFuses === 2 && R.U17?.robotFuses === 2, J(R.U17));

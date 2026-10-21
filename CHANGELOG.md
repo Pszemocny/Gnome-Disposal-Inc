@@ -2,6 +2,11 @@
 
 Newest build first. Each build lists what changed and what to test. Shown in the start menu (button "What's new").
 
+## 2026-10-26 10:00
+
+- Coin Magnet moved to the Magnet tab, next to the other magnets. Your bought levels stay.
+- The last level of Strong Arm makes weight irrelevant: every gnome flies the same, from your hands or from the Magnet Gun.
+
 ## 2026-10-25 22:00
 
 - Eclipse Cap changes the sky slower: 5 s of day, a 5 s fade to night, 5 s of night and a 5 s fade back.

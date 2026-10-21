@@ -258,7 +258,7 @@ export class Player {
       end.divideScalar(sw.length);
       bv.divideScalar(sw.length);
     }
-    if (lvl('frenzy') && (h?.gnome || sw.length)) m = WEIGHT_TIERS.normal.mass; // as throwHeld's mRef (Q1 a)
+    if (this.ignoreWeight && (h?.gnome || sw.length)) m = WEIGHT_TIERS.normal.mass; // as throwHeld's mRef (Q1 a)
 
     // Trick Scope (shop): the predicted path while something is held; fades in and out over 0.2 s
     const holding = !!h || sw.length > 0;
@@ -374,6 +374,11 @@ export class Player {
 
   private get throwJ(): number {
     return 15 * (1 + 0.15 * lvl('throw'));
+  }
+
+  // every gnome flies as a 1.2 kg one: Feeding Frenzy (2026-10-25, Q1 a) or max Strong Arm (PP 2026-10-21)
+  private get ignoreWeight(): boolean {
+    return !!lvl('frenzy') || lvl('throw') >= UPGRADE_BY_ID.throw.max;
   }
 
   get dir(): THREE.Vector3 {
@@ -680,7 +685,7 @@ export class Player {
     const thrown = this.heldGnomes();
     const spread = thrown.length > 1 ? 0.06 : 0;
     const mMax = thrown.reduce((a, g) => Math.max(a, g.body.mass()), 0);
-    const mRef = lvl('frenzy') ? WEIGHT_TIERS.normal.mass : mMax; // Feeding Frenzy: the arm compensates the weight, J / 1.2 (2026-10-25, Q1 a)
+    const mRef = this.ignoreWeight ? WEIGHT_TIERS.normal.mass : mMax; // the arm compensates the weight, J / 1.2
     for (const g of thrown) {
       const impulse = new THREE.Vector3(d.x + rand(-spread, spread), d.y + 0.17 + rand(-spread, spread), d.z + rand(-spread, spread)).multiplyScalar((J * g.body.mass()) / mRef);
       ctx.gnomes.drop(g, impulse);

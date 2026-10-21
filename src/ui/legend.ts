@@ -174,7 +174,7 @@ export class Legend {
       .map((w) => `<tr><td>${w.id}</td><td>${w.mass} kg</td><td>x${w.scale}</td><td>x${w.value}</td><td>x${w.flee}</td></tr>`)
       .join('');
     return `<h3>Gnome types · ${album.discovered}/${GNOME_TYPES.length} discovered</h3><div class="lg-grid">${cards}</div>
-      <h3>Weight classes</h3><p>Every gnome type comes in these classes. The deeper the hole, the more heavy ones the factory makes. Heavy gnomes slip off the magnet and fly shorter.</p>
+      <h3>Weight classes</h3><p>Every gnome type comes in these classes. The deeper the hole, the more heavy ones the factory makes. Heavy gnomes slip off the magnet and fly shorter; at the last Strong Arm level every gnome flies the same.</p>
       <table><tr><th>Class</th><th>Weight</th><th>Size</th><th>Money and XP</th><th>Run speed</th></tr>${tiers}</table>`;
   }
 

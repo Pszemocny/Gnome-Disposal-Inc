@@ -383,6 +383,23 @@ setTimeout(() => { if (!window.__done) window.__done = JSON.stringify({ ...R, ch
       U().frenzy = 0;
       ok('D12', within(d12a, J() / 1.2, 0.05) && within(d12b, J() / 1.2, 0.1), `frenzy5 3kg hand ${r2(d12a[0])}, frenzy1 mixed ball [${d12b.map(r2)}], J/1.2 ${r2(J() / 1.2)}`);
       clearGnomes();
+      // D19: max Strong Arm ignores weight (PP 2026-10-21): a massive gnome by hand and in a ball flies as a normal one,
+      // the Trick Scope preview uses the same mass; one level lower the massive one stays slower
+      const armMax = UPGRADE_BY_ID.throw.max; const predict0 = g.player.predict; const preM = [];
+      g.player.predict = function (s, v, m, gn) { preM.push(m); return predict0.call(this, s, v, m, gn); };
+      U().scope = 1;
+      const arm = (L) => {
+        U().throw = L;
+        const hn = tiered('normal', 1); holdHand(hn); const n = throwDv([hn])[0]; clearGnomes();
+        const hm = tiered('massive', 1); holdHand(hm); g.player.updateAids(); const m = throwDv([hm])[0]; clearGnomes();
+        const ball = [tiered('massive', 0), tiered('massive', 2)]; holdBall(ball); g.player.updateAids(); const b = throwDv(ball); clearGnomes();
+        return { n, m, b, pre: preM.splice(0) };
+      };
+      const aMax = arm(armMax); const aLow = arm(armMax - 1);
+      g.player.predict = predict0; U().throw = 0; U().scope = 0;
+      // the ball's +-0.06 spread moves each speed by up to 10 %, as in B1
+      ok('D19', within([aMax.m], aMax.n, 0.02) && within(aMax.b, aMax.n, 0.1) && aMax.pre.every((m) => near(m, 1.2, 1e-6)) && aLow.m < 0.5 * aLow.n && within(aLow.b, aLow.m, 0.1) && aLow.pre.every((m) => near(m, 3, 1e-3)),
+        `L${armMax}: normal ${r2(aMax.n)} massive hand ${r2(aMax.m)} ball [${aMax.b.map(r2)}] preview m [${aMax.pre.map(r2)}]; L${armMax - 1}: normal ${r2(aLow.n)} massive hand ${r2(aLow.m)} ball [${aLow.b.map(r2)}] preview m [${aLow.pre.map(r2)}]`);
       // D14: the HEAVY HAUL contract is not offered with Frenzy owned
       const haul = g.contracts.defs.find((d) => d.id === 'haul');
       S().holeLevel = 6;

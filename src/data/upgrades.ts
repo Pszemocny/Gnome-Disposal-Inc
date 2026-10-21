@@ -31,8 +31,10 @@ const BEFORE_TOOLS: Upgrade[] = [
   U('magGun', 'Magnet', 'Magnet Gun', 'Hold LMB to pull lots of gnomes at once into a ball. Heavy gnomes slip off more easily.', 1, 300, 1),
   U('magPower', 'Magnet', 'Magnet Coil', '+0.2 m magnet ball radius (fits more gnomes), a stronger grip and +0.6 m reach (needs the Magnet Gun).', 10, 25, 1.45, 1, 'magGun'),
   U('magRange', 'Magnet', 'Magnet Dish', '+1.2 m magnet range and a wider cone (widest on the Magnet Gun).', 5, 60, 1.6, 2),
-  U('throw', 'Magnet', 'Strong Arm', '+15% throw power. Heavy gnomes still fly shorter.', 6, 15, 1.5),
+  U('throw', 'Magnet', 'Strong Arm', '+15% throw power. Heavy gnomes fly shorter, but at the last level every gnome flies the same, by hand or by Magnet Gun.', 6, 15, 1.5),
   U('scope', 'Magnet', 'Trick Scope', 'A sight for throws. Lvl 1: the crosshair turns green over the hole, gold for a trick. Lvl 2: a reflex glass at the centre names the trick. Lvl 3: the glass adds the distance and the multiplier.', 3, 300, 2),
+  // level 10 is the old Piggy Bank, about $90k (PP 2026-10-24 "bardzo drogi np 100k"); Magnet tab since PP 2026-10-21
+  U('magnetRange', 'Magnet', 'Coin Magnet', '+1.2 m coin pickup radius. Level 10: coins fly into your bank by themselves and greedy gnomes cannot steal them.', 10, 20, 2.2),
 
   // Factory and Combos level caps doubled so they last through 12 hole levels (PP 2026-10-20);
   // Gnome Permit stays at 5 (320 gnomes is the most the yard can simulate smoothly)
@@ -50,8 +52,6 @@ const BEFORE_TOOLS: Upgrade[] = [
   U('speed', 'Movement', 'Running Shoes', '+12% move speed.', 5, 20, 1.6),
   U('jump', 'Movement', 'Spring Socks', '+15% jump height.', 3, 30, 1.7),
   U('boots', 'Movement', 'Gnome Boots', 'Double jump, and the ground pound (J in the air) reaches 5.5 m and pushes 1.5x harder. Gnomes hate these boots.', 1, 600, 1, 3),
-  // level 10 is the old Piggy Bank, about $90k (PP 2026-10-24 "bardzo drogi np 100k")
-  U('magnetRange', 'Movement', 'Coin Magnet', '+1.2 m coin pickup radius. Level 10: coins fly into your bank by themselves and greedy gnomes cannot steal them.', 10, 20, 2.2),
   U('laptop', 'Movement', 'Laptop', 'Open the shop anywhere with B.', 1, 150, 1),
 ];
 
