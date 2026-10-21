@@ -1,7 +1,9 @@
 // Headless smoke test over Chrome DevTools Protocol, against the dev server on 5199 (never 5300).
 // Usage: node tools/smoke/smoke.mjs <outDir> <scenarioFile>
-// Env: FULL=1 full Chromium in --headless=new (the headless shell has no pointer lock), DPR=<n> device scale factor,
-// CDP_PORT, DEV_PORT (dev server, default 5199), MAXPOLL (polls of 250 ms), SW=1 software GL, URL_QUERY (default '?lowfx').
+// Env: FAKELOCK=1 pointer lock emulated in the page on the headless shell (use this for lock scenarios),
+// FULL=1 full Chromium in --headless=new with a real lock (it grabs and moves the real macOS cursor: not while PP works),
+// DPR=<n> device scale factor, CDP_PORT, DEV_PORT (dev server, default 5199), MAXPOLL (polls of 250 ms), SW=1 software GL,
+// URL_QUERY (default '?lowfx').
 import { spawn } from 'node:child_process';
 import { writeFileSync, readFileSync, mkdirSync, rmSync } from 'node:fs';
 
@@ -64,8 +66,27 @@ await send('Log.enable');
 await send('Page.enable');
 // DPR=1 also fixes the viewport: without the override --headless=new gave a 640x217 window
 if (process.env.DPR) await send('Emulation.setDeviceMetricsOverride', { width: 640, height: 360, deviceScaleFactor: Number(process.env.DPR), mobile: false });
+// FAKELOCK: runs in every frame (iframes too) before the game's scripts, one lock per document. Scenario hooks:
+// __fakeLock.refuse(n) rejects the next n requests + pointerlockerror; __fakeLock.escExits = true makes a trusted Esc
+// keydown drop the lock and never reach the page (Chrome/Brave); by default Esc reaches the page, as in headless.
+// Mouse moves still come from CDP Input.dispatchMouseEvent: Chromium fills movementX/Y without a real lock.
+const FAKE_LOCK = `(() => {
+  let el = null; let refuseN = 0;
+  const fire = (type) => document.dispatchEvent(new Event(type));
+  const fl = window.__fakeLock = { escExits: false, refuse: (n = 1) => { refuseN = n; } };
+  Object.defineProperty(Document.prototype, 'pointerLockElement', { configurable: true, get: () => el });
+  Element.prototype.requestPointerLock = function () { // the options ({unadjustedMovement}) are accepted and ignored
+    if (refuseN > 0) { refuseN--; setTimeout(() => fire('pointerlockerror')); return Promise.reject(new DOMException('fake lock: refused', 'NotAllowedError')); }
+    return new Promise((ok) => setTimeout(() => { if (el !== this) { el = this; fire('pointerlockchange'); } ok(); }));
+  };
+  Document.prototype.exitPointerLock = function () { setTimeout(() => { if (el) { el = null; fire('pointerlockchange'); } }); };
+  window.addEventListener('keydown', (e) => {
+    if (fl.escExits && el && e.isTrusted && e.code === 'Escape') { e.stopImmediatePropagation(); e.preventDefault(); el = null; fire('pointerlockchange'); }
+  }, true);
+})();`;
+if (process.env.FAKELOCK) await send('Page.addScriptToEvaluateOnNewDocument', { source: FAKE_LOCK });
 // pointer lock needs a focused page; --headless=new starts unfocused
-if (process.env.FULL) {
+if (process.env.FULL || process.env.FAKELOCK) {
   await send('Page.bringToFront');
   await send('Emulation.setFocusEmulationEnabled', { enabled: true });
 }
