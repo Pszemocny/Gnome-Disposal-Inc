@@ -242,6 +242,40 @@ export class Audio {
     this.tone('sine', 55, 50, 2.5, 0.2);
   }
 
+  // Shadow Gnome (PP 2026-10-21 "dziwny dźwięk ... jakieś klikanie"): one short burst of irregular dry clicks at (x, z),
+  // quieter with distance and panned to its side. Each call ends by itself; the shadow repeats it only while it stares.
+  clicks(x: number, z: number): void {
+    if (!this.gate('clicks', 0.5)) return;
+    const c = this.ctx!;
+    const pp = game.player.position;
+    const dx = x - pp.x;
+    const dz = z - pp.z;
+    const d = Math.max(1, Math.hypot(dx, dz));
+    const yaw = game.player.yaw;
+    const out = c.createStereoPanner();
+    out.pan.value = (dx * Math.cos(yaw) - dz * Math.sin(yaw)) / d;
+    out.connect(this.master);
+    const vol = 0.25 * Math.min(1, 5 / d);
+    let t = c.currentTime;
+    const n = 5 + Math.floor(Math.random() * 6);
+    for (let i = 0; i < n; i++) {
+      t += 0.02 + Math.random() * Math.random() * 0.25; // mostly fast ticks, now and then a pause
+      const len = 0.004 + Math.random() * 0.014;
+      const s = c.createBufferSource();
+      s.buffer = this.noiseBuf;
+      const f = c.createBiquadFilter();
+      f.type = 'bandpass';
+      f.frequency.value = 1200 + Math.random() * 3800;
+      f.Q.value = 2 + Math.random() * 4;
+      const g = c.createGain();
+      g.gain.setValueAtTime(vol * (0.4 + Math.random() * 0.6), t);
+      g.gain.exponentialRampToValueAtTime(0.0001, t + len);
+      s.connect(f).connect(g).connect(out);
+      s.start(t, Math.random() * 0.9);
+      s.stop(t + len + 0.01);
+    }
+  }
+
   toast(): void {
     this.tone('sine', 988, 988, 0.1, 0.07);
     this.tone('sine', 1319, 1319, 0.25, 0.07, 0.1);

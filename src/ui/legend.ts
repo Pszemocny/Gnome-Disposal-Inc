@@ -5,7 +5,7 @@ import { HOLE_LEVELS, MAX_HOLE_LEVEL } from '../data/holeLevels';
 import { LAND } from '../data/land';
 import { UPGRADE_BY_ID, UPGRADES, upgradeCost, type Upgrade } from '../data/upgrades';
 import { album } from '../systems/album';
-import { MUSHROOMS } from '../systems/buffs';
+import { GOLD_LEVEL, MUSHROOMS, mushroomWeight } from '../systems/buffs';
 import * as eventsModule from '../systems/events';
 
 type LegendTab = 'Gnomes' | 'Mushrooms' | 'Tools' | 'Mechanics';
@@ -46,7 +46,7 @@ const TEXT: Record<string, string> = {
   angry: 'Charges you and knocks you back. When bored it kicks other gnomes around.',
   dwarf: 'Small, light and fast. Runs away from you.',
   saboteur: 'Walks to your working tools and blows a fuse per hit; with no fuse left the tool breaks. Press E on the tool to fix it and swap fuses (each tool has its own Fuses upgrade).',
-  shadow: 'Appears at night. Stares at you and vanishes when you come close. Left alone too long, it takes some of your money.',
+  shadow: 'Comes out of the dark behind you at night and stares. It vanishes when you come close; robots and tools leave it alone for 20 s. Left alone too long, it takes some of your money.',
   wizard: 'Casts a spell that throws gnomes away from the hole and teleports around the yard.',
   fat: 'Big and heavy, slow. Hard to throw far.',
   king: 'Arrives with an event at a high hole level. Too heavy for any magnet: only machines (tractor, cannon, vacuum...) can move him. He stomps the ground.',
@@ -65,7 +65,7 @@ const GENERIC = 'A gnome. Feed it to the hole.';
 const hex = (c: number) => '#' + c.toString(16).padStart(6, '0');
 const pct = (v: number) => `${+(v * 100).toFixed(1)}%`;
 
-interface EventLike { name: string; sub: string }
+interface EventLike { name: string; sub: string; weight: number }
 interface ContractLike { title: (n: number) => string; target: () => number; time: number; hard: boolean; ok: () => boolean }
 
 const CSS = `
@@ -179,12 +179,12 @@ export class Legend {
   }
 
   private mushrooms(): string {
-    const total = MUSHROOMS.reduce((s, m) => s + m.weight, 0);
+    const total = MUSHROOMS.reduce((s, m) => s + mushroomWeight(m), 0);
     const cards = MUSHROOMS.map(
       (m) => `<div class="lg-card lg-mush">
         <span class="sw" style="background:${hex(m.cap)}"></span><b>${m.name}</b>${ctx.buffs.active(m.id) ? '<span class="st"> · ACTIVE</span>' : ''}<br>
         ${m.desc}<br>
-        <span class="dim">Lasts ${m.duration} s · ${pct(m.weight / total)} of mushroom drops</span>
+        <span class="dim">Lasts ${m.duration} s · ${mushroomWeight(m) ? `${pct(m.weight / total)} of mushroom drops` : `drops from hole level ${GOLD_LEVEL}`}</span>
       </div>`,
     ).join('');
     const bag = UPGRADE_BY_ID.mushChance;
@@ -223,7 +223,7 @@ export class Legend {
 
     // events.ts and contracts.ts keep their tables private: read them if present, else the plain text
     const events = (eventsModule as unknown as { EVENTS?: EventLike[] }).EVENTS;
-    const eventList = events ? `<table>${events.map((e) => `<tr><td>${e.name}</td><td>${e.sub}</td></tr>`).join('')}</table>` : '';
+    const eventList = events ? `<table>${events.filter((e) => e.weight > 0).map((e) => `<tr><td>${e.name}</td><td>${e.sub}</td></tr>`).join('')}</table>` : '';
     const defs = (ctx.contracts as unknown as { defs?: ContractLike[] } | undefined)?.defs;
     const contractList = defs
       ? `<table>${defs.map((d) => `<tr><td>${d.title(d.target())}</td><td>${d.time} s</td><td>${d.hard ? 'hard' : ''}</td><td>${d.ok() ? '' : '<span class="dim">not possible now</span>'}</td></tr>`).join('')}</table>`

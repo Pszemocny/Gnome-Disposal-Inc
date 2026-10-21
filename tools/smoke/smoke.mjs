@@ -16,7 +16,7 @@ const BIN = process.env.FULL
 const PORT = Number(process.env.CDP_PORT ?? 9333);
 // GPU (Metal) by default: 60 fps instead of about 7 with software rendering; SW=1 falls back to SwiftShader
 const GL = process.env.SW ? ['--use-angle=swiftshader', '--enable-unsafe-swiftshader'] : ['--use-angle=metal', '--enable-gpu', '--ignore-gpu-blocklist'];
-const chrome = spawn(BIN, [...(process.env.FULL ? ['--headless=new'] : []), `--remote-debugging-port=${PORT}`, ...GL, '--window-size=640,360', '--no-first-run', `--user-data-dir=${OUT}/profile`, 'about:blank'], { stdio: 'ignore' });
+const chrome = spawn(BIN, [...(process.env.FULL ? ['--headless=new'] : []), `--remote-debugging-port=${PORT}`, ...GL, '--window-size=640,360', '--no-first-run', '--mute-audio', `--user-data-dir=${OUT}/profile`, 'about:blank'], { stdio: 'ignore' });
 // never leave Chromium or its 40 MB profile behind, also when the run is interrupted or times out
 const cleanup = () => {
   try { chrome.kill('SIGKILL'); } catch {}

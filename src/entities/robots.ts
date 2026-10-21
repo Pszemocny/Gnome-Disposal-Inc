@@ -1,13 +1,15 @@
 import * as THREE from 'three';
-import { ctx, G, lvl, savePose } from '../core/context';
+import { ctx, G, groups, lvl, savePose } from '../core/context';
 import { inQuad, outBack, outCubic } from '../core/ease';
-import { build, robotBedGeometry, robotGeometry, vcMat } from '../world/models';
+import { robotBedGeometry, robotGeometry, robotStationGeometry, vcMat } from '../world/models';
 import { isFree, type Gnome } from './gnomes';
-import { machineBox, type Machine } from './machines';
+import { machineBox, needsRepair, type Machine } from './machines';
+import { glowTexture } from './mushrooms';
 
-// Cleaning robot: a little truck that drives to free gnomes around its home post, scoops them onto its bed
+// Cleaning robot: a little truck that drives to free gnomes around its station, scoops them onto its bed
 // (stashed, shown as hats), drives to the hole, tips the load in and drives back. It plans a way round placed
-// tools on a coarse grid (A*, a few times per second), never comes closer to the hole than HOLE_GAP, backs
+// tools on a coarse grid of the whole yard, shared by all trucks and rebuilt only when the tools, the factory or the
+// hole change (the hole and each post get a distance field, a gnome an A* search), never comes closer to the hole than HOLE_GAP, backs
 // off and sidesteps when something it cannot see (a prop, another truck) blocks it.
 export type RobotState = 'idle' | 'seek' | 'pick' | 'drive' | 'tip' | 'return';
 
@@ -39,6 +41,7 @@ export interface Robot {
   stashed: boolean; // the pick's contact frame has happened
   bed: THREE.Object3D;
   areaRing: THREE.Object3D;
+  lamp: THREE.Sprite; // on the station pole: green working, red needs E
 }
 
 const HATS = 6;
@@ -47,6 +50,8 @@ const REACH = 1.1;
 const HOLE_GAP = 1.0; // the truck never gets closer than this to the hole edge
 const ARRIVE_HOLE = 1.3;
 const ARRIVE_HOME = 0.6;
+// the pole stands 1.2 m from the post; the step-out keeps it out of the rim whichever way the station faces
+const STATION_REACH = 1.3;
 const TURN_LIMIT = 1.2; // above this heading error it turns in place
 const LONELY = 4;
 const STUCK_T = 1.5;
@@ -59,7 +64,6 @@ const RESCUE = 15; // seconds without progress driving or returning: back to the
 // planning grid: tool footprints grow by CLEAR, so only gaps wider than 2 x CLEAR (the truck is 1.1 m wide) stay open
 const CELL = 0.5;
 const CLEAR = 0.7;
-const MARGIN = 6; // the grid reaches this far beyond the truck and its goal
 const REPLAN = 0.5;
 const LOOK = 12; // path nodes ahead tried for a straight line
 const ESCAPE = 0.8; // cells this close to the truck are free, so a truck already near a tool can leave
@@ -105,36 +109,53 @@ export function robotVisual(): { root: THREE.Group; bed: THREE.Object3D } {
   const ring = new THREE.Mesh(new THREE.RingGeometry(area - 0.08, area, 48).rotateX(-Math.PI / 2), new THREE.MeshBasicMaterial({ color: 0xffcc33 }));
   ring.name = 'drop';
   ring.position.y = 0.05;
-  root.add(truck, bed, ring);
+  // the station (pad, pole with the fuse box, lamp); initRobot moves it onto the marker, the ghost shows it as is
+  const station = new THREE.Group();
+  station.name = 'station';
+  const pad = new THREE.Mesh(robotStationGeometry(), mat);
+  pad.receiveShadow = true;
+  const lamp = new THREE.Sprite(new THREE.SpriteMaterial({ map: glowTexture(), color: 0x2bd44a, blending: THREE.AdditiveBlending, depthWrite: false, transparent: true }));
+  lamp.name = 'lamp';
+  lamp.scale.setScalar(0.35);
+  lamp.position.set(0, 1.82, -1.2);
+  station.add(pad, lamp);
+  root.add(truck, bed, ring, station);
   return { root, bed };
 }
 
-// Called by Machines.place: state, the home post with its area ring, an upright body.
+// Called by Machines.place: state, the station with its area ring, an upright body.
 export function initRobot(m: Machine): void {
   // a post placed from the air (far G move, no surface under the crosshair) lands on the ground or on the tool
-  // under it; old saves with a hovering y get grounded here too
+  // under it; old saves with a hovering y get grounded here too (not on another station's pad sensor)
   const from = { x: m.pos.x, y: m.pos.y + 0.3, z: m.pos.z };
-  const hit = ctx.physics.castRay(new ctx.R.Ray(from, { x: 0, y: -1, z: 0 }), 30, true, undefined, undefined, undefined, m.body,
+  const hit = ctx.physics.castRay(new ctx.R.Ray(from, { x: 0, y: -1, z: 0 }), 30, true, ctx.R.QueryFilterFlags.EXCLUDE_SENSORS, undefined, undefined, m.body,
     (col) => ((col.collisionGroups() >>> 16) & (G.GROUND | G.STATIC)) !== 0);
   if (hit) {
     m.pos.y = from.y - hit.timeOfImpact;
     m.body.setTranslation({ x: m.pos.x, y: m.pos.y + 0.02, z: m.pos.z }, true);
   }
+  const fwd = new THREE.Vector3(0, 0, 1).applyQuaternion(m.quat);
+  const yaw = Math.atan2(fwd.x, fwd.z);
+  tmpQ.setFromAxisAngle(UP, yaw);
   const marker = new THREE.Group();
-  marker.add(new THREE.Mesh(build([
-    { g: new THREE.CylinderGeometry(0.05, 0.06, 1.1, 8), c: 0xd8dce0, p: [0, 0.55, 0] },
-    { g: new THREE.SphereGeometry(0.11, 12, 8), c: 0x2fa8b8, p: [0, 1.15, 0] },
-  ]), vcMat()));
+  marker.add(m.root.getObjectByName('station')!); // add() reparents it out of the truck
   const ring = new THREE.Mesh(new THREE.RingGeometry(0.985, 1, 64).rotateX(-Math.PI / 2), new THREE.MeshBasicMaterial({ color: 0x2fa8b8, transparent: true, opacity: 0.35, depthWrite: false }));
   ring.position.y = 0.04;
   ring.scale.setScalar(robotArea());
   marker.add(ring);
   marker.position.copy(m.pos);
+  marker.rotation.y = yaw;
   ctx.scene.add(marker);
   m.marker = marker;
-  const fwd = new THREE.Vector3(0, 0, 1).applyQuaternion(m.quat);
-  const yaw = Math.atan2(fwd.x, fwd.z);
-  tmpQ.setFromAxisAngle(UP, yaw);
+  // the station body: a solid pole and a sensor pad, both in byCollider so E/G/X work when aiming at them.
+  // The sensor pad: the placement ghost and the look ray see it (nothing is built on the pad); the character
+  // controller skips sensors, so the player walks across. The pole stops the player because the controller stops
+  // at every non-sensor collider; the PLAYER filter keeps trucks, gnomes, coins and props out of both.
+  m.station = ctx.physics.createRigidBody(ctx.R.RigidBodyDesc.fixed().setTranslation(m.pos.x, m.pos.y, m.pos.z).setRotation({ x: tmpQ.x, y: tmpQ.y, z: tmpQ.z, w: tmpQ.w }));
+  const grp = groups(G.STATIC, G.PLAYER);
+  ctx.machines.byCollider.set(ctx.physics.createCollider(ctx.R.ColliderDesc.cuboid(0.2, 0.8, 0.16).setTranslation(0, 0.8, -1.16).setCollisionGroups(grp), m.station).handle, m);
+  // 0.3 m tall: the placement ghost box is shrunk by 8 %, so a 3 cm pad would slip under a tall tool's box
+  ctx.machines.byCollider.set(ctx.physics.createCollider(ctx.R.ColliderDesc.cuboid(1.0, 0.15, 1.3).setTranslation(0, 0.15, 0).setSensor(true).setCollisionGroups(grp), m.station).handle, m);
   m.body.setRotation({ x: tmpQ.x, y: tmpQ.y, z: tmpQ.z, w: tmpQ.w }, true);
   // same outer size as the cuboid from Machines.place, with rounded edges: a sharp bottom edge catches on the
   // seam between two ground slabs (z = hole ± 0.7 r) and the truck stops dead there
@@ -143,8 +164,47 @@ export function initRobot(m: Machine): void {
   m.robot = {
     state: 'idle', yaw, speed: 0, wp: null, targetGnome: null, detour: null, detourT: 0, detours: 0, skip: new Set(),
     scan: 0, lonely: 0, stuckT: 0, lastPos: m.pos.clone(), anim: 0, stashed: false, bed: m.spin!, areaRing: ring,
+    lamp: marker.getObjectByName('lamp') as THREE.Sprite,
     grid: null, path: [], reached: true, plan: 0, planKey: null, backT: 0, best: Infinity, noGain: 0,
   };
+}
+
+// The hole grew or moved over the post (level-ups leave robots alone): the post, the station and its ring step out
+// to where the truck can reach them. Runs every frame, also while the robot is broken.
+// The pole must not land in a tool, the fence or the house (poleBlocked, the same test as a load): the post tries
+// other spots at the same distance from the hole, 0.25 rad apart. Returns false when none has room: the caller
+// sends the robot back to the inventory.
+export function stepOutPost(m: Machine): boolean {
+  const env = ctx.env;
+  const home = m.pos;
+  const hh = env.holeDist(home.x, home.z);
+  const keep = env.holeRadius + HOLE_GAP + ARRIVE_HOME + STATION_REACH;
+  if (hh < keep) {
+    const a = hh > 1e-3 ? Math.atan2(home.z - env.hole.z, home.x - env.hole.x) : 0;
+    const y = Math.max(0, home.y);
+    let room = false;
+    for (let k = 0; k <= 24 && !room; k++) {
+      const b = a + (k % 2 ? 1 : -1) * Math.ceil(k / 2) * 0.25;
+      home.set(env.hole.x + Math.cos(b) * keep, y, env.hole.z + Math.sin(b) * keep);
+      room = !ctx.machines.poleBlocked(m);
+    }
+    if (!room) return false;
+  }
+  // the body follows once the player is 0.8 m clear of the new pole: the character controller cannot walk out of a
+  // pole that appears inside it towards its far side (A7, plan R7)
+  const st = m.station!.translation();
+  if (hdist(st, home) > 1e-3 || Math.abs(st.y - home.y) > 1e-3) {
+    const yaw = m.marker!.rotation.y;
+    const pole = { x: home.x - Math.sin(yaw) * 1.2, z: home.z - Math.cos(yaw) * 1.2 };
+    if (hdist(ctx.player.position, pole) > 0.8) m.station!.setTranslation({ x: home.x, y: home.y, z: home.z }, true);
+  }
+  m.marker!.position.copy(home);
+  m.robot!.areaRing.scale.setScalar(robotArea());
+  return true;
+}
+
+export function stationLamp(m: Machine): void {
+  m.robot!.lamp.material.color.setHex(needsRepair(m) ? 0xff3b3b : 0x2bd44a);
 }
 
 const hdist = (a: { x: number; z: number }, b: { x: number; z: number }) => Math.hypot(a.x - b.x, a.z - b.z);
@@ -159,19 +219,10 @@ export function updateRobot(m: Machine, dt: number): void {
   const half = env.half;
   const cap = robotCap();
   const area = robotArea();
-  // m.pos is the home post (saved, and what Machines.move moves)
+  // m.pos is the station centre, where the truck parks (saved; stepOutPost moves it out of the hole)
   const home = m.pos;
-  // the hole grew or moved over the post (level-ups leave robots alone): the post steps out to where the truck can reach it
-  const hh = env.holeDist(home.x, home.z);
-  const keep = env.holeRadius + HOLE_GAP + ARRIVE_HOME;
-  if (hh < keep) {
-    const a = hh > 1e-3 ? Math.atan2(home.z - env.hole.z, home.x - env.hole.x) : 0;
-    home.set(env.hole.x + Math.cos(a) * keep, Math.max(0, home.y), env.hole.z + Math.sin(a) * keep);
-  }
-  m.marker!.position.copy(home);
-  r.areaRing.scale.setScalar(area);
 
-  // fell into the hole or left the yard: back at the home post with its cargo
+  // fell into the hole or left the yard: back at the station with its cargo
   if (t.y < -1 || Math.abs(t.x) > half + 0.5 || Math.abs(t.z) > half + 0.5) return toPost(m);
 
   // the target is gone (eaten, held, stashed elsewhere), walked out of the area or left the ground (it is picked
@@ -363,7 +414,7 @@ const AIR_VY = 3;
 const onGround = (g: Gnome, gp: { x: number; y: number; z: number }) =>
   gp.y < 1.2 * g.scale && Math.abs(g.body.linvel().y) < AIR_VY && !(gp.y > 0.44 * g.scale + 0.25 && ctx.factory.inside(gp.x, gp.z));
 
-// Best free gnome (not the king) within the work area around the home post: most dangerous type, then the one
+// Best free gnome (not the king) within the work area around the station: most dangerous type, then the one
 // lying still the longest (in STILL_STEP steps), then the nearest. Gnomes other robots already chase come last
 // (saboteurs excepted).
 function findGnome(m: Machine, p: THREE.Vector3, area: number): Gnome | null {
@@ -412,7 +463,7 @@ function detour(r: Robot, p: THREE.Vector3, fwd: THREE.Vector3, tg: Gnome | null
   }
 }
 
-// Back at the home post with its cargo (fell into the hole, left the yard, or hopelessly stuck).
+// Back at the station with its cargo (fell into the hole, left the yard, or hopelessly stuck).
 function toPost(m: Machine): void {
   const r = m.robot!;
   const home = m.pos;
@@ -434,20 +485,35 @@ function route(r: Robot, p: THREE.Vector3, goal: THREE.Vector3, near: number, ke
     r.plan = 0;
     r.best = Infinity;
     r.noGain = 0;
+    // the old way led elsewhere: straight at the new goal until the plan below (or a deferred field) gives one
+    r.path = [];
+    r.reached = true;
   }
   r.plan -= dt;
   if (r.plan <= 0 || !r.grid) {
     r.plan = REPLAN;
-    r.grid = buildGrid(p, goal, MARGIN);
+    const map = yardMap(p);
+    r.grid = truckGrid(r.grid, map.grid, p);
     if (clear(r.grid, p, goal, near)) {
       r.path = [];
       r.reached = true;
+    } else if (typeof key === 'string') {
+      // to the hole or home: follow the goal's distance field (built once per yard change, one per frame)
+      const f = field(map, goal, near);
+      if (f) descend(r, map, f, p, goal);
+      else r.plan = 0; // another truck built a field this frame: keep the old way one frame longer
+    } else if (reachable(map, p, goal, near)) {
+      if (searchTime === ctx.time) r.plan = 0; // another search ran this frame: keep the old way one frame longer
+      else {
+        searchTime = ctx.time;
+        astar(r, r.grid, p, goal, near);
+      }
     } else {
-      astar(r, r.grid, p, goal, near);
-      // the way round may leave the stretch between truck and goal (a long wall): try the whole yard
-      if (!r.reached) astar(r, (r.grid = buildGrid(p, goal, 2 * ctx.env.half)), p, goal, near);
-      if (!r.reached) r.plan = 4 * REPLAN; // walled in: the yard-wide search is the expensive one, run it less often
+      // walled off from the gnome: no search (it is dropped for this trip)
+      r.path = [];
+      r.reached = false;
     }
+    if (!r.reached && r.plan > 0) r.plan = 4 * REPLAN;
   }
   const gr = r.grid;
   if (r.reached && clear(gr, p, goal, near)) return goal;
@@ -463,14 +529,259 @@ function route(r: Robot, p: THREE.Vector3, goal: THREE.Vector3, near: number, ke
   return r.reached ? goal : null;
 }
 
-// Tools standing at the truck's level and the factory (footprints grown by CLEAR), the hole and the fence, around the truck and its goal.
-function buildGrid(p: THREE.Vector3, goal: THREE.Vector3, margin: number): Grid {
+// The yard map shared by all trucks (F3, PP 2026-10-21): one grid per truck height, a 4-neighbour component label
+// per free cell (an unreachable gnome costs no search) and a distance field per goal (the hole, each post). It is
+// thrown away when the tools, the factory, the hole or the yard change, checked once per frame by yardSig.
+interface YardMap { grid: Grid; label: Int32Array; fields: Map<string, Float32Array> }
+const maps = new Map<number, YardMap>(); // by truck height, 0.25 m steps
+const GROUND_Y = 0.3; // the truck body's height on the ground (round cuboid, 0.3 m half height)
+let mapSig = NaN;
+let sigTime = NaN;
+// the frame that built the map, a field or ran a yard A*: one per frame, so trucks that plan in the same frame
+// (placed together, one scan finds gnomes for all) do not cost every search at once (F3)
+let searchTime = NaN;
+
+// Everything buildYard reads, at 5 cm: a placed, moved, widened, knocked over or removed tool changes it.
+function yardSig(): number {
+  const env = ctx.env;
+  let h = 0;
+  const add = (v: number) => (h = (Math.imul(h, 31) + Math.round(v * 20)) | 0);
+  add(env.half);
+  add(env.hole.x);
+  add(env.hole.z);
+  add(env.holeRadius);
+  for (const o of ctx.machines.list) {
+    const b = machineBox(o.type);
+    // the crate is a loose body (carried, riding home): it moves every frame and buildYard skips it too
+    if (o.type === 'robot' || o.type === 'box' || !b) continue;
+    const t = o.body.translation();
+    const q = o.body.rotation();
+    for (const v of [t.x, t.y, t.z, q.x, q.y, q.z, q.w, b.half[0], b.half[2]]) add(v);
+  }
+  for (const f of ctx.factory.footprints) for (const v of [f.x, f.z, f.yaw, f.hx, f.hz]) add(v);
+  return h;
+}
+
+function yardMap(p: THREE.Vector3): YardMap {
+  if (sigTime !== ctx.time) {
+    sigTime = ctx.time;
+    const s = yardSig();
+    if (s !== mapSig) {
+      mapSig = s;
+      maps.clear();
+    }
+  }
+  // centred on a truck on the ground (body at 0.3 m), so a bump on a slab seam stays in the same band
+  const band = Math.round((p.y - GROUND_Y) * 4);
+  let map = maps.get(band);
+  if (!map) {
+    const grid = buildYard(GROUND_Y + band / 4);
+    map = { grid, label: labels(grid), fields: new Map() };
+    maps.set(band, map);
+    searchTime = ctx.time; // the map build is this frame's share; the first field or A* waits for the next frame
+  }
+  return map;
+}
+
+// The truck's own copy of the yard grid with the cells around it freed, so a truck already near a tool can leave.
+function truckGrid(old: Grid | null, yard: Grid, p: THREE.Vector3): Grid {
+  const gr = old && old.cells.length === yard.cells.length ? old : { ...yard, cells: new Uint8Array(yard.cells.length) };
+  gr.x0 = yard.x0;
+  gr.z0 = yard.z0;
+  gr.nx = yard.nx;
+  gr.nz = yard.nz;
+  gr.cells.set(yard.cells);
+  const { x0, z0, nx, nz, cells } = gr;
+  const r = Math.ceil(ESCAPE / CELL);
+  const px = Math.round((p.x - x0) / CELL);
+  const pz = Math.round((p.z - z0) / CELL);
+  for (let iz = Math.max(0, pz - r); iz <= Math.min(nz - 1, pz + r); iz++) {
+    for (let ix = Math.max(0, px - r); ix <= Math.min(nx - 1, px + r); ix++) {
+      if (Math.hypot(x0 + ix * CELL - p.x, z0 + iz * CELL - p.z) <= ESCAPE) cells[iz * nx + ix] = 0;
+    }
+  }
+  return gr;
+}
+
+// Free yard cells the truck can step onto: its freed circle plus one cell around it.
+function startCells(map: YardMap, p: THREE.Vector3, each: (i: number, d: number) => void): void {
+  const { x0, z0, nx, nz, cells } = map.grid;
+  const reach = ESCAPE + CELL;
+  const r = Math.ceil(reach / CELL);
+  const px = Math.round((p.x - x0) / CELL);
+  const pz = Math.round((p.z - z0) / CELL);
+  for (let iz = Math.max(0, pz - r); iz <= Math.min(nz - 1, pz + r); iz++) {
+    for (let ix = Math.max(0, px - r); ix <= Math.min(nx - 1, px + r); ix++) {
+      const d = Math.hypot(x0 + ix * CELL - p.x, z0 + iz * CELL - p.z);
+      if (d <= reach && !cells[iz * nx + ix]) each(iz * nx + ix, d);
+    }
+  }
+}
+
+// Free cells within near of goal (where A* and the fields stop).
+function goalCells(gr: Grid, goal: THREE.Vector3, near: number, each: (i: number) => void): void {
+  const { x0, z0, nx, nz, cells } = gr;
+  for (let iz = Math.max(0, Math.floor((goal.z - near - z0) / CELL)); iz <= Math.min(nz - 1, Math.ceil((goal.z + near - z0) / CELL)); iz++) {
+    for (let ix = Math.max(0, Math.floor((goal.x - near - x0) / CELL)); ix <= Math.min(nx - 1, Math.ceil((goal.x + near - x0) / CELL)); ix++) {
+      if (!cells[iz * nx + ix] && Math.hypot(x0 + ix * CELL - goal.x, z0 + iz * CELL - goal.z) <= near) each(iz * nx + ix);
+    }
+  }
+}
+
+// Same component as the truck: A* moves diagonally only past two free sides, so 4-neighbour components are exact.
+function labels(gr: Grid): Int32Array {
+  const { nx, cells } = gr;
+  const n = cells.length;
+  const label = new Int32Array(n).fill(-1);
+  const stack: number[] = [];
+  let next = 0;
+  const visit = (j: number) => {
+    if (!cells[j] && label[j] < 0) {
+      label[j] = next;
+      stack.push(j);
+    }
+  };
+  for (let s = 0; s < n; s++) {
+    if (cells[s] || label[s] >= 0) continue;
+    visit(s);
+    while (stack.length) {
+      const i = stack.pop()!;
+      const ix = i % nx;
+      if (ix > 0) visit(i - 1);
+      if (ix < nx - 1) visit(i + 1);
+      if (i >= nx) visit(i - nx);
+      if (i + nx < n) visit(i + nx);
+    }
+    next++;
+  }
+  return label;
+}
+
+function reachable(map: YardMap, p: THREE.Vector3, goal: THREE.Vector3, near: number): boolean {
+  const mine = new Set<number>();
+  startCells(map, p, (i) => mine.add(map.label[i]));
+  let hit = false;
+  goalCells(map.grid, goal, near, (i) => {
+    if (mine.has(map.label[i])) hit = true;
+  });
+  return hit;
+}
+
+// Dijkstra from the goal cells over the yard grid (A*'s moves) with whole costs, 5 a side step and 7 a diagonal, in
+// FIELD_B rotating buckets (no heap: about 2 ms on the Dark Forest yard instead of 5): cost from every cell to the
+// goal, Infinity = no way.
+const FIELD_B = 8;
+const buckets: number[][] = Array.from({ length: FIELD_B }, () => []);
+function field(map: YardMap, goal: THREE.Vector3, near: number): Float32Array | null {
+  const k = `${Math.round(goal.x / CELL)},${Math.round(goal.z / CELL)},${near.toFixed(2)}`;
+  const known = map.fields.get(k);
+  if (known) return known;
+  if (searchTime === ctx.time) return null;
+  searchTime = ctx.time;
+  const { nx, nz, cells } = map.grid;
+  const f = new Float32Array(nx * nz).fill(Infinity);
+  let left = 0;
+  goalCells(map.grid, goal, near, (i) => {
+    f[i] = 0;
+    buckets[0].push(i);
+    left++;
+  });
+  for (let cur = 0; left; cur++) {
+    const q = buckets[cur % FIELD_B];
+    while (q.length) {
+      const i = q.pop()!;
+      left--;
+      if (f[i] !== cur) continue; // reached cheaper since it was queued
+      const ix = i % nx;
+      const iz = (i - ix) / nx;
+      for (let dz = -1; dz <= 1; dz++) {
+        for (let dx = -1; dx <= 1; dx++) {
+          const jx = ix + dx;
+          const jz = iz + dz;
+          if ((!dx && !dz) || jx < 0 || jz < 0 || jx >= nx || jz >= nz) continue;
+          const j = jz * nx + jx;
+          if (cells[j] || (dx && dz && (cells[iz * nx + jx] || cells[jz * nx + ix]))) continue;
+          const c = cur + (dx && dz ? 7 : 5);
+          if (c < f[j]) {
+            f[j] = c;
+            buckets[c % FIELD_B].push(j);
+            left++;
+          }
+        }
+      }
+    }
+  }
+  map.fields.set(k, f);
+  return f;
+}
+
+// The way down a goal's field from the truck. No way: one waypoint, the cell of the truck's part of the yard
+// nearest the goal (it waits there, as close as the tools allow).
+function descend(r: Robot, map: YardMap, f: Float32Array, p: THREE.Vector3, goal: THREE.Vector3): void {
+  const { x0, z0, nx, nz, cells } = map.grid;
+  const at = (i: number) => new THREE.Vector3(x0 + (i % nx) * CELL, 0, z0 + Math.floor(i / nx) * CELL);
+  let s = -1;
+  let best = Infinity;
+  startCells(map, p, (i, d) => {
+    if (f[i] + (5 * d) / CELL < best) {
+      best = f[i] + (5 * d) / CELL;
+      s = i;
+    }
+  });
+  if (s < 0) {
+    const mine = new Set<number>();
+    startCells(map, p, (i) => mine.add(map.label[i]));
+    let near = Infinity;
+    for (let i = 0; i < cells.length; i++) {
+      if (cells[i] || !mine.has(map.label[i])) continue;
+      const d = Math.hypot(x0 + (i % nx) * CELL - goal.x, z0 + Math.floor(i / nx) * CELL - goal.z);
+      if (d < near) {
+        near = d;
+        s = i;
+      }
+    }
+    r.path = s < 0 ? [] : [at(s)];
+    r.reached = false;
+    return;
+  }
+  const path: THREE.Vector3[] = [];
+  for (let i = s, n = 0; n < nx * nz; n++) {
+    path.push(at(i));
+    if (f[i] === 0) break;
+    const ix = i % nx;
+    const iz = (i - ix) / nx;
+    let next = -1;
+    let low = f[i];
+    for (let dz = -1; dz <= 1; dz++) {
+      for (let dx = -1; dx <= 1; dx++) {
+        const jx = ix + dx;
+        const jz = iz + dz;
+        if ((!dx && !dz) || jx < 0 || jz < 0 || jx >= nx || jz >= nz) continue;
+        const j = jz * nx + jx;
+        if (cells[j] || (dx && dz && (cells[iz * nx + jx] || cells[jz * nx + ix]))) continue;
+        if (f[j] < low) {
+          low = f[j];
+          next = j;
+        }
+      }
+    }
+    if (next < 0) break;
+    i = next;
+  }
+  r.path = path;
+  r.reached = true;
+}
+
+// Tools standing at the truck's level (y: the truck body's height) and the factory (footprints grown by CLEAR),
+// the hole and the fence, over the whole yard.
+function buildYard(y: number): Grid {
   const env = ctx.env;
   const lim = env.half - 1.3;
-  const x0 = Math.max(-env.half, Math.min(p.x, goal.x) - margin);
-  const z0 = Math.max(-env.half, Math.min(p.z, goal.z) - margin);
-  const nx = Math.ceil((Math.min(env.half, Math.max(p.x, goal.x) + margin) - x0) / CELL) + 1;
-  const nz = Math.ceil((Math.min(env.half, Math.max(p.z, goal.z) + margin) - z0) / CELL) + 1;
+  const x0 = -env.half;
+  const z0 = -env.half;
+  const nx = Math.ceil((2 * env.half) / CELL) + 1;
+  const nz = nx;
+  const p = { y };
   const cells = new Uint8Array(nx * nz);
   const holeR = env.holeRadius + HOLE_GAP + 0.1;
   for (let iz = 0; iz < nz; iz++) {
@@ -495,7 +806,7 @@ function buildGrid(p: THREE.Vector3, goal: THREE.Vector3, margin: number): Grid 
   };
   for (const o of ctx.machines.list) {
     const b = machineBox(o.type);
-    if (o.type === 'robot' || !b) continue;
+    if (o.type === 'robot' || o.type === 'box' || !b) continue;
     const t = o.body.translation();
     const q = o.body.rotation();
     const c = gridV.set(b.center[0], b.center[1], b.center[2]).applyQuaternion(gridQ.set(q.x, q.y, q.z, q.w));
@@ -510,15 +821,6 @@ function buildGrid(p: THREE.Vector3, goal: THREE.Vector3, margin: number): Grid 
     block(cx, cz, yaw, (upright ? b.half[0] : radius) + CLEAR, (upright ? b.half[2] : radius) + CLEAR);
   }
   for (const f of ctx.factory.footprints) block(f.x, f.z, f.yaw, f.hx + CLEAR, f.hz + CLEAR);
-  // the truck may already stand close to a tool: let it leave
-  const r = Math.ceil(ESCAPE / CELL);
-  const px = Math.round((p.x - x0) / CELL);
-  const pz = Math.round((p.z - z0) / CELL);
-  for (let iz = Math.max(0, pz - r); iz <= Math.min(nz - 1, pz + r); iz++) {
-    for (let ix = Math.max(0, px - r); ix <= Math.min(nx - 1, px + r); ix++) {
-      if (Math.hypot(x0 + ix * CELL - p.x, z0 + iz * CELL - p.z) <= ESCAPE) cells[iz * nx + ix] = 0;
-    }
-  }
   return { x0, z0, nx, nz, cells };
 }
 
@@ -542,59 +844,70 @@ function clear(gr: Grid, a: THREE.Vector3, b: THREE.Vector3, near: number): bool
 
 // A* over the grid (8 neighbours, no squeezing diagonally past a corner) to any cell within near of goal.
 // No way there: the path ends at the cell closest to the goal and r.reached is false.
-function astar(r: Robot, gr: Grid, p: THREE.Vector3, goal: THREE.Vector3, near: number): void {
-  const { x0, z0, nx, nz, cells } = gr;
-  const cost = new Float32Array(nx * nz).fill(Infinity);
-  const from = new Int32Array(nx * nz).fill(-1);
-  const done = new Uint8Array(nx * nz);
-  const h = (i: number) => Math.max(0, Math.hypot(x0 + (i % nx) * CELL - goal.x, z0 + Math.floor(i / nx) * CELL - goal.z) - near) / CELL;
-  // binary heap of cells by cost + h
-  const heap: number[] = [];
-  const key: number[] = [];
-  const push = (i: number, f: number) => {
-    let k = heap.length;
-    heap.push(i);
-    key.push(f);
-    while (k > 0) {
-      const up = (k - 1) >> 1;
-      if (key[up] <= f) break;
-      heap[k] = heap[up];
-      key[k] = key[up];
-      k = up;
+// A*'s binary heap of cells by cost + h, reused between searches
+const heap: number[] = [];
+const hkey: number[] = [];
+function hpush(i: number, f: number): void {
+  let k = heap.length;
+  heap.push(i);
+  hkey.push(f);
+  while (k > 0) {
+    const up = (k - 1) >> 1;
+    if (hkey[up] <= f) break;
+    heap[k] = heap[up];
+    hkey[k] = hkey[up];
+    k = up;
+  }
+  heap[k] = i;
+  hkey[k] = f;
+}
+function hpop(): number {
+  const top = heap[0];
+  const i = heap.pop()!;
+  const f = hkey.pop()!;
+  if (heap.length) {
+    let k = 0;
+    for (;;) {
+      let c = 2 * k + 1;
+      if (c >= heap.length) break;
+      if (c + 1 < heap.length && hkey[c + 1] < hkey[c]) c++;
+      if (hkey[c] >= f) break;
+      heap[k] = heap[c];
+      hkey[k] = hkey[c];
+      k = c;
     }
     heap[k] = i;
-    key[k] = f;
-  };
-  const pop = (): number => {
-    const top = heap[0];
-    const i = heap.pop()!;
-    const f = key.pop()!;
-    if (heap.length) {
-      let k = 0;
-      for (;;) {
-        let c = 2 * k + 1;
-        if (c >= heap.length) break;
-        if (c + 1 < heap.length && key[c + 1] < key[c]) c++;
-        if (key[c] >= f) break;
-        heap[k] = heap[c];
-        key[k] = key[c];
-        k = c;
-      }
-      heap[k] = i;
-      key[k] = f;
-    }
-    return top;
-  };
+    hkey[k] = f;
+  }
+  return top;
+}
+// A* scratch, reused: a yard-wide search allocates nothing
+let cost = new Float32Array(0);
+let from = new Int32Array(0);
+let done = new Uint8Array(0);
+
+function astar(r: Robot, gr: Grid, p: THREE.Vector3, goal: THREE.Vector3, near: number): void {
+  const { x0, z0, nx, nz, cells } = gr;
+  if (cost.length !== nx * nz) {
+    cost = new Float32Array(nx * nz);
+    from = new Int32Array(nx * nz);
+    done = new Uint8Array(nx * nz);
+  }
+  cost.fill(Infinity);
+  from.fill(-1);
+  done.fill(0);
+  const h = (i: number) => Math.max(0, Math.hypot(x0 + (i % nx) * CELL - goal.x, z0 + Math.floor(i / nx) * CELL - goal.z) - near) / CELL;
+  heap.length = hkey.length = 0;
   const sx = THREE.MathUtils.clamp(Math.round((p.x - x0) / CELL), 0, nx - 1);
   const sz = THREE.MathUtils.clamp(Math.round((p.z - z0) / CELL), 0, nz - 1);
   const start = sz * nx + sx;
   cost[start] = 0;
-  push(start, h(start));
+  hpush(start, h(start));
   let end = start;
   let endH = h(start);
   r.reached = false;
   while (heap.length) {
-    const i = pop();
+    const i = hpop();
     if (done[i]) continue;
     done[i] = 1;
     const hi = h(i);
@@ -620,7 +933,7 @@ function astar(r: Robot, gr: Grid, p: THREE.Vector3, goal: THREE.Vector3, near: 
         if (c < cost[j]) {
           cost[j] = c;
           from[j] = i;
-          push(j, c + h(j));
+          hpush(j, c + h(j));
         }
       }
     }

@@ -9,7 +9,7 @@ import { tex } from '../world/textures';
 import { isFree, type Gnome } from './gnomes';
 import { glowTexture } from './mushrooms';
 import { inQuad, outBack, outCubic, outElastic } from '../core/ease';
-import { initRobot, robotVisual, updateRobot, type Robot } from './robots';
+import { initRobot, robotVisual, stationLamp, stepOutPost, updateRobot, type Robot } from './robots';
 
 const BARREL_TILT = 0.7; // cannon barrel elevation, radians
 const CANNON_RECOIL = 0.3; // how far the barrel kicks back along its axis per shot
@@ -33,8 +33,9 @@ export interface Machine {
   fill: THREE.Object3D[];
   prevPos: THREE.Vector3; // render interpolation, used by the crate and the robot
   prevRot: THREE.Quaternion;
-  robot?: Robot; // cleaning robot state; pos and home are its home post, the truck is the body
-  marker?: THREE.Object3D; // the robot's home post with its area ring
+  robot?: Robot; // cleaning robot state; pos and home are its station centre, the truck is the body
+  marker?: THREE.Object3D; // the robot's station with its area ring
+  station?: RAPIER.RigidBody; // the robot's station pole and pad (fixed), E/G/X aim at it
   blown: number; // fuses blown by saboteurs (red), not saved
   fuseAnim?: { i: number; t: number; kind: 'blow' | 'swap' };
   fuseSlot: number; // first instance of this tool's fuses in fuseMesh this frame, -1 when it has none
@@ -62,7 +63,7 @@ const FUSE_AT: Record<string, [number, number, number, number]> = {
   blackhole: [1.2, 0.25, 0, Math.PI / 2],
   magnet: [0.7, 0.5, 0, Math.PI / 2],
   vacuum: [0.9, 1.0, 0, Math.PI / 2],
-  robot: [0, 0.45, -0.92, Math.PI], // behind the glass dome, on the rim of the body
+  robot: [0, 1.0, -1.08, 0], // on the station pole, facing the pad
 };
 const FUSE_LOCAL: Record<string, THREE.Matrix4> = {};
 const beltFuse = new THREE.Matrix4();
@@ -351,8 +352,12 @@ export const MACHINE_BOX: Record<string, { half: [number, number, number]; cente
   cannon: { half: [1.0, 1.0, 1.3], center: [0, 1.0, 0] },
   vacuum: { half: [1.4, 2.4, 1.4], center: [0, 2.4, 0] },
   blackhole: { half: [1.3, 1.5, 1.3], center: [0, 1.4, 0] },
-  robot: { half: [0.6, 0.45, 0.8], center: [0, 0.45, 0] },
+  // truck, pad and pole; the pad rests on the ground. The back reaches 1.42 m so the 8 % shrunk placement box still
+  // covers the pole as far as poleBlocked tests it (1.31 m): a green preview never loads back into the inventory
+  robot: { half: [1.0, 0.86, 1.36], center: [0, 0.86, -0.06] },
 };
+// the robot station's pole, for old saves whose pole would stand inside a tool (restore)
+const POLE_BOX: { half: [number, number, number]; center: [number, number, number] } = { half: [0.2, 0.8, 0.16], center: [0, 0.8, -1.16] };
 
 // the box of a tool type now: the belt's grows with Wide Belt (rails 0.05 m outside, 0.05 m thick)
 export function machineBox(type: string): { half: [number, number, number]; center: [number, number, number] } {
@@ -510,6 +515,7 @@ export class Machines {
     if (m.marker) ctx.scene.remove(m.marker);
     for (const [h, v] of this.byCollider) if (v === m) this.byCollider.delete(h);
     ctx.physics.removeRigidBody(m.body);
+    if (m.station) ctx.physics.removeRigidBody(m.station);
     this.list.splice(this.list.indexOf(m), 1);
   }
 
@@ -544,7 +550,34 @@ export class Machines {
         inFactory++;
       }
     }
+    // a save from before stations: the pole may land inside a tool or the factory; the robot goes back like a belt
+    // that lost its room (after the loop, so a tool saved after its robot counts too)
+    for (const m of this.list.filter((x) => x.type === 'robot')) {
+      if (this.poleBlocked(m)) {
+        this.remove(m);
+        inFactory++;
+      }
+    }
     return inFactory;
+  }
+
+  // The robot station's pole touches a fixed collider (a tool, the factory, the house) or stands in the factory.
+  // A pair test over every collider, as in overlaps: restore() checks tools placed in the same frame.
+  // Also used by stepOutPost when the hole pushes a station out.
+  poleBlocked(m: Machine): boolean {
+    const q = m.marker!.quaternion;
+    const c = tmpV.set(...POLE_BOX.center).applyQuaternion(q).add(m.pos);
+    if (ctx.factory.inside(c.x, c.z)) return true;
+    const shape = new ctx.R.Cuboid(POLE_BOX.half[0] * 0.92, POLE_BOX.half[1] * 0.92, POLE_BOX.half[2] * 0.92);
+    const at = { x: c.x, y: c.y, z: c.z };
+    const rot = { x: q.x, y: q.y, z: q.z, w: q.w };
+    let hit = false;
+    ctx.physics.colliders.forEach((col) => {
+      const parent = col.parent();
+      if (hit || col.isSensor() || !parent?.isFixed() || parent.handle === m.station!.handle || (col.collisionGroups() >>> 16) & (G.GROUND | G.GNOME | G.COIN | G.PLAYER)) return;
+      if (col.intersectsShape(shape, at, rot)) hit = true;
+    });
+    return hit;
   }
 
   // A widened belt has no room when its footprint reaches into the hole, or when the strip it gains on each side
@@ -691,9 +724,11 @@ export class Machines {
     return i < m.blown || (a?.i === i && a.kind === 'swap' && a.t < 0.2) ? 'red' : 'green';
   }
 
-  // tool pose x fuse box mount (FUSE_AT), with the tool's own scale so the box follows the placement pop
+  // tool pose x fuse box mount (FUSE_AT), with the tool's own scale so the box follows the placement pop;
+  // a robot's box rides the station marker, which the blueprint pop scales too
   private fuseBase(m: Machine, out: THREE.Matrix4): THREE.Matrix4 {
-    return out.compose(m.root.position, m.root.quaternion, m.root.scale).multiply(fuseLocal(m.type));
+    const o = m.marker ?? m.root;
+    return out.compose(o.position, o.quaternion, o.scale).multiply(fuseLocal(m.type));
   }
 
   private fuseWorldPos(m: Machine, i: number): THREE.Vector3 {
@@ -736,6 +771,8 @@ export class Machines {
   }
 
   update(dt: number): void {
+    // robots the hole pushed out with no room for the pole: removed after the loop, not while it walks the list
+    const noRoom: Machine[] = [];
     for (const m of this.list) {
       m.t += dt;
       if (m.type === 'box') {
@@ -767,6 +804,14 @@ export class Machines {
           for (const c of m.root.children) if (c.name === 'roller') c.rotation.x += m.spinRate * dt;
         }
       }
+      // before the broken check: a broken robot's station also steps out of the hole and shows the red lamp
+      if (m.robot) {
+        if (!stepOutPost(m)) {
+          noRoom.push(m);
+          continue;
+        }
+        stationLamp(m);
+      }
       if (m.broken > 0) {
         m.broken -= dt;
         m.smoke -= dt;
@@ -778,6 +823,11 @@ export class Machines {
         continue;
       }
       this.effect(m, dt);
+    }
+    for (const m of noRoom) {
+      ctx.fx.burst(m.pos.clone().setY(m.pos.y + 0.5), 0xffffff, 8);
+      this.remove(m);
+      ctx.hud.toast('The hole moved under one of your machines. It is back in your inventory.', 'info');
     }
   }
 

@@ -1,7 +1,8 @@
 import * as THREE from 'three';
 import { ctx, lvl, rand } from '../core/context';
 import { ufoGeometry, vcMat } from '../world/models';
-import { isFree, type Gnome } from '../entities/gnomes';
+import { POP_TIME, isFree, type Gnome } from '../entities/gnomes';
+import { MAX_HOLE_LEVEL } from '../data/holeLevels';
 import { Tornado } from './tornado';
 
 interface EventDef {
@@ -15,7 +16,7 @@ interface EventDef {
 // exported for the legend (L), which lists events from this table
 export const EVENTS: EventDef[] = [
   { id: 'rain', name: 'GNOME RAIN', sub: 'It is raining rare gnomes. Hallelujah.', weight: 3, ok: () => true },
-  { id: 'golden', name: 'GOLDEN HOUR', sub: 'Every gnome turns to gold for 25 s! Catch them!', weight: 2, ok: () => true },
+  { id: 'golden', name: 'GOLDEN HOUR', sub: 'Every gnome turns to gold for 25 s! Catch them!', weight: 0, ok: () => false }, // only the Golden Hour mushroom starts it
   { id: 'parade', name: 'GNOME PARADE', sub: 'A conga line! Parade gnomes are worth x3.', weight: 2, ok: () => true },
   { id: 'wind', name: 'GUSTY WIND', sub: 'A side wind for 30 s: aim against it, thrown gnomes drift!', weight: 1.5, ok: () => ctx.state.holeLevel >= 3 },
   { id: 'rush', name: 'OVERTIME', sub: 'The factory goes wild for 20 s. Everything eaten now is worth x1.5.', weight: 2, ok: () => true },
@@ -255,10 +256,30 @@ export class Events {
   private spawnVisitor(): void {
     if (ctx.gnomes.list.filter((g) => g.type.id === 'shadow').length >= 2) return;
     const h = ctx.env.half - 1.5;
-    const side = Math.floor(Math.random() * 4);
-    const t = rand(-h, h);
-    const p = side === 0 ? new THREE.Vector3(t, 0.7, -h) : side === 1 ? new THREE.Vector3(t, 0.7, h) : side === 2 ? new THREE.Vector3(-h, 0.7, t) : new THREE.Vector3(h, 0.7, t);
-    ctx.gnomes.spawn('shadow', p, { awake: true });
+    // comes out of the dark behind the player, not from the fence (PP 2026-10-21 "zaden sie we mnie nie patrzyl")
+    const pp = ctx.player.position;
+    const back = ctx.player.yaw + Math.PI;
+    let p: THREE.Vector3 | null = null;
+    // every try stays within 60° of straight behind; none fits → the fence spawn below
+    for (let i = 0; i < 6 && !p; i++) {
+      const a = back + rand(-Math.PI / 3, Math.PI / 3);
+      const d = rand(7, 10);
+      const x = pp.x - Math.sin(a) * d;
+      const z = pp.z - Math.cos(a) * d;
+      if (Math.abs(x) <= h && Math.abs(z) <= h && ctx.env.holeDist(x, z) >= ctx.env.holeRadius + 2 && !ctx.mushrooms.inTool(x, z) && !ctx.factory.inside(x, z)) p = new THREE.Vector3(x, 0.7, z);
+    }
+    if (!p) {
+      const side = Math.floor(Math.random() * 4);
+      const t = rand(-h, h);
+      p = side === 0 ? new THREE.Vector3(t, 0.7, -h) : side === 1 ? new THREE.Vector3(t, 0.7, h) : side === 2 ? new THREE.Vector3(-h, 0.7, t) : new THREE.Vector3(h, 0.7, t);
+    }
+    const g = ctx.gnomes.spawn('shadow', p, { awake: true, yaw: Math.atan2(pp.x - p.x, pp.z - p.z) });
+    if (g) {
+      g.pop = POP_TIME;
+      ctx.fx.burst(p.clone().setY(0.6), 0x000000, 25);
+      ctx.gnomes.say(g, 'we see you', true);
+      ctx.audio.clicks(p.x, p.z);
+    }
     ctx.audio.whisper();
   }
 
@@ -307,7 +328,10 @@ export class Events {
         ctx.audio.rumble(1.2);
         ctx.coins.burst(ctx.hole.valueScale * 150, m.position.clone().setY(1), 2.5);
         ctx.mushrooms.spawn(ctx.mushrooms.pickDef(), m.position.clone().setY(0), false);
-        ctx.hud.bigText('UFO DOWN!', '#9affa0');
+        // a downed UFO fills 40 % of the bar (1000 XP at level 10; PP 2026-10-21 "za stracenie ufo"), no multipliers
+        const xp = ctx.state.holeLevel < MAX_HOLE_LEVEL ? Math.round(0.4 * ctx.hole.xpNeeded) : 0;
+        ctx.hole.addXp(xp);
+        ctx.hud.bigText('UFO DOWN!', '#9affa0', xp ? '+' + xp + ' XP' : '');
         ctx.achievements.unlock('ufo');
         this.removeUfo();
       }

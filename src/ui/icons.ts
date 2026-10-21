@@ -80,7 +80,8 @@ export function warmThumbnails(ids: string[]): void {
       try {
         const obj = MODELS[id]();
         // placement hint rings (magnet drop ring, robot work area) are not part of the model
-        obj.traverse((o) => { if (o.name === 'drop') o.visible = false; });
+        // and the robot station: the badge shows the truck
+        obj.traverse((o) => { if (o.name === 'drop' || o.name === 'station') o.visible = false; });
         // Box3 counts hidden children too, so measure only what is drawn
         const box = new THREE.Box3();
         obj.updateWorldMatrix(true, true);

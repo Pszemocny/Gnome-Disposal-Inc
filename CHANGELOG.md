@@ -2,6 +2,17 @@
 
 Newest build first. Each build lists what changed and what to test. Shown in the start menu (button "What's new").
 
+## 2026-10-26 13:00
+
+- Every Fuses upgrade now starts at $1,000. Levels you already bought stay.
+- Golden Hour is now a mushroom instead of a random event: eat it and every gnome turns to gold for 25 s.
+- The Golden Hour, Gold Midas and Rainbow mushrooms drop only from hole level 6, so the start stays calm.
+- Combo Cap has six more levels for big money, so the combo can climb higher.
+- New late upgrades from hole level 8: Bottomless Hunger (more XP), Spore Storm (more mushrooms) and Midas Spores (almost only Gold Midas). They cost big money.
+- The King now gives 1000 XP, and shooting down a UFO fills a big part of the XP bar.
+- Shadow Gnomes step out of the dark behind you, stare and make a strange quiet clicking. Robots and tools leave them alone for a while.
+- Every cleaning robot now has a station with its fuse box and a lamp that turns red when it needs E. Saboteurs must walk to the station, and E, G and X work on the station as well as on the robot.
+
 ## 2026-10-26 12:00
 
 - Every big combo text (Gnomazing! and up) makes the hole spit out a mushroom.

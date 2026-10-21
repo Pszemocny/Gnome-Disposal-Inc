@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import { ctx, lvl, rand } from '../core/context';
 import { outCubic } from '../core/ease';
-import { MUSHROOMS, type MushroomDef } from '../systems/buffs';
+import { GOLD_LEVEL, MUSHROOMS, MUSHROOM_BY_ID, mushroomWeight, type MushroomDef } from '../systems/buffs';
 import { mushroomPickupGeometry, vcMat } from '../world/models';
 import { machineBox } from './machines';
 
@@ -46,7 +46,7 @@ export class Mushrooms {
   maybeDrop(pos: THREE.Vector3, bonus = 1): void {
     // the mushroom lesson is guaranteed (PP 2026-10-20): the next eaten gnome drops one when none lies on the grass
     const lesson = ctx.goals.wantsMushroom && this.list.length === 0;
-    const chance = lesson ? 1 : 0.025 * (1 + lvl('mushChance') * 0.3) * bonus;
+    const chance = lesson ? 1 : 0.025 * (1 + lvl('mushChance') * 0.3) * (1 + lvl('mushStorm') * 0.5) * bonus;
     if (Math.random() < chance) this.spawn(this.pickDef(), pos, true, lesson);
   }
 
@@ -58,7 +58,7 @@ export class Mushrooms {
     return this.inTool(x, z);
   }
 
-  private inTool(x: number, z: number): boolean {
+  inTool(x: number, z: number): boolean {
     return ctx.machines.list.some((m) => {
       const b = machineBox(m.type);
       return !!b && Math.hypot(m.pos.x - x, m.pos.z - z) < Math.max(b.half[0], b.half[2]) + 0.3;
@@ -66,11 +66,14 @@ export class Mushrooms {
   }
 
   pickDef(): MushroomDef {
-    const total = MUSHROOMS.reduce((s, m) => s + m.weight, 0);
+    // Midas Spores: a flat share of Gold Midas on top of the weights (PP 2026-10-21 "same zlote"), never below the gold level
+    if (ctx.state.holeLevel >= GOLD_LEVEL && Math.random() < lvl('goldSpores') * 0.18) return MUSHROOM_BY_ID.midas;
+    const total = MUSHROOMS.reduce((s, m) => s + mushroomWeight(m), 0);
     let r = Math.random() * total;
     for (const m of MUSHROOMS) {
-      r -= m.weight;
-      if (r <= 0) return m;
+      const w = mushroomWeight(m);
+      r -= w;
+      if (w > 0 && r <= 0) return m;
     }
     return MUSHROOMS[0];
   }

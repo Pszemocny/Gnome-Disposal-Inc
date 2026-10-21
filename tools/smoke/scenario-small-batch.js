@@ -517,8 +517,8 @@ setTimeout(() => { if (!window.__done) window.__done = JSON.stringify({ ...R, ch
       await frames(3);
       const row = g.hud.fx.el.textContent.includes('Eclipse Cap');
       const lg = g.legend.mushrooms();
-      const card = lg.includes('Eclipse Cap') && lg.includes('9.1% of mushroom drops');
-      ok('F1', g.buffs.active('daynight') && g.buffs.valueMult() === 2 && row && card, `active ${g.buffs.active('daynight')} valueMult ${g.buffs.valueMult()} row "Eclipse Cap" ${row} legend 9.1% ${card}`);
+      const card = lg.includes('Eclipse Cap') && lg.includes('8.5% of mushroom drops');
+      ok('F1', g.buffs.active('daynight') && g.buffs.valueMult() === 2 && row && card, `active ${g.buffs.active('daynight')} valueMult ${g.buffs.valueMult()} row "Eclipse Cap" ${row} legend 8.5% ${card}`);
       // F2 / F9 / F10: 16 s of the cycle from the pickup (day 5 s, fade 5 s, night 5 s, fade back); the sun colour blends with the shade on every frame
       const SD = new THREE.Color(0xfff2d8); const SN = new THREE.Color(0x9ab0ff);
       const sm = []; let sunErr = 0;
@@ -653,6 +653,33 @@ setTimeout(() => { if (!window.__done) window.__done = JSON.stringify({ ...R, ch
       g.hole.consume(spawnAt('classic', ahead(3, 0, 0.5), { tier: 'massive', awake: false }));
       const text8 = bigTexts.some((t) => String(t).includes('HEAVY HAUL'));
       ok('G8', lv.join() === '0,0' && steal8 && haulOk && text8, `rebirth magnetRange ${lv[0]} frenzy ${lv[1]} steal ok ${steal8} haul offered ${haulOk} text shown ${text8}`);
+
+      // G9: no Gold Midas, Rainbow or Golden Hour below hole level 6 (PP 2026-10-21 "do 6 lvl dziury")
+      {
+        const lvl0 = S().holeLevel;
+        const picks = (lv) => { S().holeLevel = lv; const c = {}; for (let i = 0; i < 3000; i++) { const id = g.mushrooms.pickDef().id; c[id] = (c[id] ?? 0) + 1; } return c; };
+        const p5 = picks(5); const p6 = picks(6);
+        const { EVENTS } = await import('/src/systems/events.ts');
+        const gh = EVENTS.find((e) => e.id === 'golden');
+        S().holeLevel = 12; const ghRandom = gh.ok(); S().holeLevel = lvl0;
+        ok('G9', !p5.midas && !p5.rainbow && !p5.goldhour && p6.midas > 0 && p6.rainbow > 0 && p6.goldhour > 0 && !ghRandom, `lvl5 ${JSON.stringify(p5)} lvl6 midas ${p6.midas} goldhour ${p6.goldhour} rainbow ${p6.rainbow} goldenHour random event at lvl12 ${ghRandom}`);
+        // G10: the Golden Hour mushroom starts the Golden Hour (PP 2026-10-21 "gold hour to tez byl grzybek nie event")
+        g.events.goldenHour = 0; g.buffs.timers.clear(); g.buffs.apply('goldhour');
+        const gh10 = g.events.goldenHour; g.buffs.timers.delete('goldhour'); g.events.goldenHour = 0.001; await frames(3);
+        // the event lasts as long as the mushroom: Long Trip 4 (x1.8) and a second mushroom during the first add up
+        const trip0 = U().mushTime; U().mushTime = 4;
+        g.events.goldenHour = 0; g.buffs.apply('goldhour');
+        const trip = { ev: g.events.goldenHour, buff: g.buffs.timers.get('goldhour') };
+        g.buffs.timers.set('goldhour', 10); g.events.goldenHour = 10; g.buffs.apply('goldhour');
+        const second = { ev: g.events.goldenHour, buff: g.buffs.timers.get('goldhour') };
+        U().mushTime = trip0; g.buffs.timers.delete('goldhour'); g.events.goldenHour = 0.001; await frames(3);
+        ok('G10', gh10 === 25 && Math.abs(trip.ev - 45) < 1e-6 && trip.ev === trip.buff && Math.abs(second.ev - 55) < 1e-6 && second.ev === second.buff, `goldenHour after mushroom ${gh10}, Long Trip 4 ${JSON.stringify(trip)}, second mushroom ${JSON.stringify(second)}`);
+        // G11: the Rainbow ("All of the above") starts the Golden Hour too, for the Rainbow's time
+        g.buffs.timers.clear(); g.events.goldenHour = 0; g.buffs.apply('rainbow');
+        const rb = { ev: g.events.goldenHour, buff: g.buffs.timers.get('rainbow'), active: g.buffs.active('goldhour') };
+        g.buffs.timers.clear(); g.buffs.midasLeft = 0; g.events.goldenHour = 0.001; await frames(3);
+        ok('G11', rb.active && rb.ev > 0 && rb.ev === rb.buff, `Rainbow ${JSON.stringify(rb)}`);
+      }
       g.coins.clearAll();
       setState(keep);
     }

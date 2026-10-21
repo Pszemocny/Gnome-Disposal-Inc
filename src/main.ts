@@ -2,7 +2,7 @@ import * as THREE from 'three';
 import RAPIER from '@dimforge/rapier3d-compat';
 import './ui/style.css';
 import { ctx, lvl } from './core/context';
-import { freshState, loadState, saveState } from './core/state';
+import { freshState, loadNotes, loadState, saveState } from './core/state';
 import { applyQuality } from './core/settings';
 import { UPGRADES } from './data/upgrades';
 import { Input } from './core/input';
@@ -102,7 +102,9 @@ async function boot(): Promise<void> {
   ctx.weather = new Weather();
   ctx.strike = new Strike();
 
-  ctx.machines.restore(state.placed);
+  // a tool with no room any more (a robot station's pole inside a tool, a tool in the factory) waits in the inventory
+  const back = ctx.machines.restore(state.placed);
+  if (back) loadNotes.push(back === 1 ? '1 tool is back in your inventory: no room there.' : `${back} tools are back in your inventory: no room there.`);
   void renderer.compileAsync(ctx.scene, camera); // every material in the scene links on the title screen, not on first sight
   // the gun is the default gear once owned (gear itself is not saved)
   if (lvl('magGun')) ctx.player.setGear('magGun');

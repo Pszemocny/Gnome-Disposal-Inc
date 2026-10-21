@@ -524,16 +524,17 @@ setTimeout(() => { if (!window.__done) window.__done = JSON.stringify({ ...R, ch
   // ---- verdicts per Done-when line
   const x = R.xp, m = R.money, B = window.MONEY_BEFORE ?? null;
   const eq = (a, b) => B ? near(a, b, 1e-3) : null;
-  ok('A1', near(R.ufoShareL6, 0.208, 0.002), R.ufoShareL6);
-  ok('A2', near(R.kingShareL10, 0.111, 0.001) && near(R.ufoShareL10, 0.185, 0.001), `${R.kingShareL10} ${R.ufoShareL10}`);
-  ok('A3', near(R.kingShareL10night, 0.1, 0.001) && near(R.ufoShareL10night, 0.167, 0.001), `${R.kingShareL10night} ${R.ufoShareL10night}`);
+  // shares without GOLDEN HOUR: it is a mushroom now, not a random event (PP 2026-10-21); L6 day pool 22, L10 day 25, L10 night 28
+  ok('A1', near(R.ufoShareL6, 0.227, 0.002), R.ufoShareL6);
+  ok('A2', near(R.kingShareL10, 0.12, 0.001) && near(R.ufoShareL10, 0.2, 0.001), `${R.kingShareL10} ${R.ufoShareL10}`);
+  ok('A3', near(R.kingShareL10night, 0.107, 0.001) && near(R.ufoShareL10night, 0.179, 0.001), `${R.kingShareL10night} ${R.ufoShareL10night}`);
   ok('A4', R.kingInPoolWhileAlive === false && R.ufoWeightWhileKingAlive === 5, `${R.kingInPoolWhileAlive} ${R.ufoWeightWhileKingAlive}`);
   ok('A5', R.kingAfterLevel10 === 1 && R.kingAfter9to11 === 1, `${R.kingAfterLevel10} ${R.kingAfter9to11} levels ${R.levelAfterHand}/${R.levelAfterDump}`);
   ok('A6', R.ufoInPoolL3 === false && R.kingInPoolL9 === false);
   const dt1 = (o) => o && o.frames >= 30 && near(o.ratioMin, 1) && near(o.ratioMax, 1);
   ok('B1', dt1(R.combo60) && R.combo60.combo >= 60, JSON.stringify(R.combo60));
   ok('B2', dt1(R.combo100) && R.combo100.combo >= 100, JSON.stringify(R.combo100));
-  ok('B3', dt1(R.kingEaten) && near(R.kingEaten.xp, 200), JSON.stringify(R.kingEaten));
+  ok('B3', dt1(R.kingEaten) && near(R.kingEaten.xp, 1000), JSON.stringify(R.kingEaten));
   ok('B4', R.bullseye && R.bullseye.frames >= 30 && near(R.bullseye.ratioMin, 1), JSON.stringify(R.bullseye));
   ok('B5', near(R.wheel.timeScale, 0.25, 0.005) && R.wheel.timeScaleAfter === 1, JSON.stringify(R.wheel));
   ok('B6', R.legendHasSlowmo === false);
@@ -550,7 +551,7 @@ setTimeout(() => { if (!window.__done) window.__done = JSON.stringify({ ...R, ch
   ok('C9', near(x.fanWalker, 0.25), x.fanWalker);
   ok('C10', near(x.vacuumThrown, 0.25) && near(x.robotTip, 0.25) && eq(m.vacuumThrown, B?.vacuumThrown) !== false, `${x.vacuumThrown} ${x.robotTip} money ${m.vacuumThrown} before ${B?.vacuumThrown}`);
   ok('C11', near(x.walkIn, 0.25), x.walkIn);
-  ok('C12', near(x.kingByFan, 200), x.kingByFan);
+  ok('C12', near(x.kingByFan, 1000), x.kingByFan);
   ok('C13', near(x.handHunger, 2.25), x.handHunger);
   ok('C14', R.load.holeXp === 123.4 && R.load.hud === 'XP 123 / 900', `${R.load.holeXp} ${R.load.hud}`);
   ok('C15', near(x.crateTip2, 0.5) && near(m.crateTipSniper, m.plain, 1e-3), `${x.crateTip2} money ${m.crateTipSniper} plain ${m.plain}`);
@@ -568,6 +569,6 @@ setTimeout(() => { if (!window.__done) window.__done = JSON.stringify({ ...R, ch
   ok('E1', R.fuses.fanA === 2 && R.fuses.fanB === 0, `${R.fuses.fanA} ${R.fuses.fanB}`);
   ok('E2', R.saboteur.targetWithOnlyCrateAndPanel === null);
   ok('E3', R.fuses.robotBlown === 1);
-  ok('F1', (R.legend.kingCard ?? '').includes('200 XP') && (R.legend.xpRule ?? '').includes('quarter'), `${R.legend.kingCard?.slice(0, 50)} | ${R.legend.xpRule}`);
+  ok('F1', (R.legend.kingCard ?? '').includes('1000 XP') && (R.legend.xpRule ?? '').includes('quarter'), `${R.legend.kingCard?.slice(0, 50)} | ${R.legend.xpRule}`);
   window.__done = JSON.stringify({ ...R, checks });
 })();

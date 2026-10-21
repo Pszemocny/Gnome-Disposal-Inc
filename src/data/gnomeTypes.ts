@@ -85,7 +85,7 @@ export const GNOME_TYPES: GnomeType[] = [
   },
   {
     id: 'king', name: 'King Gnome', hat: 0xb01030, shirt: 0x7a0a20, pants: 0x30101a, beard: 0xffffff, skin: 0xf2c6a0,
-    scale: 3, mass: 40, value: 1000, xp: 200, speed: 1.0, behaviour: 'boss', unlock: 99, weight: 0, statue: false, crown: true, capacity: 2,
+    scale: 3, mass: 40, value: 1000, xp: 1000, speed: 1.0, behaviour: 'boss', unlock: 99, weight: 0, statue: false, crown: true, capacity: 2, // 1000 XP, 40 % of the level-10 bar (PP 2026-10-21 "1000xp za krola")
     lines: ['KNEEL!', 'I AM THE GARDEN!', 'GUARDS!', 'You dare?!'],
   },
 ];

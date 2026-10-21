@@ -17,10 +17,19 @@ export const MUSHROOMS: MushroomDef[] = [
   { id: 'midas', name: 'Gold Midas', cap: 0xffcc22, spots: 0xfff2a0, duration: 30, desc: 'Next 15 gnomes worth x3', weight: 12 },
   { id: 'booze', name: 'Green Grog', cap: 0x3ab84a, spots: 0xe0ffb0, duration: 15, desc: 'BOOZED! Everything x2, the world wobbles', weight: 8 },
   { id: 'daynight', name: 'Eclipse Cap', cap: 0x1c1c4a, spots: 0xfff3b0, duration: 20, desc: 'x2 money, the sky flips day and night', weight: 10 },
+  // Golden Hour is a mushroom, not a random event (PP 2026-10-21 "gold hour to tez byl grzybek nie event")
+  { id: 'goldhour', name: 'Golden Hour', cap: 0xe8b020, spots: 0xffffff, duration: 25, desc: 'Every gnome turns to gold for 25 s', weight: 8 },
   { id: 'rainbow', name: 'Rainbow Shroom', cap: 0xff66cc, spots: 0x66ffee, duration: 15, desc: 'All of the above + gnome rain', weight: 2 },
 ];
 
 export const MUSHROOM_BY_ID: Record<string, MushroomDef> = Object.fromEntries(MUSHROOMS.map((m) => [m.id, m]));
+
+// Gold Midas (and the Rainbow, which includes it) drops only from this hole level: early gold sped the start up too much
+// (PP 2026-10-21 "do 6 lvl dziury [...] to zbyt przyspiesza"); Golden Hour uses the same level
+export const GOLD_LEVEL = 6;
+export function mushroomWeight(m: MushroomDef): number {
+  return ctx.state.holeLevel < GOLD_LEVEL && (m.id === 'midas' || m.id === 'goldhour' || m.id === 'rainbow') ? 0 : m.weight;
+}
 
 export class Buffs {
   timers = new Map<string, number>();
@@ -41,6 +50,11 @@ export class Buffs {
     }
     if (id === 'midas' || id === 'rainbow') this.midasLeft += 15;
     if (id === 'rainbow') ctx.events.start('rain');
+    // the Golden Hour lasts as long as its mushroom (Long Trip, a second mushroom) or the Rainbow, which includes it
+    if (id === 'goldhour' || id === 'rainbow') {
+      ctx.events.start('golden');
+      ctx.events.goldenHour = Math.max(this.timers.get('goldhour') ?? 0, this.timers.get('rainbow') ?? 0);
+    }
   }
 
   // Money multiplier from active buffs for one eaten gnome.

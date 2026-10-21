@@ -458,13 +458,17 @@ setTimeout(() => { if (!window.__done) window.__done = JSON.stringify({ ...R, ch
       const crateY = +crate.body.translation().y.toFixed(2);
       g.shop.buy('beltWidth');
       R.B11 = { crateY, beltKept: g.machines.list.includes(belt) };
-      // B12 a robot driving 0.2 m beside the rail
+      // B12 a robot driving 0.2 m beside the rail: its station (fixed pole and pad, which do block) stands 6 m away,
+      // the truck alone is moved next to the rail
       await reset(); Object.assign(s.upgrades, { conveyor: 1, robot: 1, beltWidth: 0 });
       belt = g.machines.place('conveyor', new V3(-10, 0, 8), Q());
-      g.machines.place('robot', new V3(-10 + 0.75 + 0.2 + 0.55, 0.02, 8), Q());
+      const rb = g.machines.place('robot', new V3(-10 + 0.75 + 0.2 + 0.55, 0.02, 14), Q());
+      rb.robot.scan = 1e9;
+      rb.body.setTranslation({ x: -10 + 0.75 + 0.2 + 0.55, y: rb.pos.y + 0.02, z: 8 }, true);
       await frames(2);
+      const truckZ = +rb.body.translation().z.toFixed(2);
       g.shop.buy('beltWidth');
-      R.B12 = { beltKept: g.machines.list.includes(belt) };
+      R.B12 = { beltKept: g.machines.list.includes(belt), truckZ };
       // B13 a save with the crate listed before the belt it rests on
       await reset(); Object.assign(s.upgrades, { conveyor: 1, box: 1, beltWidth: 1 });
       const back = g.machines.restore([
@@ -541,6 +545,38 @@ setTimeout(() => { if (!window.__done) window.__done = JSON.stringify({ ...R, ch
       R.F3 = { land: s.land, beltWidth: s.upgrades.beltWidth, fanPower: s.upgrades.fanPower, robots: g.machines.placedCount('robot'), gnomes, frames: times.length, updateP95: p95(times), updateMax: +Math.max(...times).toFixed(3), worst: times.map((t, i) => [i, +t.toFixed(1)]).sort((a, b) => b[1] - a[1]).slice(0, 6), stepP95: p95(steps), calls0, calls30 };
       await reset();
     }
+    {
+      // F3b the shared robot route map is rebuilt after a tool is placed: a belt across the truck's straight way to
+      // the hole shows up in its grid and the truck drives round it to the hole
+      await reset();
+      const h = g.env.hole;
+      const rr = g.env.holeRadius;
+      const m = g.machines.place('robot', new V3(h.x, 0, h.z + rr + 11), Q());
+      const r = m.robot;
+      r.scan = 1e9;
+      await frames(3);
+      const bx = h.x;
+      const bz = h.z + rr + 5;
+      const cell = (x, z) => { const gr = r.grid; return gr ? gr.cells[Math.round((z - gr.z0) / 0.5) * gr.nx + Math.round((x - gr.x0) / 0.5)] : -1; };
+      r.state = 'drive'; r.plan = 0;
+      await frames(2);
+      const before = { cell: cell(bx, bz), path: r.path.length, reached: r.reached };
+      r.state = 'idle';
+      m.body.setTranslation({ x: m.pos.x, y: m.pos.y + 0.02, z: m.pos.z }, true);
+      m.body.setLinvel({ x: 0, y: 0, z: 0 }, true);
+      const belt = g.machines.place('conveyor', new V3(bx, 0, bz), qy(Math.PI / 2));
+      await frames(3);
+      r.state = 'drive'; r.plan = 0;
+      await frames(2);
+      const around = r.path.reduce((a, p) => Math.max(a, Math.abs(p.x - bx)), 0);
+      const after = { cell: cell(bx, bz), path: r.path.length, reached: r.reached, around: +around.toFixed(2) };
+      let arrived = false;
+      // game time (dt is capped at 0.05 s, headless runs slower than real time): 20 s for about 12 m round the belt
+      const t0 = g.time;
+      for (let i = 0; i < 3000 && !arrived && g.time - t0 < 20; i++) { await frames(1); arrived = r.state === 'tip' || r.state === 'return'; }
+      R.F3b = { placed: !!belt, before, after, arrived };
+      await reset();
+    }
   } catch (e) {
     R.error = String((e && e.stack) || e);
   }
@@ -548,6 +584,8 @@ setTimeout(() => { if (!window.__done) window.__done = JSON.stringify({ ...R, ch
   ok('F1', R.F1?.max === 20 && J(R.F1?.prices5to10) === '[769,1076,1506,2109,2952,4133]' && R.F1?.price11 === 5786 && R.F1?.price20 === 119527 && R.F1?.total20 === 417851 && R.F1?.hotbar === '0/20' && R.F1?.placed === 20 && R.F1?.free === 0, J(R.F1));
   ok('F2', R.F2?.oldSaveFan === 10 && R.F2?.oldSave4 === 4 && R.F2?.blueprintFans === 10, J(R.F2));
   ok('F3', R.F3?.updateP95 <= 2.0 && R.F3?.updateMax <= 8 && R.F3?.robots === 12 && R.F3?.gnomes >= 300, J(R.F3));
+  // belt half length 1.6 + CLEAR 0.7: a path that goes round it reaches at least 2.3 m sideways
+  ok('F3b', R.F3b?.placed && R.F3b?.before?.cell === 0 &&R.F3b?.after?.cell === 1 && R.F3b?.after?.reached && R.F3b?.after?.path > 0 && R.F3b?.after?.around >= 2.3 && R.F3b?.arrived, J(R.F3b));
   ok('F4', R.F4?.fuses === 270 && R.F4?.boxes === 54 && R.F4?.skipped === 0 && R.F4?.tools === 54, J(R.F4));
   ok('F5', J(R.F5?.toolIds) === J(['box', 'trampoline', 'panel', 'fan', 'conveyor', 'wheel', 'magnet', 'cannon', 'vacuum', 'blackhole', 'robot']), J(R.F5));
   ok('F6', R.F6?.fan6 === '$1.08k' && R.F6?.belt7 === '$2.85k' && R.F6?.robot6 === '$1.49k' && R.F6?.premium6 === '$494', J(R.F6));
@@ -566,13 +604,15 @@ setTimeout(() => { if (!window.__done) window.__done = JSON.stringify({ ...R, ch
   ok('U5', R.U5?.afterRebirth?.fanFuses === 5 && R.U5?.afterRebirth?.robotFuses === 5 && R.U5?.afterRebirth?.all, J(R.U5));
   ok('U6', R.U6?.target === 'trampoline', J(R.U6));
   ok('U7', R.U7?.boxFuses === 0 && R.U7?.panelFuses === 0 && R.U7?.nodes === 0, J(R.U7));
-  ok('U8', R.U8?.id === 'conveyorFuses' && R.U8?.name === 'Belt Fuses' && R.U8?.hole === 5 && R.U8?.price === '$100' && R.U8?.growth === 1.8, J(R.U8));
-  ok('U9', R.U9?.hole === 5 && R.U9?.price === '$125', J(R.U9));
-  ok('U10', R.U10?.hole === 5 && R.U10?.price === '$500', J(R.U10));
+  // every tool's Fuses start at $1000 (PP 2026-10-24, FUSE_ROWS)
+  ok('U8', R.U8?.id === 'conveyorFuses' && R.U8?.name === 'Belt Fuses' && R.U8?.hole === 5 && R.U8?.price === '$1k' && R.U8?.growth === 1.8, J(R.U8));
+  ok('U9', R.U9?.hole === 5 && R.U9?.price === '$1k', J(R.U9));
+  ok('U10', R.U10?.hole === 5 && R.U10?.price === '$1k', J(R.U10));
   ok('U11', R.U11?.hole === 6 && R.U11?.price === '$1k', J(R.U11));
-  ok('U12', R.U12?.hole === 8 && R.U12?.price === '$2k', J(R.U12));
-  ok('U13', R.U13?.hole === 10 && R.U13?.price === '$12.5k', J(R.U13));
-  ok('U14', R.U14?.legendRows === 63 && R.U14?.upgrades === 63 && R.U14?.fuseRows === 9, J(R.U14));
+  ok('U12', R.U12?.hole === 8 && R.U12?.price === '$1k', J(R.U12));
+  ok('U13', R.U13?.hole === 10 && R.U13?.price === '$1k', J(R.U13));
+  // 66 rows: the three endgame Bonuses rows (Bottomless Hunger, Spore Storm, Midas Spores) came after the 63
+  ok('U14', R.U14?.legendRows === 66 && R.U14?.upgrades === 66 && R.U14?.fuseRows === 9, J(R.U14));
   // one row per tool (PP 2026-10-24): 11 rows scroll at 1280x720 at full size instead of shrinking
   ok('U15', R.U15?.rows === 11 && R.U15?.cols === 5 && R.U15?.scale === 1 && R.U15?.cutNames === 0, J(R.U15));
   // Coin Magnet moved from Movement to Magnet (PP 2026-10-21): one root row more in Magnet, one less in Movement
@@ -594,7 +634,7 @@ setTimeout(() => { if (!window.__done) window.__done = JSON.stringify({ ...R, ch
   ok('B8', R.B8?.parent === 'conveyor' && R.B8?.clsWithoutBelt === 'needs' && R.B8?.effect === '1.3 m wide, next: 1.9 m wide' && R.B8?.price === '$400', J(R.B8));
   ok('B10', R.B10?.beltKept && R.B10?.panelKept, J(R.B10));
   ok('B11', R.B11?.crateY < 1.5 && R.B11?.beltKept, J(R.B11));
-  ok('B12', R.B12?.beltKept, J(R.B12));
+  ok('B12', R.B12?.beltKept && Math.abs(R.B12?.truckZ - 8) < 1, J(R.B12));
   ok('B13', R.B13?.back === 0 && J(R.B13?.types) === '["box","conveyor"]', J(R.B13));
   ok('B14', R.B14?.level === 3 && R.B14?.beltKept === false, J(R.B14));
   ok('B15', R.B15?.awayMove >= 0.9, J(R.B15));

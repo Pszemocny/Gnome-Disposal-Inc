@@ -78,7 +78,7 @@ const TOOLS: Upgrade[] = [
   U('blackhole', 'Tools', 'Mini Black Hole', '+1 mini hole. Eats gnomes on the spot at full value.', 1, 50000, 1, 10),
   // cleaning robots: mid-tier prices (PP 2026-10-20 "niech nie będą super drogie"), about the Conveyor / Kicking Wheel tier
   // 12 robots at x1.3 (2026-10-20 "jest ich za malo"): the first 4 cost $2.5k, all 12 cost $30k, about two Vacuum Towers (no late surcharge)
-  U('robot', 'Tools', 'Cleaning Robot', '+1 robot. Collects gnomes around its home post onto its bed and tips them into the hole. Takes dangerous gnomes first (saboteurs top), then those lying still longest.', 12, 400, 1.3, 2),
+  U('robot', 'Tools', 'Cleaning Robot', '+1 robot. Collects gnomes around its station onto its bed and tips them into the hole. Takes dangerous gnomes first (saboteurs top), then those lying still longest.', 12, 400, 1.3, 2),
   U('robotBed', 'Tools', 'Bigger Bed', '+3 gnomes per robot load (5 at start).', 4, 150, 1.6, 2, 'robot'),
   U('robotSpeed', 'Tools', 'Faster Motor', '+0.6 m/s robot speed (2.5 m/s at start).', 4, 120, 1.6, 2, 'robot'),
   U('robotArea', 'Tools', 'Wider Area', '+2 m robot work radius (6 m at start).', 4, 150, 1.6, 2, 'robot'),
@@ -90,12 +90,13 @@ export const FUSE_NAMES: Record<string, string> = { trampoline: 'Trampoline', fa
 export const FUSE_TOOLS = Object.keys(FUSE_NAMES);
 const FUSE_ROWS = FUSE_TOOLS.map((id) => {
   const t = TOOLS.find((u) => u.id === id)!;
-  return U(`${id}Fuses`, 'Tools', `${FUSE_NAMES[id]} Fuses`, `+1 fuse on every ${t.name}. A saboteur blows one fuse per hit; the tool breaks only when no fuse is left. Press E on it to fix it and swap a fuse.`, 5, Math.max(100, Math.round(t.cost / 4)), 1.8, Math.max(5, t.hole ?? 1), id);
+  return U(`${id}Fuses`, 'Tools', `${FUSE_NAMES[id]} Fuses`, `+1 fuse on every ${t.name}. A saboteur blows one fuse per hit; the tool breaks only when no fuse is left. Press E on it to fix it and swap a fuse.`, 5, 1000, 1.8, Math.max(5, t.hole ?? 1), id);
 });
 
 const AFTER_TOOLS: Upgrade[] = [
   U('comboWindow', 'Combos', 'Combo Window', '+0.4 s to keep a combo alive.', 10, 60, 1.6),
-  U('comboCap', 'Combos', 'Combo Cap', '+0.5x maximum combo multiplier.', 12, 150, 1.7),
+  // 18 levels (PP 2026-10-21 "wieksze combo maxymalne ... za duza kase"): 13th $712k ... 18th $37.6m with the late surcharge
+  U('comboCap', 'Combos', 'Combo Cap', '+0.5x maximum combo multiplier.', 18, 150, 1.7),
   U('comboInsurance', 'Combos', 'Combo Insurance', 'A dropped combo keeps half of its count.', 1, 2500, 1, 4),
   U('jackpot', 'Combos', 'Jackpot', 'Every 25 combo spits a coin fountain.', 1, 6000, 1, 5),
 
@@ -104,6 +105,10 @@ const AFTER_TOOLS: Upgrade[] = [
   U('goldChance', 'Bonuses', 'Gold Fever', 'More golden gnomes.', 4, 500, 1.8),
   U('hunger', 'Bonuses', 'Hole Hunger', '+10% hole XP.', 5, 150, 1.7),
   U('lucky', 'Bonuses', 'Four-leaf Clover', 'Events happen more often.', 3, 1000, 1.9, 2),
+  // endgame rows (PP 2026-10-21: level 10, $70M, nothing to buy; "od 8 poziomu ceny podwójne"): hole 8, about $213M together
+  U('xpBoost', 'Bonuses', 'Bottomless Hunger', '+25% hole XP (needs Hole Hunger).', 5, 800000, 2.5, 8, 'hunger'),
+  U('mushStorm', 'Bonuses', 'Spore Storm', '+50% mushroom drop chance (needs the Spore Bag).', 5, 500000, 2.5, 8, 'mushChance'),
+  U('goldSpores', 'Bonuses', 'Midas Spores', '+18% of all mushrooms come out as Gold Midas (needs the Spore Storm).', 5, 2000000, 2.5, 8, 'mushStorm'),
 
   // caps raised (PP 2026-10-20 "wiecej poziomow" for shards): a post-batch run gives 30-90 shards, the old catalogue (302) was gone in a few rebirths
   { id: 'dValue', tab: 'Deep', name: 'Deep Value', desc: '+20% money forever.', max: 15, cost: 1, growth: 1.5, currency: 'shards' },

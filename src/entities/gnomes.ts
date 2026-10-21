@@ -74,7 +74,7 @@ export interface Volley {
 }
 
 const SQUASH_TIME = 0.15;
-const POP_TIME = 0.25;
+export const POP_TIME = 0.25;
 const SWALLOW_TIME = 0.5; // an eaten gnome shrinks to 0 in this time
 const SWALLOW_SPIN = Math.PI * 3; // radians around the hole axis over the swallow
 // Gnome built from moving parts (demo on classic, PP 2026-10-20 "gnom z ruchomych czesci").
@@ -111,6 +111,8 @@ const HELD = groups(G.GNOME, G.GROUND | G.GNOME | G.STATIC | G.PROP);
 export function isFree(g: Gnome): boolean {
   return g.state !== 'held' && g.state !== 'stashed' && g.state !== 'falling' && g.state !== 'gone';
 }
+export const SHADOW_GRACE = 20; // s a new Shadow Gnome stares before robots and tools may take it (PP 2026-10-21)
+export const lurking = (g: Gnome): boolean => g.type.id === 'shadow' && g.life < SHADOW_GRACE;
 const tmpV = new THREE.Vector3();
 const tmpQ = new THREE.Quaternion();
 const tmpQ2 = new THREE.Quaternion();
@@ -442,11 +444,11 @@ export class Gnomes {
     return new THREE.Vector3(clamp(env.hole.x + Math.cos(t) * R, h), 0, clamp(env.hole.z + Math.sin(t) * R, h));
   }
 
-  forEachNear(pos: THREE.Vector3, r: number, cb: (g: Gnome, d: number, p: RAPIER.Vector) => void): void {
+  forEachNear(pos: THREE.Vector3, r: number, cb: (g: Gnome, d: number, p: RAPIER.Vector) => void, all = false): void {
     const r2 = r * r;
     for (let i = this.list.length - 1; i >= 0; i--) {
       const g = this.list[i];
-      if (!isFree(g)) continue;
+      if (!isFree(g) || (!all && lurking(g))) continue;
       const p = g.body.translation();
       const dx = p.x - pos.x;
       const dy = p.y - pos.y;
@@ -753,6 +755,8 @@ export class Gnomes {
           ctx.audio.whisper();
           return;
         }
+        // clicks now and then while it stares (the 20 s grace); a removed shadow stops them by itself
+        if (lurking(g) && Math.random() < 0.25) ctx.audio.clicks(p.x, p.z);
         if (g.life > 45) {
           const take = Math.floor(ctx.state.money * 0.05);
           ctx.state.money -= take;

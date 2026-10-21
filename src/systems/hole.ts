@@ -78,6 +78,20 @@ export class Hole {
     return HOLE_LEVELS[ctx.state.holeLevel - 1].xp;
   }
 
+  get xpMult(): number {
+    return (1 + lvl('hunger') * 0.1) * (1 + deep('dXp') * 0.25) * (1 + lvl('xpBoost') * 0.25);
+  }
+
+  addXp(n: number): void {
+    const s = ctx.state;
+    if (s.holeLevel >= MAX_HOLE_LEVEL || !isFinite(n)) return;
+    s.holeXp += n;
+    while (s.holeLevel < MAX_HOLE_LEVEL && s.holeXp >= this.xpNeeded) {
+      s.holeXp -= this.xpNeeded;
+      this.levelUp();
+    }
+  }
+
   earn(v: number): void {
     const s = ctx.state;
     s.money += v;
@@ -155,7 +169,7 @@ export class Hole {
     const value = g.type.value * g.tier.value * trick * rush * this.valueScale * this.comboMult * ctx.buffs.valueMult() * g.valueMult * (g.parade >= 0 ? 3 : 1) + bonus * this.valueScale;
     const feed = g.type.id === 'king' || machine === 'crate' ? 1 : machine || g.thrownBy !== 'player' ? FEED_XP : 1 / Math.sqrt(g.xpGroup?.n ?? 1);
     // the weight Feeding Frenzy adds pays money, not XP: levels are not forced (2026-10-25, Q1 a)
-    const xp = g.type.xp * g.xpTier.value * feed * (1 + lvl('hunger') * 0.1) * (1 + deep('dXp') * 0.25);
+    const xp = g.type.xp * g.xpTier.value * feed * this.xpMult;
     const origin = at ?? this.holeOrigin;
     ctx.gnomes.remove(g);
 
@@ -223,13 +237,7 @@ export class Hole {
       ctx.audio.tier();
     }
 
-    if (s.holeLevel < MAX_HOLE_LEVEL) {
-      s.holeXp += xp;
-      while (s.holeLevel < MAX_HOLE_LEVEL && s.holeXp >= this.xpNeeded) {
-        s.holeXp -= this.xpNeeded;
-        this.levelUp();
-      }
-    }
+    this.addXp(xp);
   }
 
   consumeProp(kind: 'chair' | 'flamingo'): void {
@@ -297,7 +305,7 @@ export class Hole {
   // Tools the new hole covers shrink away and go back to the inventory when the hole arrives (after T).
   // Returns how many tools went back.
   carry(oldC: THREE.Vector3, oldR: number, newC: THREE.Vector3, newR: number, T: number): number {
-    // the cleaning robot drives itself and its post is not a footprint on the ground; a crate is a loose object
+    // the cleaning robot drives itself and moves its own station out of the hole (stepOutPost); a crate is a loose object
     // that dumps itself and goes home when it falls in (it may be the very crate whose dump caused this level-up)
     const list = ctx.machines.list.filter((m) => m.type !== 'robot' && m.type !== 'box');
     // stacks: a tool resting on top of another's footprint belongs to the same group

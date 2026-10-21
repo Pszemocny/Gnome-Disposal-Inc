@@ -811,7 +811,7 @@ export class Player {
       tmpV.set(p.x - e.x, p.y - e.y, p.z - e.z).normalize();
       const dot = tmpV.dot(d);
       if (dot > minDot) hits.push({ g, dot });
-    });
+    }, true); // the player may still pull a staring Shadow Gnome; machines and robots may not
     return hits.sort((a, b) => b.dot - a.dot).map((h) => h.g);
   }
 
@@ -906,6 +906,7 @@ export class Player {
         mesh.material = new THREE.MeshBasicMaterial({ color: 0x66ff88, transparent: true, opacity: 0.45, depthWrite: false });
         mesh.castShadow = false;
       }
+      if (o.name === 'lamp') o.visible = false; // the station lamp is a sprite: it would glow green on a red ghost
     });
     this.ghost = root;
     // by default the tool faces where you look (fans blow, belts carry and trampolines throw that way)
@@ -960,7 +961,8 @@ export class Player {
     // only solid things stop the tool: not gnomes, coins or what the magnet holds
     const solid = (col: RAPIER.Collider) => !ctx.gnomes.byCollider.has(col.handle) && !this.isHeldBody(col.parent());
     // tools stack on the ground, other tools, the crate, the house and the desk, never on a loose prop (chair, flamingo)
-    const surface = (col: RAPIER.Collider) => solid(col) && !ctx.props.byCollider.has(col.handle);
+    // (a robot station's pad sensor is no surface: the tool comes down to the ground there and turns red)
+    const surface = (col: RAPIER.Collider) => solid(col) && !col.isSensor() && !ctx.props.byCollider.has(col.handle);
     const hit = ctx.physics.castRayAndGetNormal(ray, this.ghostDist, true, undefined, undefined, this.collider, undefined, surface);
     const centre = new THREE.Vector3();
     const rot = { x: q.x, y: q.y, z: q.z, w: q.w };

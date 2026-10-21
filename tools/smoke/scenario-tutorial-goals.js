@@ -102,7 +102,8 @@ setTimeout(() => { if (!window.__done) window.__done = out.join('\n') + '\nTIMEO
     {
       reset({ goalsDone: [...thru(MS, 'coins'), 'mushroom'] }); upd();
       const rnd = Math.random; Math.random = () => 0.5;
-      for (let i = 0; i < 200; i++) eat();
+      // combo back to 0 before each eat: the combo-text mushrooms (15, 30, ...) are not the drop chance this checks
+      for (let i = 0; i < 200; i++) { g.hole.combo = 0; eat(); }
       Math.random = rnd;
       ok(6, g.mushrooms.list.length === 0 && !g.goals.wantsMushroom, `len=${g.mushrooms.list.length}`);
     }

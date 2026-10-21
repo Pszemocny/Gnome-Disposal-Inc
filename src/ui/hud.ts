@@ -36,7 +36,7 @@ const HINTS: Record<string, string> = {
   cannon: 'Loads gnomes that walk in and fires them the way it faces.',
   vacuum: 'Sucks nearby gnomes straight into the hole.',
   blackhole: 'Eats gnomes on the spot at full value.',
-  robot: 'Place its home post: it collects gnomes around it and tips them into the hole.',
+  robot: 'Place its station: it collects gnomes around it and tips them into the hole. Saboteurs hit the fuse box on the station pole.',
   tractor: 'Drive into gnomes: the plow pushes everything in front of it.',
   blower: 'Blows gnomes away in a cone, the way you look.',
   magGun: 'Pull many gnomes into a ball, then throw them all at once.',

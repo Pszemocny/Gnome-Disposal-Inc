@@ -127,9 +127,12 @@ export class Blueprints {
   // removes the tool now and lets its model shrink out where it stood
   private vanish(m: Machine): void {
     ctx.machines.remove(m);
-    this.anims = this.anims.filter((a) => a.root !== m.root);
-    ctx.scene.add(m.root);
-    this.anims.push({ root: m.root, t: 0, out: true });
+    // the robot's station lives in its marker, outside root: it shrinks and pops with the truck
+    for (const o of m.marker ? [m.root, m.marker] : [m.root]) {
+      this.anims = this.anims.filter((a) => a.root !== o);
+      ctx.scene.add(o);
+      this.anims.push({ root: o, t: 0, out: true });
+    }
     ctx.fx.burst(m.root.position, 0xffffff, 8);
   }
 
@@ -156,8 +159,10 @@ export class Blueprints {
     const inFactory = ctx.machines.restore(fits);
     for (const m of ctx.machines.list) {
       this.seen.add(m);
-      m.root.scale.setScalar(0);
-      this.anims.push({ root: m.root, t: 0, out: false });
+      for (const o of m.marker ? [m.root, m.marker] : [m.root]) {
+        o.scale.setScalar(0);
+        this.anims.push({ root: o, t: 0, out: false });
+      }
       ctx.fx.burst(m.pos, 0xffffff, 8);
     }
     this.last = null;

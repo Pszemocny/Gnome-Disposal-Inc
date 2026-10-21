@@ -459,6 +459,18 @@ export function robotBedGeometry(): THREE.BufferGeometry {
   ]);
 }
 
+// Robot station: parking pad with stripes, pole at the back with the fuse box mount at y 1.0 facing +z, cap on top.
+export function robotStationGeometry(): THREE.BufferGeometry {
+  return build([
+    { g: box(2.0, 0.03, 2.6), c: 0x3a3f46, p: [0, 0.015, 0] },
+    { g: box(0.08, 0.035, 2.6), c: 0xffcc22, p: [-0.96, 0.0175, 0] },
+    { g: box(0.08, 0.035, 2.6), c: 0xffcc22, p: [0.96, 0.0175, 0] },
+    { g: box(0.18, 1.5, 0.18), c: 0xd8dce0, p: [0, 0.75, -1.2] },
+    { g: box(0.5, 0.04, 0.5), c: 0x23272e, p: [0, 0.02, -1.2] },
+    { g: sph(0.14, 12, 8), c: 0x2fa8b8, p: [0, 1.6, -1.2] },
+  ]);
+}
+
 // Fuse box mounted on a tool: front face towards +z, origin at its centre.
 export function fuseBoxGeometry(): THREE.BufferGeometry {
   return build([
