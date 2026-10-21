@@ -27,13 +27,15 @@ setTimeout(() => { if (!window.__done) window.__done = out.join('\n') + '\nTIMEO
 
     // b: 0.5 m past the rim, then a level-up grows the radius past it
     {
+      // a level-up without a land change: start on the Garden (land 1) at level 3
+      g.state.holeLevel = 3; g.state.land = 1; g.env.rebuildHole(); g.env.rebuildLand();
       const R0 = g.env.holeRadius; const c = g.env.hole.clone();
-      const dir = g.env.constructor.holeCenterFor(4).sub(c).setY(0).normalize(); // place it where the hole will move
+      const dir = g.env.constructor.holeCenterFor(4, 1).sub(c).setY(0).normalize(); // place it where the hole will move
       if (dir.lengthSq() === 0) dir.set(1, 0, 0);
       const m = put(c.x + dir.x * (R0 + 0.5), c.z + dir.z * (R0 + 0.5));
       step(0.5);
       const stay = dist(m) < R0 + 0.6; // must not hop while it lies outside
-      g.state.holeLevel = 3; g.hole.levelUp(); // 3 → 4: radius 2.4 → 2.8, centre moves 1.2 m
+      g.hole.levelUp(); // 3 → 4 on the Garden: radius 2.4 → 2.8, centre moves 1.2 m
       const covered = dist(m) < g.env.holeRadius;
       step(0.6);
       ok('b', stay && covered && g.mushrooms.list.includes(m) && dist(m) > g.env.holeRadius + 0.3, `stay=${stay} covered=${covered} d=${dist(m).toFixed(2)} R=${g.env.holeRadius}`);

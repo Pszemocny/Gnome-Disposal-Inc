@@ -26,6 +26,7 @@ export interface GameState {
   holeLevel: number;
   holeXp: number;
   upgrades: Record<string, number>;
+  paidChanges?: Record<string, number>; // paid level changes of downgradable upgrades this run; missing = the level; freshState drops it
   deep: Record<string, number>;
   shards: number;
   land: number;
@@ -63,6 +64,7 @@ export interface GameState {
   factoryAuto: boolean; // the lever beside the factory: false switches Auto Crank off
   runTime: number; // unpaused real seconds of this run (FASTEST LVL 12 board)
   maxLevelAt: number | null; // runTime when the hole reached MAX_HOLE_LEVEL in this run
+  runMaxCombo: number; // the biggest combo of this run (BIGGEST COMBO board); stats.maxCombo is the lifetime one
   runTimeUnknown?: boolean; // a reborn save from before the run clock: this run's time is never posted; freshState drops it
 }
 
@@ -120,6 +122,7 @@ export function freshState(keep?: GameState): GameState {
     factoryAuto: true,
     runTime: 0,
     maxLevelAt: null,
+    runMaxCombo: 0,
   };
 }
 

@@ -48,6 +48,12 @@ say "daily-2099-01-01" "$(post "$(row Future 1 1 daily-2099-01-01 "$(k $ONE dail
 say "speed 119 s" "$(post "$(row Speed 119 12 speed "$(k 405dc00000000000 speed "$T")")")" 4xx
 say "speed level 11" "$(post "$(row Speed 120 11 speed "$(k 405e000000000000 speed "$T")")")" 4xx
 say "speed 1e299 s lvl 12" "$(post "$(row Speed 1e299 12 speed "$(k 7e031cfd3999f7b0 speed "$T")")")" 2xx
+# combo board: a whole number 1-100000 (0 = 0000000000000000, 1.5 = 3ff8000000000000, 100001 = 40f86a1000000000);
+# the accepted row is combo 1, the bottom of the public BIGGEST COMBO board until the cleanup deletes it
+say "combo 0" "$(post "$(row Combo 0 1 combo "$(k 0000000000000000 combo "$T")")")" 4xx
+say "combo 1.5" "$(post "$(row Combo 1.5 1 combo "$(k 3ff8000000000000 combo "$T")")")" 4xx
+say "combo 100001" "$(post "$(row Combo 100001 1 combo "$(k 40f86a1000000000 combo "$T")")")" 4xx
+say "combo 1" "$(post "$(row Combo 1 1 combo "$(k $ONE combo "$T")")")" 2xx
 say "id in body" "$(post "$(row Id 1 1 main "$(k $ONE main "$T")" | sed 's/^{/{"id":1,/')")" 4xx
 say "array with bad row" "$(post "[$(row Array 1 1 main "$(k $ONE main "$T")"),$(row Array -1 1 main x)]")" 4xx
 say "array: rows unchanged" "$(count Array)" 0

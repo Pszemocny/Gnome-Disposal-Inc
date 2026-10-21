@@ -24,6 +24,8 @@ export const ACHIEVEMENTS: Achievement[] = [
   { id: 'ufo', name: 'Close Encounter', desc: 'Shoot down the UFO.' },
   { id: 'land', name: 'Landlord', desc: 'Reach the Dark Forest.' },
   { id: 'sniper', name: 'Gnome Sniper', desc: 'Score a SNIPER shot from 14 m.' },
+  // PP 2026-10-21 "achievement no scope na trick sniper bez kupionego celownika"
+  { id: 'noscope', name: 'No Scope', desc: 'Score a SNIPER shot without the Trick Scope.' },
   { id: 'bullseye', name: 'Dead Centre', desc: 'Throw a gnome through the golden hoop into the hole.' },
   { id: 'rebirth', name: 'Born Again', desc: 'Enter The Deep and come back.' },
   { id: 'chair', name: 'Comfy Abyss', desc: 'Feed the hole an armchair.', secret: true },

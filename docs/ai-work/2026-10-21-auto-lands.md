@@ -61,3 +61,54 @@ Ladder: `landFor`, `LAND_STEP`, `DIR` (rung 5-6, no level → tier helper existe
 
 ### Uncertain
 - 02/04/05 depend on game time at ~5 fps headless; 05's robot step may need up to 40 s of game time.
+
+## L6: hole changes side
+
+### Problem
+PP (Slack 2026-10-21 23:23): "Dziura musi zmieniać stronę". It replaces the 2026-10-20 rule "always one direction": with every land the hole moves to the other side of the yard. Kept: 15 / 19 / 23 / 27 m from the factory at level 1 of each land (+1.2 m per level), never behind the house, the yard rectangle growing from the fixed corner (-22, -22) toward +x / +z. Order: "PP: bez planu", implement, tests once at the end.
+
+Interpretation: each land gets its own direction from the factory point on today's line (`-15 · DIR`, so the Backyard spots stay exactly where they are). The Backyard keeps `DIR`; Garden, Lawn and Dark Forest turn it alternately to one side and the other. The hole still slides 1 s in a straight line from the old spot to the new one, now sideways.
+
+### Gotowe, gdy
+1. `scenario-auto-lands.js` 01_formula → PASS: 48 rows, each on its own land's direction, at 15 + 4 L + 1.2 (n - 1) m from the factory, ≥ radius + 2 m inside its land, ≥ 8 m (edge) from desk, house and shovel.
+2. `scenario-auto-lands.js` 01_formula_side → PASS: Garden, Lawn and Forest holes lie on alternating sides of the Backyard line, each ≥ 5 m off it.
+3. `scenario-auto-lands.js` 02_levelup_garden, 02_crate, 02_fence_rise, 03_levelup_plain, 04_lawn, 04_robot, 04_forest, 04_chain, 06_old_saves_d, 11_letters_reach, 12_crate_home_tool → PASS (sideways slide, tools carried / back to inventory, robot station steps out, letters completable).
+4. `scenario-auto-lands.js` 10_scenery_grass → PASS with 0 tufts and 0 mushrooms within 6.8 m of any hole path segment (`Environment.holePath()`).
+5. `scenario-letters.js` all checks PASS, L0 against every hole path segment.
+6. `scenario-robot-stations.js` and `scenario-endgame-boost.js` all checks PASS.
+7. `npx tsc --noEmit -p .` → no output.
+8. Screenshots `l6-land-0..3` show the hole on each land (by eye).
+
+Ladder: `holeCenterFor` keeps its signature (rung 2), the direction per land is one number on the existing `LAND` table (rung 6, data, no new helper); `distToSegment` reused for several segments (rung 2). No new dependency.
+
+### Work progress (L6)
+- Probe (scratchpad `l6/probe.mjs`): allowed turns for all 12 levels per land (rectangle margin >= radius + 2, edge >= 8 m from desk, house, shovel): Garden -30..+28°, Lawn -43..+28°, Forest -60..+30° (+ = toward +z). Letters never bind (>= 11.6 m from every path segment for any pick in range).
+- Pick: Backyard 0°, Garden -25°, Lawn +25°, Forest -40°. Why: each new land's hole crosses the yard's diagonal (60° → 35° → 85° → 20° from +x), so it really sits on the other side of the yard; 3-20° slack to the limits. Results: rectangle margin >= 11.6 m, edge to desk/house/shovel >= 9.3 m, letters >= 11.6 m, lateral jump 9.0 / 11.8 / 22.8 m off the Backyard line, slides 9.6 / 21.8 / 35.5 m in the same 1 s.
+- Done: `LAND[].turn`, `holeCenterFor` per land, `Environment.holePath()` (4 land lines + 3 slides) for tufts and mushrooms, comments; auto-lands 01_formula / 01_formula_L12 / new 01_formula_side / 04_forest / 06_old_saves_d / 10_scenery_grass. `npx tsc --noEmit -p .` → no output.
+- Paused once: other edits appeared in the checkout. The orchestrator said they come from parallel agents of the same session (combo board, Strong Arm downgrade, No Scope) and said to carry on with small edits anchored on text, without running scenarios (PP: tests once at the end, run by the orchestrator).
+- Orchestrator decision: the 35.5 m Forest slide in 1 s is too fast. The slide time is now distance / 12 m/s, clamped to 1-3 s (Garden 1 s, Lawn 1.82 s, Forest 2.96 s). The rumble and the tool glides use the same time; the dust trail stays. Check: 04_forest measures the slide at 2.5-3.5 s; 02_levelup_garden keeps `arrived <= 1.5`.
+- Letters L0 checks every `holePath()` segment. The new 13_hole_shots step saves `l6-land-0..3` (the hole seen from beside the factory). SPEC: the hole-position rule, a new PP decision with its why, a session decision on the slide speed, and the yard line. CHANGELOG: one bullet in `## 2026-10-27 14:00`.
+- `npx tsc --noEmit -p .` → no output. Both edited scenario files pass a syntax check (`new Function`). Scenarios NOT run, by the orchestrator's order: Gotowe, gdy lines 1-6 and 8 are open until the final run.
+- Rejected: robot-stations A4-A6 call `holeCenterFor(lv + 1)` with the current land. This is right for the levels they use (no land change), so I left it unchanged.
+
+## L6 test round (2026-10-21)
+
+- Real bug fixed: when the hole changes side, it slid over a truck parked at the new spot (one frame in the hole). `clearSlide(from, to, newR)` in robots.ts, called from `rebuildLand` at the slide start, moves stations near the slide path beside the new spot (own side first, inside the fence, pole not blocked) and sends trucks on the path to their station.
+- Rejected: a scale-in for the truck that jumps to its station; it uses the same `toPost` puff as today's fall recovery, and the only pop-in helper is private to blueprints.ts. One cue (the puff) is kept.
+- Scenario fixes: 09 far fan on the x axis (Lawn (34.92,14.70) inside, Garden (50.03,-0.71) outside); robot-stations A4-A6 and mushroom-rim b run on the Garden from level 3 to 4, so the land does not change.
+
+## L6 clearSlide review fixes (2026-10-22)
+
+- Fixed: when two stations stood beside the new spot on the same side, both got the same spot (pole bodies move only next frame, so `poleBlocked` did not see the first one). Now every moved post keeps 3.3 m (`STATION_SPACE`) from every other post, and candidates go around the new rim on both sides of the path.
+- Fixed: a station that `stepOutPost` keeps around the old hole (even behind it) jumped up to 23 m across the yard. Now only posts ahead of the old spot move (projection t > 0), checked with the old radius along the path and the new radius at the new spot. `clearSlide` takes `oldR`.
+- Fixed: a station that stood on a tool was moved at the tool's height and floated. A moved post now stands on the ground (y 0, the ground top outside the hole).
+- Not fixed, needs a plan: a carried fan can end on a moved station, because `clearSlide` checks poles against tools where they stand now. The glide targets live in `Hole.glides` (private, `src/systems/hole.ts`), outside this package.
+- Red check (new `04_slide_posts` in scenario-auto-lands, 4 robots on the Garden -> Lawn slide): `3 FAIL / 29 PASS`, all four posts at (-3.52,8.81), behind post moved 22.72 m, belt post y 0.35 -> 0.35.
+- After the fix: auto-lands `32 PASS`, minGap 3.61 m, 0 blocked, behind post moved 0.00 m, belt post y 0.00. robot-stations `35 PASS / 1 FAIL` (D1 `truckAtNew:false`, a G move with no land change, earlier run p1/r6 had the same flake), rerun `36 PASS`. `npx tsc --noEmit -p .` no output.
+- tree-expansion alone: `53 PASS / 1 FAIL`, F3 `updateMax 9.7` (gate 8), worst frame 207, next 5.9 ms, p95 1 ms. The measured window is `machines.update` after set-up; `rebuildLand` and `clearSlide` run before it, so this change is not on that path. Not investigated further (test-run limit).
+
+## L6 carried fan vs moved post (2026-10-22, finding 3 of the clearSlide review)
+
+- Fixed: when the hole changed side and carried a fan from its old rim, the fan could glide onto a robot post that `clearSlide` had just moved beside the new spot, because `clearSlide` checked the pole only against tools where they stood before the glide. Now `Hole.glideTargets` (read-only getter over the private glides) goes from `rebuildLand` into `clearSlide`, which rejects a spot whose pole (1.2 m behind the post) is within a gliding tool's footprint radius + 0.26 m of where that tool ends; a tool gliding in above the pole top (1.6 m) does not count. Same idea as `Hole.moveCrateHomes`.
+- Red check (new `04_slide_fan` in scenario-auto-lands: a fan 1.4 m past the old rim on the post's side, the post's pole facing the new hole): `1 FAIL / 32 PASS`, `{"poleFan":0.3,"blocked":true}`.
+- After the fix: auto-lands `33 PASS`, `{"post":"(-0.96,19.20)","poleFan":11.9,"blocked":false}` (the post took the other side of the path, the next candidate in the existing order); 04_slide_posts unchanged (minGap 3.61, 0 blocked).

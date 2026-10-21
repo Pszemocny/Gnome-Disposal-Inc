@@ -570,7 +570,8 @@ setTimeout(() => { if (!window.__done) window.__done = JSON.stringify({ ...R, ch
       const belt = g.machines.place('conveyor', new V3(bx, 0, bz), qy(Math.PI / 2));
       await frames(3);
       r.state = 'drive'; r.plan = 0;
-      await frames(2);
+      // the new map, its labels and the hole's field are built a slice per frame: a few frames on the Dark Forest
+      for (let i = 0; i < 30 && !r.path.length; i++) await frames(1);
       const around = r.path.reduce((a, p) => Math.max(a, Math.abs(p.x - bx)), 0);
       const after = { cell: cell(bx, bz), path: r.path.length, reached: r.reached, around: +around.toFixed(2) };
       let arrived = false;

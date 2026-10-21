@@ -229,13 +229,20 @@ setTimeout(() => { if (!window.__done) window.__done = J({ ...R, checks, timeout
     {
       const Env = g.env.constructor;
       const { holeLevel } = await import('/src/data/holeLevels.ts');
+      const { landFor } = await import('/src/data/land.ts');
+      // a level-up without a land change: each case starts on the Garden at level 3 (3 -> 4 stays on the Garden)
       const stepCase = async (broken, poleToHole) => {
         await reset();
         g.state.upgrades.robot = 1;
-        const lv = g.state.holeLevel;
+        const lv = 3;
+        g.state.holeLevel = lv;
+        const newLand = g.state.land !== landFor(lv);
+        g.state.land = landFor(lv);
+        g.env.rebuildHole();
+        if (newLand) g.env.rebuildLand();
         const r0 = g.env.holeRadius;
         const r1 = holeLevel(lv + 1).radius;
-        const c1 = Env.holeCenterFor(lv + 1);
+        const c1 = Env.holeCenterFor(lv + 1, landFor(lv + 1));
         const d = Math.max(r1 - 1, r0 + 0.4);
         // the side of the hole facing +x; yaw PI/2: local +z = world +x, so the pole (local -z) points at the hole
         const m = placeRobot(c1.x + d, c1.z, poleToHole ? Math.PI / 2 : 0);
@@ -243,9 +250,6 @@ setTimeout(() => { if (!window.__done) window.__done = J({ ...R, checks, timeout
         if (broken) m.broken = 30;
         const posBefore = m.pos.clone();
         g.hole.levelUp();
-        // a level-up that brings a new Land slides the hole over 1 s (level 3): land it now, so "same frame" means
-        // the frame after the hole covers the post, as on the other level-ups
-        if (g.env.sliding) g.env.finishSlide();
         await frames(2);
         const moved2 = hd(m.pos, posBefore) > 0.1;
         await frames(8);

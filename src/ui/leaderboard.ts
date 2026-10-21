@@ -12,13 +12,14 @@ const NAME = /^(?=.*[\p{L}\p{N}])[\p{L}\p{M}\p{N} ._'’-]+$/u;
 const SPEED = 'speed'; // FASTEST LVL 12: score = runTime in seconds, lower is better
 // this run's level-12 time, or null when the run has none or its clock started before the update (runTimeUnknown)
 const runLvl12 = (): number | null => (ctx.state.runTimeUnknown ? null : ctx.state.maxLevelAt);
+const COMBO = 'combo'; // BIGGEST COMBO: score = the highest combo in this run, higher is better
 
 export interface Entry {
   name: string; // a first name or nickname, never a full official name (PP 2026-10-24)
-  score: number; // money earned in the run (state.totalEarned); seconds to hole level 12 on the speed board
+  score: number; // money earned in the run (state.totalEarned); seconds to hole level 12 on the speed board; the run's best combo on the combo board
   level: number; // hole level
   at: number; // Date.now() locally, created_at online
-  board?: string; // 'main' (missing in old entries), 'speed' or 'daily-YYYY-MM-DD'
+  board?: string; // 'main' (missing in old entries), 'speed', 'combo' or 'daily-YYYY-MM-DD'
 }
 
 // swap point for a shared board (PP's decision: BOARD "Pytania do PP na rano", question 1)
@@ -35,6 +36,7 @@ const W_REJECT = 'The online board rejected this score: saved on this computer o
 const W_MAYBE = 'The online board did not answer in time: the score is saved on this computer and might have reached the online board too.';
 const W_CLOCK = "The online board rejected this score: check your computer's date and time. Saved on this computer only.";
 const W_TIME = 'Your time was not saved online.'; // the money row went through, only the FASTEST row failed
+const W_COMBO = 'Your combo was not saved online.'; // the same for the BIGGEST COMBO row
 const TIMEOUT_MS = 6000;
 const COLS = 'name,score,level,board,created_at';
 
@@ -70,7 +72,7 @@ export class LocalStore implements LeaderboardStore {
     const all = [...this.all(), e].sort(byRank);
     // 'daily-YYYY-MM-DD' sorts by date
     const daily = [...new Set(all.map(boardOf).filter((b) => b.startsWith('daily-')))].sort().reverse();
-    const keep = new Set(['main', SPEED, ...daily.slice(0, DAILY_BOARDS)]);
+    const keep = new Set(['main', SPEED, COMBO, ...daily.slice(0, DAILY_BOARDS)]);
     const count = new Map<string, number>();
     const kept = all.filter((x) => {
       const b = boardOf(x);
@@ -221,7 +223,7 @@ export class Leaderboard {
     // static markup only; user text goes in through textContent
     this.el.innerHTML = `<div class="shop-win">
       <div class="shop-head"><span class="lb-title"></span><button class="x" data-close>✕</button></div>
-      <div class="shop-tabs"><button class="tab" type="button" data-tab="main">MOST MONEY</button><button class="tab" type="button" data-tab="${daily.board}">DAILY ${daily.date}</button><button class="tab" type="button" data-tab="${SPEED}">FASTEST LVL 12</button></div>
+      <div class="shop-tabs"><button class="tab" type="button" data-tab="main">MOST MONEY</button><button class="tab" type="button" data-tab="${daily.board}">DAILY ${daily.date}</button><button class="tab" type="button" data-tab="${SPEED}">FASTEST LVL 12</button><button class="tab" type="button" data-tab="${COMBO}">BIGGEST COMBO</button></div>
       <div class="shop-rows lb-rows"></div>
       <form class="lb-form">
         <div class="lb-run"></div>
@@ -230,7 +232,7 @@ export class Leaderboard {
         <button class="buy poor" type="button" data-close>SKIP</button>
       </form>
       <div class="lb-msg"></div>
-      <div class="shop-foot">Score = money earned this run, spent or not. FASTEST = time to hole level 12. Esc closes.</div>
+      <div class="shop-foot">Score = money earned this run, spent or not. FASTEST = time to hole level 12. COMBO = the biggest combo this run. Esc closes.</div>
     </div>`;
     document.body.appendChild(this.el);
     const q = <T extends HTMLElement>(s: string) => this.el.querySelector<T>(s)!;
@@ -243,7 +245,7 @@ export class Leaderboard {
     this.tabs = q('.shop-tabs');
     this.submitBtn = q<HTMLButtonElement>('button[type="submit"]');
     if (store instanceof RemoteStore)
-      q('.shop-foot').textContent = 'Score = money earned this run, spent or not. FASTEST = time to hole level 12. Your name or nickname is shown publicly online. Esc closes.';
+      q('.shop-foot').textContent = 'Score = money earned this run, spent or not. FASTEST = time to hole level 12. COMBO = the biggest combo this run. Your name or nickname is shown publicly online. Esc closes.';
     this.el.addEventListener('click', (e) => {
       const t = e.target as HTMLElement;
       if (t.closest('[data-close]')) this.close();
@@ -339,11 +341,18 @@ export class Leaderboard {
     try {
       await this.store.submit({ name, score: s.totalEarned, level: s.holeLevel, at, board: this.board });
       w = this.store.warning ?? null;
-      // every run that reached level 12 posts its time with this submit (PP 2026-10-24: "za każdym razem gdy wskoczysz")
+      // every main-board run that reached level 12 posts its time with this submit (PP 2026-10-24: "za każdym razem gdy wskoczysz")
+      // main board only, like the combo row: a daily run goes to the daily board alone
       const t = runLvl12();
-      if (t !== null) {
+      if (t !== null && this.board === 'main') {
         await this.store.submit({ name, score: t, level: MAX_HOLE_LEVEL, at, board: SPEED });
         if (this.store.warning) w ??= W_TIME;
+      }
+      // main board only: a daily run goes to the daily board alone; a run without a combo has nothing to post
+      if (this.board === 'main' && s.runMaxCombo > 0) {
+        // the database takes whole numbers up to 100 000 (scores_combo_check); an endless machine combo posts the cap
+        await this.store.submit({ name, score: Math.min(s.runMaxCombo, 100000), level: s.holeLevel, at, board: COMBO });
+        if (this.store.warning) w ??= W_COMBO;
       }
     } finally {
       this.sending = false;
@@ -375,7 +384,8 @@ export class Leaderboard {
       ...top.map((e, i) => {
         const row = document.createElement('div');
         row.className = 'row';
-        const score = boardOf(e) === SPEED ? clock(e.score) : money(e.score);
+        const b = boardOf(e);
+        const score = b === SPEED ? clock(e.score) : b === COMBO ? `${e.score} COMBO` : money(e.score);
         for (const text of [`${i + 1}. ${e.name}`, score, `Lvl ${e.level}`, new Date(e.at).toLocaleDateString()]) {
           row.appendChild(document.createElement('span')).textContent = text;
         }

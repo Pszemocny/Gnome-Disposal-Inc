@@ -17,6 +17,11 @@ const step = async (name, fn) => { try { out[name] = await fn(); } catch (e) { o
   const M = await mod(/\/src\/ui\/leaderboard\.ts/);
   const LB = 'gnome-boozed-leaderboard';
   const bootStore = lb.store.constructor.name;
+  // the dev server must never go online: stop before any submit when the game booted on another store
+  if (bootStore !== 'LocalStore') {
+    window.__done = JSON.stringify({ ABORT: 'boot store is ' + bootStore + ', not LocalStore' });
+    return;
+  }
   // fetch recorder: `next` answers each call; a deferred lets a test hold a reply
   const calls = [];
   let next = () => Promise.resolve(new Response('[]', { status: 200 }));
@@ -61,6 +66,9 @@ const step = async (name, fn) => { try { out[name] = await fn(); } catch (e) { o
       g.paused = false;
       const D = await mod(/\/src\/systems\/daily\.ts/);
       D.daily.left = 0.1;
+      g.state.runMaxCombo = 7; // a daily run with a combo still posts to the daily board only
+      g.state.maxLevelAt = 1800; // and so does a daily run that reached level 12: no speed row
+      g.state.runTimeUnknown = undefined;
       await frames(8);
       const open = lb.isOpen;
       let done = 0;
@@ -68,7 +76,9 @@ const step = async (name, fn) => { try { out[name] = await fn(); } catch (e) { o
       const form = !formHidden();
       submit('Daily Runner'); await settle();
       const post = calls.find((c) => c.method === 'POST');
-      return { bootStore, open, form, title: ov.querySelector('.lb-title').textContent, postBoard: post?.body.board, keyHex: /^[0-9a-f]{64}$/.test(post?.body.key ?? ''), done };
+      const postBoards = calls.filter((c) => c.method === 'POST').map((c) => c.body.board);
+      const onlyDaily = JSON.stringify(postBoards) === JSON.stringify([D.daily.board]);
+      return { bootStore, open, form, title: ov.querySelector('.lb-title').textContent, postBoard: post?.body.board, postBoards, onlyDaily, keyHex: /^[0-9a-f]{64}$/.test(post?.body.key ?? ''), done };
     });
     window.fetch = realFetch;
     window.__done = JSON.stringify(out, null, 1);
@@ -76,6 +86,7 @@ const step = async (name, fn) => { try { out[name] = await fn(); } catch (e) { o
   }
 
   g.state.maxLevelAt = null;
+  g.state.runMaxCombo = 0; // R21 checks the combo row; the steps before it expect no combo row
 
   await step('R1_boot_local', async () => {
     lb.open(); await settle();
@@ -414,6 +425,68 @@ const step = async (name, fn) => { try { out[name] = await fn(); } catch (e) { o
       else localStorage.setItem(SAVE, realRaw);
     }
     return r;
+  });
+
+  await step('R21_combo_board', async () => {
+    const W_COMBO = 'Your combo was not saved online.';
+    // the tab: best combo first, shown as a combo, never as money
+    next = () => json([{ name: 'Comboist', score: 250, level: 9, board: 'combo', created_at: '2026-10-20T10:00:00Z' }]);
+    lb.open(); await settle();
+    const n0 = calls.length;
+    ov.querySelector('[data-tab="combo"]').click(); await settle();
+    const url = calls.slice(n0).at(-1).url;
+    const tab = { label: ov.querySelector('[data-tab="combo"]').textContent, url, desc: url.includes('board=eq.combo&order=score.desc'), cell: ov.querySelector('.lb-rows .row')?.children[1].textContent, activeTab: ov.querySelector('.tab.on').textContent };
+    lb.close();
+    // the value: a real eat raises the run's best combo, the submit posts it as a second row
+    const V3 = g.camera.position.constructor;
+    g.state.runMaxCombo = 0;
+    g.hole.combo = 41;
+    const x = g.gnomes.spawn('classic', new V3(0, -10, 0), { tier: 'normal' });
+    if (x) g.hole.consume(x);
+    const afterEat = g.state.runMaxCombo;
+    const comboReply = { v: () => empty(201) };
+    next = (c) => (c.method === 'POST' ? (c.body.board === 'combo' ? comboReply.v() : empty(201)) : json([]));
+    const run = async (name, board) => {
+      const p0 = calls.length, t0 = toasts.length;
+      const o = { n: 0 };
+      board ? lb.offer(() => o.n++, board) : lb.offer(() => o.n++);
+      await settle();
+      submit(name); await settle();
+      const p = posts(p0);
+      return { boards: p.map((c) => c.body.board), combo: p.find((c) => c.body.board === 'combo')?.body, bad: badToasts(t0), done: o.n };
+    };
+    const sent = await run('Combi');
+    const value = { afterEat, boards: sent.boards, score: sent.combo?.score, scoreIsRunMax: sent.combo?.score === afterEat, level: sent.combo?.level === g.state.holeLevel, keyHex: /^[0-9a-f]{64}$/.test(sent.combo?.key ?? ''), bad: sent.bad, done: sent.done };
+    comboReply.v = () => empty(503);
+    const fail = await run('Combi');
+    const failed = { toastIsCombo: fail.bad[0] === W_COMBO, done: fail.done };
+    comboReply.v = () => empty(201);
+    // a daily run posts to the daily board only, combo or not
+    const daily = (await run('Daily', 'daily-' + today)).boards;
+    // no combo this run: no combo row
+    g.state.runMaxCombo = 0;
+    const zero = (await run('Zero')).boards;
+    // rebirth resets the run's combo, the lifetime best stays; an old mid-run save without the field loads as 0
+    const S = await mod(/\/src\/core\/state\.ts/);
+    g.state.runMaxCombo = 42;
+    const f = S.freshState(g.state);
+    const SAVE = 'gnome-boozed-save-v1';
+    const realRaw = localStorage.getItem(SAVE);
+    const old = S.freshState();
+    delete old.runMaxCombo;
+    localStorage.setItem(SAVE, JSON.stringify(old));
+    const oldSave = S.loadState().runMaxCombo;
+    if (realRaw === null) localStorage.removeItem(SAVE);
+    else localStorage.setItem(SAVE, realRaw);
+    const rebirth = { freshRunMaxCombo: f.runMaxCombo, lifetimeKept: f.stats.maxCombo === g.state.stats.maxCombo && f.stats.maxCombo >= 42, oldSave };
+    // the local store keeps the combo board, best first
+    const ls = new M.LocalStore();
+    localStorage.setItem(LB, '[]');
+    for (const score of [5, 90, 30]) await ls.submit({ name: 'C' + score, score, level: 4, at: score, board: 'combo' });
+    await ls.submit({ name: 'M', score: 1, level: 1, at: 1, board: 'main' });
+    const kept = (await ls.list('combo')).map((e) => e.score);
+    g.state.runMaxCombo = 0;
+    return { tab, value, failed, daily, zero, rebirth, localCombo: kept };
   });
 
   await step('R18_run_timer', async () => {

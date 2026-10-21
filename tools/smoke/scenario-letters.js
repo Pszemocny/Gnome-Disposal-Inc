@@ -88,12 +88,14 @@ setTimeout(() => { if (!window.__done) window.__done = JSON.stringify({ checks, 
     placePlayer(0, 9, 0);
     await frames(5);
 
-    // ---- L0: spots clear of the hole's one line, inside their land, 5 m beyond the previous land's +x or +z fence
+    // ---- L0: spots clear of every stretch the hole can cover (each land's line and each slide), inside their land,
+    // 5 m beyond the previous land's +x or +z fence
     {
       const bad = [];
+      const path = g.env.constructor.holePath();
       for (const s of LETTER_SPOTS) {
         const p = new V3(s.x, 0, s.z);
-        const dmin = segDist(p, holeAt(1, 0), holeAt(12, LAND.length - 1));
+        const dmin = Math.min(...path.map(([a, b]) => segDist(p, a, b)));
         const inside = s.x >= -20 && s.z >= -20 && s.x <= maxOf(s.land) - 2 && s.z <= maxOf(s.land) - 2;
         const beyond = s.land === 0 || s.x >= maxOf(s.land - 1) + 5 || s.z >= maxOf(s.land - 1) + 5;
         if (dmin < 6.8 || !inside || !beyond) bad.push(`${s.ch} d ${dmin.toFixed(1)} at ${s.x},${s.z}`);
@@ -392,7 +394,7 @@ setTimeout(() => { if (!window.__done) window.__done = JSON.stringify({ checks, 
     // ---- L20
     {
       const b = ACHIEVEMENTS.find((a) => a.id === 'booze');
-      ok('L20', ACHIEVEMENTS.length === 26 && b.secret === true && b.name === 'Properly Boozed' && b.desc === 'Feed the hole the word GNOME.', `${ACHIEVEMENTS.length} "${b.desc}"`);
+      ok('L20', ACHIEVEMENTS.length === 27 && b.secret === true && b.name === 'Properly Boozed' && b.desc === 'Feed the hole the word GNOME.', `${ACHIEVEMENTS.length} "${b.desc}"`);
     }
 
     // ---- L17: the shovel and the letters are gold without a glow; the shovel goes when taken

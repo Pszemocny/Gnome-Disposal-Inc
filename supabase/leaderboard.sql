@@ -3,7 +3,8 @@
 -- Replace __SALT__ only in the SQL Editor after pasting (value of the GitHub variable VITE_SUPABASE_SALT); never in this file: the repo is public.
 -- Changing the guard later: run only the "create or replace function" block and new "create index if not exists" lines (create table runs once);
 -- re-creating the function needs the salt again.
--- name = a first name or nickname only (PP 2026-10-24), never a full official name; board speed = unpaused seconds to hole level 12.
+-- name = a first name or nickname only (PP 2026-10-24), never a full official name; board speed = unpaused seconds to hole level 12, board combo = the biggest combo of one run.
+-- Adding the combo board to a live database: docs/ai-work/2026-10-21-combo-board.sql (constraints only, the function stays).
 -- The game's own name rule is stricter (letters, digits, spaces, . _ - '); the database guards only size and markup.
 
 create table public.scores (
@@ -11,11 +12,13 @@ create table public.scores (
   name text not null constraint scores_name_check check (char_length(name) between 1 and 20 and btrim(name) <> '' and name !~ '[<>[:cntrl:]]'),
   score double precision not null check (score >= 0 and score < 1e300),
   level smallint not null check (level between 1 and 99),
-  board text not null default 'main' constraint scores_board_check check (board ~ '^(main|speed|daily-\d{4}-\d{2}-\d{2})$'),
+  board text not null default 'main' constraint scores_board_check check (board ~ '^(main|speed|combo|daily-\d{4}-\d{2}-\d{2})$'),
   key text not null,
   created_at timestamptz not null default now(),
   -- a guard against nonsense rows, not a skill rule: 20 gnomes/s machine-fed with every XP upgrade is about 24 XP/s, 11 305 XP takes 470 s
-  constraint scores_speed_check check (board <> 'speed' or (level = 12 and score >= 120))
+  constraint scores_speed_check check (board <> 'speed' or (level = 12 and score >= 120)),
+  -- board combo = the biggest combo of one run, as the game shows it (machine feeding counts too); a whole number up to 100 000
+  constraint scores_combo_check check (board <> 'combo' or (score between 1 and 100000 and score = trunc(score)))
 );
 create index scores_board_score on public.scores (board, score desc);
 create index scores_board_created on public.scores (board, created_at);

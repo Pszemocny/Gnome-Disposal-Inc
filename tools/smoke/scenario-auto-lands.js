@@ -1,5 +1,5 @@
 // Auto-lands (docs/ai-work/2026-10-20-plan-auto-lands.md, "Done when"; work note docs/ai-work/2026-10-21-auto-lands.md):
-// the yard grows by itself at hole levels 3 / 5 / 8, toward the hole, and the hole sits on one line from the factory.
+// the yard grows by itself at hole levels 3 / 5 / 8, toward +x / +z, and the hole changes side with every land (L6).
 // One RESULT JSON with `checks` (PASS/FAIL lines, one per step). Run (several minutes; URL_QUERY='' so fireflies draw):
 // FAKELOCK=1 URL_QUERY='' DEV_PORT=5199 CDP_PORT=9373 MAXPOLL=4000 node tools/smoke/smoke.mjs <outDir> tools/smoke/scenario-auto-lands.js
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
@@ -75,17 +75,20 @@ setTimeout(() => { if (!window.__done) window.__done = JSON.stringify({ ...R, ch
     placePlayer(-15, -5);
     await frames(5);
 
-    // ---- 01_formula: every hole spot on the one line from the factory, at 15 + 4 L + 1.2 (n - 1) m, inside its land
+    // ---- 01_formula: every hole spot on its land's line from the factory (the Backyard line turned by LAND[L].turn),
+    // at 15 + 4 L + 1.2 (n - 1) m, inside its land
+    const landDir = (L) => DIR.clone().applyAxisAngle(new V3(0, 1, 0), -LAND[L].turn * Math.PI / 180);
     {
       let rows = 0, offline = 0, minMargin = Infinity, minFar = Infinity;
       const bad = [];
       const spots = [new V3(7.5, 0, -13), new V3(0, 0, -27.5), new V3(-20.4, 0, 20.6)]; // desk, house, shovel
       for (let L = 0; L < LAND.length; L++) {
+        const u = landDir(L);
         for (let n = 1; n <= 12; n++) {
           rows++;
           const c = holeAt(n, L);
           const f = c.clone().sub(FACTORY);
-          if (Math.abs(f.x * DIR.z - f.z * DIR.x) >= 0.01) offline++;
+          if (Math.abs(f.x * u.z - f.z * u.x) >= 0.05 || f.dot(u) <= 0) offline++;
           const want = 15 + LAND_STEP * L + 1.2 * (n - 1);
           if (!near(f.length(), want, 0.05)) bad.push(`L${L}n${n} dist ${f.length().toFixed(2)} want ${want}`);
           const r = holeLevel(n).radius;
@@ -98,8 +101,13 @@ setTimeout(() => { if (!window.__done) window.__done = JSON.stringify({ ...R, ch
       const d1 = LAND.map((_, L) => holeAt(1, L).distanceTo(FACTORY).toFixed(0)).join(',');
       R.formula = { rows, offline, minMargin: +minMargin.toFixed(2), minFar: +minFar.toFixed(2), l12: xz(l12), d1, bad };
       ok('01_formula', rows === 48 && offline === 0 && minMargin >= 2 && minFar >= 8 && !bad.length, JSON.stringify(R.formula));
-      ok('01_formula_L12', near(l12.x, 12.6, 0.05) && near(l12.z, 21.8, 0.05), xz(l12));
+      ok('01_formula_L12', near(l12.x, 30.28, 0.05) && near(l12.z, 0.77, 0.05), xz(l12));
       ok('01_formula_dist', d1 === '15,19,23,27', d1);
+      // L6 (PP 2026-10-21 "Dziura musi zmieniać stronę"): the first spot of each new land lies off the Backyard line,
+      // on the other side than the land before
+      const lateral = LAND.slice(1).map((t, i) => { const f = holeAt(t.hole, i + 1).clone().sub(FACTORY); return f.x * DIR.z - f.z * DIR.x; });
+      const sides = lateral.every((s, i) => Math.abs(s) >= 5 && (i === 0 || Math.sign(s) !== Math.sign(lateral[i - 1])));
+      ok('01_formula_side', sides, `lateral m ${lateral.map((s) => s.toFixed(1))}`);
     }
 
     // ---- 02_levelup_garden: a crate dump at the level-2 rim brings the Garden; the hole slides, tools follow or go
@@ -167,6 +175,67 @@ setTimeout(() => { if (!window.__done) window.__done = JSON.stringify({ ...R, ch
       ok('03_levelup_plain', g.state.holeLevel === 4 && g.state.land === 1 && near(moved, 1.2, 0.05) && !sliding, JSON.stringify(R.plain));
     }
 
+    // ---- 04_slide_posts: the Garden -> Lawn slide with four robots: A and B beside the new spot on the same side,
+    // C behind the old hole (where stepOutPost keeps a post), D on a belt in the middle of the path (post 0.9 m up)
+    {
+      g.machines.clearAll();
+      g.state.upgrades.robot = 4;
+      g.state.upgrades.conveyor = 1;
+      const from = g.env.hole.clone();
+      const to = holeAt(5, 2);
+      const u = to.clone().sub(from).setY(0).normalize();
+      const side = new V3(-u.z, 0, u.x);
+      const rA = g.machines.place('robot', to.clone().addScaledVector(side, 1.0), Q());
+      const rB = g.machines.place('robot', to.clone().addScaledVector(side, 2.5), Q());
+      const rC = g.machines.place('robot', from.clone().addScaledVector(u, -(g.env.holeRadius + 3.0)), Q());
+      const mid = from.clone().lerp(to, 0.5);
+      g.machines.place('conveyor', mid, Q());
+      await frames(3);
+      const rD = g.machines.place('robot', mid.clone().setY(3), Q());
+      await frames(3);
+      const c0 = rC.pos.clone();
+      const dY0 = rD.pos.y;
+      levelBy();
+      await gameWait(4);
+      const robots = [rA, rB, rC, rD];
+      let minGap = Infinity;
+      for (let i = 0; i < robots.length; i++) for (let j = i + 1; j < robots.length; j++) minGap = Math.min(minGap, Math.hypot(robots[i].pos.x - robots[j].pos.x, robots[i].pos.z - robots[j].pos.z));
+      const blocked = robots.filter((m) => g.machines.poleBlocked(m)).length;
+      const placed = robots.filter((m) => g.machines.list.includes(m)).length;
+      const cMoved = rC.pos.distanceTo(c0);
+      R.slidePosts = { land: g.state.land, placed, minGap: +minGap.toFixed(2), blocked, cMoved: +cMoved.toFixed(2), dY0: +dY0.toFixed(2), dY: +rD.pos.y.toFixed(2), posts: robots.map((m) => xz(m.pos)) };
+      ok('04_slide_spread', g.state.land === 2 && placed === 4 && minGap >= 3.2 && blocked === 0, JSON.stringify(R.slidePosts));
+      ok('04_slide_behind', cMoved < 0.05, `post behind the old hole moved ${cMoved.toFixed(2)} m`);
+      ok('04_slide_ground', dY0 > 0.3 && Math.abs(rD.pos.y) < 0.05 && Math.abs(rD.marker.position.y) < 0.05, `post on the belt y ${dY0.toFixed(2)} -> ${rD.pos.y.toFixed(2)}, marker ${rD.marker.position.y.toFixed(2)}`);
+      await setState(fresh({ holeLevel: 4, upgrades: { box: 1, fan: 2 } }));
+      placePlayer(-15, -5);
+    }
+
+    // ---- 04_slide_fan: the Garden -> Lawn slide with a fan at the old rim that the hole carries beside the new spot,
+    // and a robot post on the path whose first spot beside the new hole has its pole where the fan glides to
+    {
+      g.machines.clearAll();
+      g.state.upgrades.robot = 1;
+      const from = g.env.hole.clone();
+      const to = holeAt(5, 2);
+      const oldR = g.env.holeRadius;
+      const u = to.clone().sub(from).setY(0).normalize();
+      const side = new V3(-u.z, 0, u.x);
+      const fan = g.machines.place('fan', from.clone().addScaledVector(side, oldR + 1.4), Q());
+      // the pole (1.2 m behind the post) faces the new hole once the post stands beside it
+      const robot = g.machines.place('robot', to.clone().addScaledVector(side, 1.0), new Qt().setFromAxisAngle(new V3(0, 1, 0), Math.atan2(side.x, side.z)));
+      await frames(3);
+      levelBy();
+      await gameWait(4);
+      const yaw = robot.marker.rotation.y;
+      const pole = { x: robot.pos.x - Math.sin(yaw) * 1.2, z: robot.pos.z - Math.cos(yaw) * 1.2 };
+      const poleFan = Math.hypot(pole.x - fan.pos.x, pole.z - fan.pos.z);
+      R.slideFan = { land: g.state.land, fan: g.machines.list.includes(fan) ? xz(fan.pos) : 'gone', post: xz(robot.pos), poleFan: +poleFan.toFixed(2), blocked: g.machines.poleBlocked(robot) };
+      ok('04_slide_fan', g.state.land === 2 && g.machines.list.includes(fan) && g.machines.list.includes(robot) && !R.slideFan.blocked && poleFan >= 1.1, JSON.stringify(R.slideFan));
+      await setState(fresh({ holeLevel: 4, upgrades: { box: 1, fan: 2 } }));
+      placePlayer(-15, -5);
+    }
+
     // ---- 04_lawn_forest: 4 -> 5 (a robot station where the new hole arrives), 7 -> 8, then a two-level chain
     {
       g.machines.clearAll();
@@ -192,11 +261,15 @@ setTimeout(() => { if (!window.__done) window.__done = JSON.stringify({ ...R, ch
       g.state.holeLevel = 7;
       g.env.rebuildHole();
       levelBy();
-      await gameWait(1.5);
-      const forestHole = g.env.hole.distanceTo(DIR.clone().multiplyScalar(20.4));
+      // the 35.5 m slide runs at about 12 m/s: about 3 s, never the old 1 s dash
+      const tf0 = g.time;
+      for (let i = 0; i < 20000 && g.env.sliding && g.time - tf0 < 6; i++) await frames(1);
+      const slideTime = g.time - tf0;
+      await gameWait(0.5);
+      const forestHole = g.env.hole.distanceTo(holeAt(8, 3));
       const ach = g.state.achievements.includes('land');
-      R.forest = { land: g.state.land, max: g.env.max.x, hole: xz(g.env.hole), err: +forestHole.toFixed(3), ach };
-      ok('04_forest', g.state.land === 3 && g.env.max.x === 94 && forestHole < 0.05 && ach, JSON.stringify(R.forest));
+      R.forest = { land: g.state.land, max: g.env.max.x, hole: xz(g.env.hole), err: +forestHole.toFixed(3), ach, slideTime: +slideTime.toFixed(2) };
+      ok('04_forest', g.state.land === 3 && g.env.max.x === 94 && forestHole < 0.05 && ach && slideTime >= 2.5 && slideTime <= 3.5, JSON.stringify(R.forest));
 
       // a dump worth two levels that crosses a land switch: the second level-up runs during the slide
       await setState(fresh({ holeLevel: 4 }));
@@ -305,7 +378,7 @@ setTimeout(() => { if (!window.__done) window.__done = JSON.stringify({ ...R, ch
       // (d) saved right at a land boundary: the hole is already at its spot, no second slide
       {
         const { f, ig } = await bootFrame({ version: 2, holeLevel: 3, land: 1 });
-        const err = ig.env.hole.distanceTo(DIR.clone().multiplyScalar(6.4));
+        const err = ig.env.hole.distanceTo(holeAt(3, 1));
         ok('06_old_saves_d', !ig.env.sliding && err < 0.05, `sliding ${ig.env.sliding} hole ${xz(ig.env.hole)}`);
         f.remove();
       }
@@ -371,18 +444,21 @@ setTimeout(() => { if (!window.__done) window.__done = JSON.stringify({ ...R, ch
       g.blueprints.load(0);
       await gameWait(1);
       const same = g.machines.list.length === 3;
-      // a Lawn layout with a fan 40 m past the hole loaded on the Garden: that fan would stand beyond the fence
-      // (Lawn z 51.1 inside its 66 m fence; Garden z 45.5 past its 42 m fence)
+      // a Lawn layout with a fan 40 m past the hole along +x loaded on the Garden: that fan would stand beyond the fence
+      // (Lawn x 34.9 inside its 66 m fence; Garden x 50.0 past its 42 m fence)
       await setState(fresh({ holeLevel: 5, upgrades: { fan: 2 } }));
       const h5 = g.env.hole;
+      const farLawn = new V3(h5.x + 40, 0, h5.z);
       g.machines.place('fan', new V3(h5.x + 4, 0, h5.z), Q());
-      g.machines.place('fan', new V3(h5.x, 0, h5.z + 40), Q());
+      g.machines.place('fan', farLawn, Q());
       await frames(3);
+      const lawnPlaced = g.machines.list.length === 2;
       g.blueprints.save(0);
       await setState(fresh({ holeLevel: 3, upgrades: { fan: 2 } }));
+      const farGarden = g.env.hole.clone().add(new V3(40, 0, 0));
       g.blueprints.load(0);
       await gameWait(1);
-      const outsideSkipped = g.machines.list.length === 1;
+      const outsideSkipped = lawnPlaced && g.machines.list.length === 1;
       g.machines.clearAll();
       // the trampoline launches at 13 m/s x 0.6 x 1.25^land straight up: 9.75 m/s on the Garden
       const tp = new V3(-12, 0, 15);
@@ -396,7 +472,7 @@ setTimeout(() => { if (!window.__done) window.__done = JSON.stringify({ ...R, ch
       for (let i = 0; i < 120; i++) await frames(1);
       const tramp = vy / 13;
       const cap = g.hole.comboCap;
-      R.bp = { same, outsideSkipped, vy: +vy.toFixed(2), tramp: +tramp.toFixed(3), cap };
+      R.bp = { same, outsideSkipped, farLawn: xz(farLawn), farGarden: xz(farGarden), vy: +vy.toFixed(2), tramp: +tramp.toFixed(3), cap };
       ok('09_blueprint_tramp', same && outsideSkipped && near(tramp, 0.75, 0.03) && cap === 2.5, JSON.stringify(R.bp));
       g.machines.clearAll();
       clearGnomes();
@@ -412,7 +488,16 @@ setTimeout(() => { if (!window.__done) window.__done = JSON.stringify({ ...R, ch
         const a = tufts.instanceMatrix.array;
         for (let i = 0; i < tufts.count; i++) { const x = a[i * 16 + 12], z = a[i * 16 + 14]; if ((x >= 70 && x <= 94) || (z >= 70 && z <= 94)) far++; }
       }
-      ok('10_scenery_grass', !!tufts && !!shrooms && far > 0, `tufts ${tufts?.count} shrooms ${shrooms?.count} in 70..94 ${far}`);
+      // none on any stretch the hole can cover (every land's line and every slide)
+      const segD = (x, z, a, b) => { const ab = b.clone().sub(a), p = new V3(x, 0, z); const t = Math.max(0, Math.min(1, p.clone().sub(a).dot(ab) / (ab.lengthSq() || 1))); return p.distanceTo(a.clone().addScaledVector(ab, t)); };
+      const path = Env.holePath();
+      let onPath = 0;
+      for (const im of [tufts, shrooms]) {
+        if (!im) continue;
+        const a = im.instanceMatrix.array;
+        for (let i = 0; i < im.count; i++) if (path.some(([p, q]) => segD(a[i * 16 + 12], a[i * 16 + 14], p, q) < 6.8 - 1e-3)) onPath++;
+      }
+      ok('10_scenery_grass', !!tufts && !!shrooms && far > 0 && path.length === 7 && onPath === 0, `tufts ${tufts?.count} shrooms ${shrooms?.count} in 70..94 ${far} segments ${path.length} on the hole path ${onPath}`);
       // night: the fireflies draw; the box around them is centred on the yard
       g.env.dayClock = 200;
       g.env.night = 1;
@@ -493,6 +578,16 @@ setTimeout(() => { if (!window.__done) window.__done = JSON.stringify({ ...R, ch
       const restFromFan = Math.hypot(ct.x - fan.pos.x, ct.z - fan.pos.z);
       R.crateTool = { level: g.state.holeLevel, fanThere: g.machines.list.includes(fan), home: xz(home), fromFan: +fromFan.toFixed(2), fromHole: +fromHole.toFixed(2), newR, inside: g.env.inside(home.x, home.z, 1), restFromFan: +restFromFan.toFixed(2), crateY: +ct.y.toFixed(2) };
       ok('12_crate_home_tool', g.state.holeLevel === 3 && g.machines.list.includes(fan) && fromFan >= 1.9 && fromHole >= newR + 1 - 1e-3 && g.env.inside(home.x, home.z, 1) && restFromFan >= 1.9 && ct.y > 0, JSON.stringify(R.crateTool));
+    }
+
+    // ---- 13_hole_shots (L6): the hole on each land, seen from beside the factory, for a check by eye
+    for (let L = 0; L < LAND.length; L++) {
+      await setState(fresh({ holeLevel: LAND[L].hole }));
+      const h = g.env.hole;
+      placePlayer(-10, -16, Math.atan2(-(h.x + 10), -(h.z + 16)));
+      g.player.pitch = -0.25;
+      await gameWait(0.5);
+      await shot(`l6-land-${L}`);
     }
 
     window.__done = JSON.stringify({ ...R, checks, errors });

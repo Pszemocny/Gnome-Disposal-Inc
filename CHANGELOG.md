@@ -2,6 +2,13 @@
 
 Newest build first. Each build lists what changed and what to test. Shown in the start menu (button "What's new").
 
+## 2026-10-27 14:00
+
+- Right-click Strong Arm in the shop to take it one level down. Every change, up or down, costs like the next level, so switching back and forth gets dearer.
+- New achievement No Scope: score a SNIPER shot before you buy the Trick Scope.
+- Each time the yard grows, the hole slides over to the other side of the yard. Robots in its way step aside.
+- New leaderboard tab BIGGEST COMBO: your best combo of the run is sent with your score when you jump into the hole.
+
 ## 2026-10-27 10:00
 
 - Press N on a placed fan to turn its power down to 75, 50 or 25 %.

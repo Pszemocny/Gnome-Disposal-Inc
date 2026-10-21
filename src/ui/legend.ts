@@ -3,7 +3,7 @@ import { money } from '../core/format';
 import { BOOM, BOOM_CHANCE, GNOME_TYPES, WEIGHT_TIERS } from '../data/gnomeTypes';
 import { HOLE_LEVELS, MAX_HOLE_LEVEL } from '../data/holeLevels';
 import { LAND } from '../data/land';
-import { UPGRADE_BY_ID, UPGRADES, upgradeCost, type Upgrade } from '../data/upgrades';
+import { changeCost, UPGRADE_BY_ID, UPGRADES, type Upgrade } from '../data/upgrades';
 import { album } from '../systems/album';
 import { GOLD_LEVEL, MUSHROOMS, mushroomWeight } from '../systems/buffs';
 import * as eventsModule from '../systems/events';
@@ -200,7 +200,8 @@ export class Legend {
       const rows = UPGRADES.filter((u) => u.tab === tab).map((u) => {
         const shards = u.currency === 'shards';
         const L = shards ? deep(u.id) : lvl(u.id);
-        const price = L >= u.max ? 'MAX' : shards ? `💎 ${upgradeCost(u, L)}` : money(upgradeCost(u, L));
+        const cost = changeCost(u, L, ctx.state.paidChanges);
+        const price = L >= u.max ? 'MAX' : shards ? `💎 ${cost}` : money(cost);
         if ((u.hole ?? 1) > ctx.state.holeLevel) return `<tr class="lg-up"><td>???</td><td class="dim">Hole level ${u.hole}.</td><td></td><td></td></tr>`;
         return `<tr class="lg-up"><td>${u.name}</td><td>${u.desc}</td><td>${L}/${u.max}</td><td>${price}</td></tr>`;
       });

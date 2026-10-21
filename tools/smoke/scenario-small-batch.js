@@ -679,6 +679,18 @@ setTimeout(() => { if (!window.__done) window.__done = JSON.stringify({ ...R, ch
         const rb = { ev: g.events.goldenHour, buff: g.buffs.timers.get('rainbow'), active: g.buffs.active('goldhour') };
         g.buffs.timers.clear(); g.buffs.midasLeft = 0; g.events.goldenHour = 0.001; await frames(3);
         ok('G11', rb.active && rb.ev > 0 && rb.ev === rb.buff, `Rainbow ${JSON.stringify(rb)}`);
+        // G13: NO SCOPE for a SNIPER shot without the Trick Scope, not with it (PP 2026-10-21)
+        {
+          const sniper = (scope) => {
+            S().achievements = S().achievements.filter((a) => a !== 'noscope' && a !== 'sniper'); U().scope = scope; g.hole.combo = 0;
+            const x = spawnAt('classic', ahead(3, 0, 0.5), { awake: false });
+            x.thrownBy = 'player'; x.touchedGround = true; x.throwPos = g.env.hole.clone().add(new V3(15, 0, 0));
+            g.hole.consume(x);
+            return S().achievements.includes('noscope');
+          };
+          const without = sniper(0); const withScope = sniper(1); U().scope = 0;
+          ok('G13', without && !withScope && S().achievements.includes('sniper'), `noscope without scope ${without}, with scope ${withScope}`);
+        }
         // G12: the flat trick bonus grows in, 1/4 at hole level 1, full from 4 (PP 2026-10-21 "b")
         {
           const lv0 = S().holeLevel; const shares = [];

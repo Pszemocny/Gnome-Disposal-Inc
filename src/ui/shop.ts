@@ -2,7 +2,7 @@ import { ctx, deep, lvl } from '../core/context';
 import { money } from '../core/format';
 import { saveState } from '../core/state';
 import { massiveOdds } from '../data/gnomeTypes';
-import { FUSE_TOOLS, TOOL_IDS, UPGRADE_BY_ID, UPGRADES, upgradeCost, type Tab, type Upgrade } from '../data/upgrades';
+import { changeCost, FUSE_TOOLS, TOOL_IDS, UPGRADE_BY_ID, UPGRADES, type Tab, type Upgrade } from '../data/upgrades';
 import { FALLBACK_ICON, ICONS, MODELS, TAB_ICONS, thumbnail, warmThumbnails } from './icons';
 
 const TABS: Tab[] = ['Plow', 'Magnet', 'Factory', 'Movement', 'Tools', 'Combos', 'Bonuses', 'Deep'];
@@ -151,6 +151,12 @@ export class Shop {
       if (buy) this.buy(buy);
       if (t.closest('[data-close]')) this.close();
     });
+    // right-click on a downgradable node (Strong Arm) pays for one level down
+    this.el.addEventListener('contextmenu', (e) => {
+      e.preventDefault();
+      const id = (e.target as HTMLElement).closest<HTMLElement>('[data-buy]')?.dataset.buy;
+      if (id) this.buy(id, -1);
+    });
     this.el.addEventListener('mouseover', (e) => {
       const n = (e.target as HTMLElement).closest<HTMLElement>('[data-desc]');
       const id = n?.dataset.buy;
@@ -214,22 +220,34 @@ export class Shop {
     return u.requires && lvl(u.requires) < 1 ? UPGRADE_BY_ID[u.requires] : undefined;
   }
 
-  private buy(id: string): void {
+  // dir -1: one level down, only for a downgradable upgrade above level 0; it costs the same as the next level up
+  private buy(id: string, dir: 1 | -1 = 1): void {
     const u = UPGRADES.find((x) => x.id === id)!;
     const L = this.level(u);
-    if (L >= u.max || (u.hole ?? 1) > ctx.state.holeLevel || this.missing(u)) return;
-    const cost = upgradeCost(u, L);
+    if (dir < 0 ? !u.downgrade || L < 1 : L >= u.max || (u.hole ?? 1) > ctx.state.holeLevel || this.missing(u)) return;
     const s = ctx.state;
+    const cost = changeCost(u, L, s.paidChanges);
+    const next = L + dir;
     if (u.currency === 'shards') {
       if (s.shards < cost) return this.deny();
       s.shards -= cost;
-      s.deep[id] = L + 1;
+      s.deep[id] = next;
     } else {
       if (s.money < cost) return this.deny();
       s.money -= cost;
-      s.upgrades[id] = L + 1;
+      s.upgrades[id] = next;
+    }
+    if (u.downgrade) {
+      const paid = (s.paidChanges ??= {});
+      paid[id] = (paid[id] ?? L) + 1;
     }
     ctx.audio.buy();
+    if (dir < 0) {
+      this.msg = `${u.name} down to LVL ${next}/${u.max} for ${u.currency === 'shards' ? `💎 ${cost}` : money(cost)}`;
+      this.render();
+      this.pop(`[data-buy="${id}"] .ico`);
+      return;
+    }
     s.stats.bought++;
     this.msg = `${u.name} bought (LVL ${L + 1}/${u.max})`;
     if (id === 'magGun') {
@@ -272,18 +290,22 @@ export class Shop {
     const L = this.level(u);
     const locked = (u.hole ?? 1) > s.holeLevel;
     const maxed = L >= u.max;
-    const cost = upgradeCost(u, L);
+    const cost = changeCost(u, L, s.paidChanges);
     const poor = (u.currency === 'shards' ? s.shards : s.money) < cost;
     const price = u.currency === 'shards' ? `💎 ${cost}` : money(cost);
     const need = maxed ? undefined : this.missing(u);
     const afford = !locked && !maxed && !need && !poor;
     const fx = EFFECT[u.id];
     const desc = locked ? 'Feed the hole to find out.' : fx ? `${u.desc} (now: ${fx(L)}${maxed ? '' : `, next: ${fx(L + 1)}`})` : u.desc;
-    return { L, locked, need, maxed, poor, price, afford, desc };
+    // the key hint and price of one level down (the same price as the next level up)
+    // Feeding Frenzy also ignores weight, so going below the last Strong Arm level does not bring weight back (PP [G6] a)
+    const frenzy = u.id === 'throw' && lvl('frenzy') ? ' · Feeding Frenzy also ignores weight' : '';
+    const down = u.downgrade && L > 0 && !locked ? ` · right-click: down to LVL ${L - 1} for ${price}${frenzy}` : '';
+    return { L, locked, need, maxed, poor, price, afford, desc, down };
   }
 
   private upgradeItem(u: Upgrade, list: Upgrade[]): Item {
-    const { L, locked, need, maxed, price, afford, desc } = this.rowData(u);
+    const { L, locked, need, maxed, price, afford, desc, down } = this.rowData(u);
     const thumb = thumbnail(u.id);
     // a parent from another tab is not drawn, so its child is a root here (the buy guard still applies)
     const parent = u.requires && list.some((p) => p.id === u.requires) ? u.requires : undefined;
@@ -300,7 +322,7 @@ export class Shop {
       pips: `<span class="pips" data-l="${L}" data-max="${u.max}">${pips}</span>`,
       name: locked ? '???' : u.name,
       cost: maxed ? 'MAX' : locked ? `HOLE LVL ${u.hole}` : need ? '' : price,
-      view: { sel: `[data-buy="${u.id}"]`, name: u.name, head: `LVL ${L}/${u.max} · ${maxed ? 'MAX' : need ? `needs ${need.name}` : price}`, desc, locked },
+      view: { sel: `[data-buy="${u.id}"]`, name: u.name, head: `LVL ${L}/${u.max} · ${maxed ? 'MAX' : need ? `needs ${need.name}` : price}${down}`, desc, locked },
     };
   }
 

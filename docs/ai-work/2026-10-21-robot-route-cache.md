@@ -51,3 +51,22 @@ Samokontrola:
 - Replanning every truck as soon as the map changes: when a tool is carried, the map changes every frame and all 12 trucks would plan in one frame. Trucks keep the 0.5 s replan timer.
 - A slow timer that rebuilds the map anyway: the hash already sees any tool that moves (pushed, knocked over), so a timer would add nothing.
 - Fields for gnome targets: gnomes move, so a field per gnome would be rebuilt all the time; reachable gnomes use one A*.
+
+## F3 regression 9.7 ms (2026-10-22)
+
+Problem: tree-expansion F3 gave `updateMax 9.7` (worst frame 207, p95 1 ms), gate 8 ms.
+
+Measured (probe in the session scratchpad, F3 set-up, 30 s, per-frame timers on `machines.effect` per tool type and on each route job, instrumentation removed afterwards):
+- Before: max 7.1 ms. Frame 28 = map build in one frame: `buildYard` 2.7 + `labels` 2.1 + 12 gnome scans 0.8. Frames 179 / 1029 / 1177 = one distance field each, 4.2-5.5 ms (not the ~2 ms the first note expected), plus `descend` up to 1.1 ms. A* at most 1.6 ms. Fans 0.3-0.6 ms and belts 0.1-0.3 ms per frame. No frame ran two heavy jobs; the worst frames are single jobs that are too big, and with a noisy frame on top they reach 9.7.
+- Also found: a map build did not check `searchTime`, so a second truck height band (or a new map) could be built in a frame that already ran a field or A*.
+
+Fix (`src/entities/robots.ts`):
+- The map build, the component labels and each field are separate heavy jobs, at most one per frame: the grid in one frame, the labels in the next, then the fields. `yardMap` returns null when it would have to build in a frame that already ran a job; the truck keeps its old way and plans next frame.
+- A field is built a slice per frame (`FIELD_STEP` = 12000 queued cells, about 2.7 ms at most on the Dark Forest), one field at a time; a truck asking for another goal meanwhile pushes the running field on and waits for its own. A field of a thrown-away map is dropped with its queue.
+- Gnome A* waits while the map has no labels yet (it needs them to know if the gnome is reachable), instead of dropping the gnome.
+- Behaviour cost: on the Dark Forest a truck waits a few frames longer for a fresh way to the hole or its post (before: one frame); it keeps driving its old way meanwhile.
+
+After:
+- Probe: max 5.1 ms (frame 27: grid 2.6 + scans 0.9), field slices at most 2.7 ms, labels 2.2 ms alone, 1 frame over 5 ms in 1801.
+- tree-expansion alone: `54 PASS`, F3 `updateP95 1.1, updateMax 4.7`, worst `[[28,4.7],[50,3.6],[186,3.1],[797,3.1]]`. F3b `after.path 12, around 2.48, arrived true`; its wait after placing the belt changed from a fixed 2 frames to "until the truck has a path, at most 30 frames", because the map, labels and field now take a few frames.
+- robot-stations `36 PASS`; auto-lands `33 PASS`; `npx tsc --noEmit -p .` exit 0.

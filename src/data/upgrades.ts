@@ -12,6 +12,7 @@ export interface Upgrade {
   hole?: number; // hole level needed to unlock
   requires?: string; // id of an upgrade that must be owned first
   currency?: 'money' | 'shards';
+  downgrade?: boolean; // right-click in the shop lowers the level by 1, paid like the next level
 }
 
 const U = (id: string, tab: Tab, name: string, desc: string, max: number, cost: number, growth: number, hole = 1, requires?: string): Upgrade => ({ id, tab, name, desc, max, cost, growth, hole, requires });
@@ -31,7 +32,8 @@ const BEFORE_TOOLS: Upgrade[] = [
   U('magGun', 'Magnet', 'Magnet Gun', 'Hold LMB to pull lots of gnomes at once into a ball. Heavy gnomes slip off more easily.', 1, 300, 1),
   U('magPower', 'Magnet', 'Magnet Coil', '+0.2 m magnet ball radius (fits more gnomes), a stronger grip and +0.6 m reach (needs the Magnet Gun).', 10, 25, 1.45, 1, 'magGun'),
   U('magRange', 'Magnet', 'Magnet Dish', '+1.2 m magnet range and a wider cone (widest on the Magnet Gun).', 5, 60, 1.6, 2),
-  U('throw', 'Magnet', 'Strong Arm', '+15% throw power. Heavy gnomes fly shorter, but at the last level every gnome flies the same, by hand or by Magnet Gun.', 6, 15, 1.5),
+  // downgrade only here so far (PP 2026-10-21 "downgrade siły"): the last level makes weight irrelevant, a step down brings it back
+  { ...U('throw', 'Magnet', 'Strong Arm', '+15% throw power. Heavy gnomes fly shorter, but at the last level every gnome flies the same, by hand or by Magnet Gun.', 6, 15, 1.5), downgrade: true },
   U('scope', 'Magnet', 'Trick Scope', 'A sight for throws. Lvl 1: the crosshair turns green over the hole, gold for a trick. Lvl 2: a reflex glass at the centre names the trick. Lvl 3: the glass adds the distance and the multiplier.', 3, 300, 2),
   // level 10 is the old Piggy Bank, about $90k (PP 2026-10-24 "bardzo drogi np 100k"); Magnet tab since PP 2026-10-21
   U('magnetRange', 'Magnet', 'Coin Magnet', '+1.2 m coin pickup radius. Level 10: coins fly into your bank by themselves and greedy gnomes cannot steal them.', 10, 20, 2.2),
@@ -137,4 +139,10 @@ export const LATE_PRICE = 1.3;
 export function upgradeCost(u: Upgrade, level: number): number {
   // placeable tools stay off the late surcharge: 20 fans at x1.4 already end late (PP 2026-10-21 "wiecej wiatrakow")
   return Math.ceil(u.cost * Math.pow(u.growth, level) * (u.growth > 1 && u.currency !== 'shards' && !TOOL_IDS.includes(u.id) ? Math.pow(LATE_PRICE, Math.max(0, level - 4)) : 1));
+}
+
+// the price of the next level change: a downgradable upgrade prices every paid change, up or down, as the next level,
+// so up, down, up pays three times, each dearer (PP 2026-10-21); a save without the count starts at the level
+export function changeCost(u: Upgrade, level: number, paid: Record<string, number> | undefined): number {
+  return upgradeCost(u, u.downgrade ? (paid?.[u.id] ?? level) : level);
 }

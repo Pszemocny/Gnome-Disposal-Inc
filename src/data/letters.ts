@@ -3,7 +3,7 @@
 export const WORD = 'GNOME';
 
 // Fixed spots like the shovel (PP 2026-10-20: fixed, so players can share hints), two on the largest land.
-// Each is >= 6.8 m from the hole's line, >= 2 m inside its land's fence and >= 5 m beyond the previous land's +x or
+// Each is >= 6.8 m from every stretch the hole can cover (Environment.holePath), >= 2 m inside its land's fence and >= 5 m beyond the previous land's +x or
 // +z fence, so it lies in sight until the hole reaches that land's level (PP 2026-10-21).
 // L0 in tools/smoke/scenario-letters.js is the proof.
 export const LETTER_SPOTS: { ch: string; land: number; x: number; z: number }[] = [

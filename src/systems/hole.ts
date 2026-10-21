@@ -123,6 +123,7 @@ export class Hole {
         tricks.push('SNIPER x4');
         s.stats.longShots++;
         ctx.achievements.unlock('sniper');
+        if (!lvl('scope')) ctx.achievements.unlock('noscope');
       } else if (dist >= 8) {
         trick *= 2.5;
         bonus += TRICK_BONUS.long;
@@ -198,6 +199,7 @@ export class Hole {
     s.stats.gnomesEaten++;
     s.stats.typesEaten[g.type.id] = (s.stats.typesEaten[g.type.id] ?? 0) + 1;
     s.stats.maxCombo = Math.max(s.stats.maxCombo, this.combo);
+    s.runMaxCombo = Math.max(s.runMaxCombo, this.combo);
     const ach: Record<string, string> = { golden: 'golden', wizard: 'wizard', king: 'king', shadow: 'shadow' };
     if (ach[g.type.id]) ctx.achievements.unlock(ach[g.type.id]);
     if (g.type.id === 'king') {
@@ -288,7 +290,7 @@ export class Hole {
     const oldR = ctx.env.holeRadius;
     s.holeLevel++;
     const L = holeLevel(s.holeLevel);
-    // the yard grows by itself at hole levels 3 / 5 / 8: new fence, and the hole slides LAND_STEP m further (carry inside)
+    // the yard grows by itself at hole levels 3 / 5 / 8: new fence, and the hole slides to the other side of the yard (carry inside)
     const land = landFor(s.holeLevel);
     const newLand = land !== s.land;
     if (newLand) {
@@ -394,6 +396,11 @@ export class Hole {
   }
 
   private glides: { m: Machine; from: THREE.Vector3; to: THREE.Vector3; t: number; delay: number; T: number; gone: boolean }[] = [];
+
+  // where the carried tools glide to (clearSlide keeps robot poles off these spots)
+  get glideTargets(): readonly { m: Machine; to: THREE.Vector3 }[] {
+    return this.glides.filter((gl) => !gl.gone);
+  }
 
   private updateGlides(dt: number): void {
     for (let i = this.glides.length - 1; i >= 0; i--) {

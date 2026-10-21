@@ -4,6 +4,7 @@ import { ctx, G, groups, rand } from '../core/context';
 import { LAND, LAND_STEP } from '../data/land';
 import { LETTER_SPOTS } from '../data/letters';
 import { holeLevel } from '../data/holeLevels';
+import { clearSlide } from '../entities/robots';
 import * as M from './models';
 import { tex } from './textures';
 import { inOutSine, outBack } from '../core/ease';
@@ -29,10 +30,13 @@ const SUN_Z = SUN_OFFSET.clone().normalize();
 const SUN_X = new THREE.Vector3(0, 1, 0).cross(SUN_Z).normalize();
 const SUN_Y = SUN_Z.clone().cross(SUN_X);
 const tmpV = new THREE.Vector3();
-export const HOLE_SLIDE_TIME = 1; // seconds the hole takes to move to a new Land's spot
+// the hole slides to a new Land's spot at about this speed (m/s), in 1 to 3 s: the Forest slide is 35 m long
+const HOLE_SLIDE_SPEED = 12;
 const FENCE_RISE_TIME = 0.3; // seconds a new land's fence takes to grow out of the ground
-// the one line every hole spot lies on: from the gnome factory (-7.5, -13) through the Backyard hole (0, 0)
+// the Backyard line: from the gnome factory (-7.5, -13) through the Backyard hole (0, 0)
 const DIR = new THREE.Vector3(7.5, 0, 13).normalize();
+// every land's hole line starts at the factory's point on the Backyard line and turns by the land's `turn`
+const HOLE_DIRS = LAND.map((t) => DIR.clone().applyAxisAngle(new THREE.Vector3(0, 1, 0), -THREE.MathUtils.degToRad(t.turn)));
 
 export class Environment {
   holeRadius = 1.6;
@@ -159,10 +163,9 @@ export class Environment {
     const tufts = new THREE.InstancedMesh(M.grassTuftGeometry(), M.vcMat(), 8000);
     const shrooms = new THREE.InstancedMesh(M.wildMushroomGeometry(), M.vcMat(), 240);
     const m = new THREE.Matrix4();
-    // no grass tufts or mushrooms anywhere the hole will ever be, on any land: one line from level 1 to the Forest's 12
-    const pathA = Environment.holeCenterFor(1, 0);
-    const pathB = Environment.holeCenterFor(12, LAND.length - 1);
-    const onHolePath = (x: number, z: number) => distToSegment(new THREE.Vector3(x, 0, z), pathA, pathB) < 6.8;
+    // no grass tufts or mushrooms anywhere the hole will ever be, on any land and slide
+    const path = Environment.holePath();
+    const onHolePath = (x: number, z: number) => path.some(([a, b]) => distToSegment(new THREE.Vector3(x, 0, z), a, b) < 6.8);
     // spread over the Dark Forest yard plus its 40 m forest ring
     const lo = -22 - 40;
     const hi = 2 * LAND[LAND.length - 1].half - 22 + 40;
@@ -204,10 +207,17 @@ export class Environment {
     return body;
   }
 
-  // Hole centre for a level on a land tier: on the one line from the gnome factory, LAND_STEP m further per land
-  // and 1.2 m per level (15 m from the factory at level 1 on the Backyard).
+  // Hole centre for a level on a land tier: on that land's line from the gnome factory, 15 m + LAND_STEP m per land
+  // + 1.2 m per level from the factory.
   static holeCenterFor(level: number, land = ctx.state.land): THREE.Vector3 {
-    return new THREE.Vector3().addScaledVector(DIR, LAND_STEP * land + 1.2 * (level - 1));
+    return new THREE.Vector3().addScaledVector(DIR, -15).addScaledVector(HOLE_DIRS[land], 15 + LAND_STEP * land + 1.2 * (level - 1));
+  }
+
+  // Every stretch of ground the hole can cover: each land's line from level 1 to 12 and each land switch's slide.
+  static holePath(): [THREE.Vector3, THREE.Vector3][] {
+    const lines = LAND.map((_, L): [THREE.Vector3, THREE.Vector3] => [Environment.holeCenterFor(1, L), Environment.holeCenterFor(12, L)]);
+    const slides = LAND.slice(1).map((t, i): [THREE.Vector3, THREE.Vector3] => [Environment.holeCenterFor(t.hole - 1, i), Environment.holeCenterFor(t.hole, i + 1)]);
+    return [...lines, ...slides];
   }
 
   // Is (x, z) inside the fence by at least `margin` m (a negative margin reaches past the fence)?
@@ -306,15 +316,15 @@ export class Environment {
     this.holeGroup.position.copy(this.hole);
   }
 
-  // A new Land (it comes with the hole level) moves the hole LAND_STEP m further: it slides there, ground slabs and grass gap with it.
-  private slide: { from: THREE.Vector3; to: THREE.Vector3; t: number; dust: number } | null = null;
+  // A new Land (it comes with the hole level) moves the hole to the other side of the yard: it slides there, ground slabs and grass gap with it.
+  private slide: { from: THREE.Vector3; to: THREE.Vector3; t: number; T: number; dust: number } | null = null;
   private built = new THREE.Vector3(); // the centre the ground slabs and the grass mesh were built around
 
   private updateSlide(dt: number): void {
     const s = this.slide;
     if (!s) return;
     s.t += dt;
-    const k = Math.min(1, s.t / HOLE_SLIDE_TIME);
+    const k = Math.min(1, s.t / s.T);
     this.hole.lerpVectors(s.from, s.to, inOutSine(k));
     const dx = this.hole.x - this.built.x;
     const dz = this.hole.z - this.built.z;
@@ -453,13 +463,16 @@ export class Environment {
     if (to.distanceTo(this.hole) > 0.01) {
       const from = this.hole.clone();
       ctx.fx.dust(from.clone().setY(0.1), 1);
-      ctx.audio.rumble(HOLE_SLIDE_TIME);
-      this.slide = { from, to, t: 0, dust: 0.15 };
+      const T = THREE.MathUtils.clamp(from.distanceTo(to) / HOLE_SLIDE_SPEED, 1, 3);
+      ctx.audio.rumble(T);
+      this.slide = { from, to, t: 0, T, dust: 0.15 };
       this.fenceRise = 0;
       this.fenceGroup.scale.y = 0;
-      if (ctx.hole.carry(from, this.holeRadius, to, holeLevel(ctx.state.holeLevel).radius, HOLE_SLIDE_TIME)) {
+      if (ctx.hole.carry(from, this.holeRadius, to, holeLevel(ctx.state.holeLevel).radius, T)) {
         ctx.hud.toast('The hole moved! Tools in its way went back to your inventory.', 'info');
       }
+      // robot posts and trucks on the path step beside the new spot (carry leaves robots alone)
+      clearSlide(from, to, this.holeRadius, holeLevel(ctx.state.holeLevel).radius, ctx.hole.glideTargets);
     }
   }
 
