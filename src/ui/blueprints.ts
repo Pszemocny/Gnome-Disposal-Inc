@@ -153,7 +153,7 @@ export class Blueprints {
     const fits = abs.filter((p) => !(ctx.env.holeDist(p.x, p.z) < holeRadius + 0.6 && p.y < 1.5));
     for (const m of [...ctx.machines.list]) this.vanish(m);
     // saved order: a tool stacked on another comes after its support
-    ctx.machines.restore(fits);
+    const inFactory = ctx.machines.restore(fits);
     for (const m of ctx.machines.list) {
       this.seen.add(m);
       m.root.scale.setScalar(0);
@@ -161,8 +161,8 @@ export class Blueprints {
       ctx.fx.burst(m.pos, 0xffffff, 8);
     }
     this.last = null;
-    const skipped = abs.length - fits.length;
-    if (skipped) ctx.hud.toast(skipped === 1 ? '1 tool skipped: it would be in the hole' : `${skipped} tools skipped: they would be in the hole`, 'bad');
+    const skipped = abs.length - fits.length + inFactory;
+    if (skipped) ctx.hud.toast(skipped === 1 ? '1 tool skipped: no room there (hole or factory)' : `${skipped} tools skipped: no room there (hole or factory)`, 'bad');
     ctx.hud.toast(`Blueprint ${i + 1} loaded: ${ctx.machines.list.length} tools.`, 'good');
     ctx.audio.buy();
     this.close();

@@ -236,10 +236,12 @@ setTimeout(() => { if (!window.__done) window.__done = out.join('\n') + '\nTIMEO
       const shown = g.goals.progress2().text;
       ok(22, shown.includes('ANGRY GNOME') && !shown.includes('AIR'), shown.slice(0, 30));
       for (let i = 0; i < 3; i++) eat({ fields: { thrownBy: 'player', touchedGround: false, throwPos: g.env.hole.clone() } });
+      // an identical toast from an earlier step merges with the new one (counter, no second element): clear them first
+      g.hud.cards.forEach((c) => c.el.remove()); g.hud.cards.length = 0;
       const m0 = s.money; const t0 = toastTexts().filter((t) => t.includes('Lesson done! +$60')).length;
       upd(); await frames(2);
       const t1 = toastTexts().filter((t) => t.includes('Lesson done! +$60')).length;
-      ok(23, s.goalsDone.includes('air') && s.money - m0 === 60 && g.goals.progress2().text.includes('ANGRY GNOME') && t1 - t0 === 1, `money=${s.money - m0} toasts=${t1 - t0} shown=${g.goals.progress2().text.slice(0, 20)}`);
+      ok(23, s.goalsDone.includes('air') && Math.abs(s.money - m0 - 60) < 1e-6 && g.goals.progress2().text.includes('ANGRY GNOME') && t1 - t0 === 1, `money=${s.money - m0} toasts=${t1 - t0} shown=${g.goals.progress2().text.slice(0, 20)}`);
     }
 
     // 32 lesson bases read the frame the track opens (adapted: coins done)

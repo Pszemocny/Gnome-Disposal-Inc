@@ -18,6 +18,13 @@ function send(message: string, stack: string, url: string): void {
   }
 }
 
+// A measurement line: logs/errors.log on the dev machine, the browser console everywhere (GitHub Pages has no log
+// endpoint); no box on screen.
+export function note(message: string): void {
+  send(message, '', location.href);
+  console.info(`[gnome] ${message}`);
+}
+
 function report(message: string, stack = ''): void {
   const entry = { message, stack, time: new Date().toISOString(), url: location.href };
   send(message.slice(0, 2000), stack, entry.url);

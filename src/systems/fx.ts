@@ -138,6 +138,11 @@ export class Fx {
     this.texts.push({ el, pos: p.clone().add(this.tmp.set(rand(-0.6, 0.6), 0, rand(-0.6, 0.6))), t: 0 });
   }
 
+  /** Camera shake level 0..1, for the measurement lines. */
+  get shakeLevel(): number {
+    return this.trauma;
+  }
+
   shake(amount: number): void {
     this.trauma = Math.min(1, this.trauma + amount);
   }

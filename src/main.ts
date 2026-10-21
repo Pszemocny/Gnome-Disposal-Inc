@@ -34,7 +34,7 @@ import { Legend } from './ui/legend';
 import { Leaderboard } from './ui/leaderboard';
 import { daily } from './systems/daily';
 import { replay } from './systems/replay';
-import { installCrashReport, watchCanvas } from './ui/crash';
+import { installCrashReport, note, watchCanvas } from './ui/crash';
 import { shot } from './ui/shot';
 
 installCrashReport();
@@ -213,6 +213,7 @@ async function boot(): Promise<void> {
   let acc = 0;
   let codeCd = 0;
   let lastFrame = -Infinity;
+  let slowNotes = 0;
   const FRAME_MS = 1000 / 60;
   const canvas = renderer.domElement;
 
@@ -224,7 +225,8 @@ async function boot(): Promise<void> {
     // step on a 60 Hz grid so 75-144 Hz displays still get 60 fps, not every second frame
     lastFrame = Math.min(now, Math.max(lastFrame + FRAME_MS, now - FRAME_MS));
     timer.update(now);
-    const realDt = Math.max(0, Math.min(0.05, timer.getDelta()));
+    const rawDt = timer.getDelta();
+    const realDt = Math.max(0, Math.min(0.05, rawDt));
     // the open tool wheel slows the game; it damps on real time
     // slow-mo moments scale it too; both damp on real time
     const dt = realDt * ctx.player.wheel.slow(realDt) * ctx.slowmo.scale;
@@ -300,6 +302,15 @@ async function boot(): Promise<void> {
       redraw = !ctx.paused;
     }
     shot.update(now);
+    // measurement for the factory mouse jump (PP 2026-10-20): `tail logs/errors.log` after a 5300 session, or the
+    // browser console ("[gnome] mouse-jump", "[gnome] slow-frame") on GitHub Pages
+    const shake = +ctx.fx.shakeLevel.toFixed(2);
+    for (const j of ctx.input.jumps.splice(0)) note(`mouse-jump ${JSON.stringify({ ...j, dt: +rawDt.toFixed(3), near: ctx.factory.near, paused: ctx.paused, shake })}`);
+    // a paused frame says nothing about a jump in play, and `near` is not updated while paused
+    if (!ctx.paused && ctx.factory.near && rawDt > 0.1 && slowNotes < 5) {
+      slowNotes++;
+      note(`slow-frame ${JSON.stringify({ dt: +rawDt.toFixed(3), gnomes: ctx.gnomes.list.length, shake })}`);
+    }
     ctx.input.endFrame();
   };
   frame();

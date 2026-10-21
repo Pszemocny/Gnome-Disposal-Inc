@@ -348,8 +348,11 @@ const STILL_STEP = 5; // s; lying still longer by a whole step wins, within a st
 // m/s; faster up or down: flying (thrown, launched, bouncing). A gnome settling after a drop under 0.45 m stays a target.
 const AIR_VY = 3;
 // Walking or lying on the ground: low (the height a ragdoll stands up from, gnomes.ts) and not moving up or down.
+// Not resting on the factory (chute, pedestal): the shovel cannot reach up there and the truck would retry it every
+// trip. Higher than a gnome standing on the grass first, so `inside` runs only for raised gnomes.
 // Held gnomes and the Magnet Gun ball are not free, so forEachNear already skips them.
-const onGround = (g: Gnome, gp: { y: number }) => gp.y < 1.2 * g.scale && Math.abs(g.body.linvel().y) < AIR_VY;
+const onGround = (g: Gnome, gp: { x: number; y: number; z: number }) =>
+  gp.y < 1.2 * g.scale && Math.abs(g.body.linvel().y) < AIR_VY && !(gp.y > 0.44 * g.scale + 0.25 && ctx.factory.inside(gp.x, gp.z));
 
 // Best free gnome (not the king) within the work area around the home post: most dangerous type, then the one
 // lying still the longest (in STILL_STEP steps), then the nearest. Gnomes other robots already chase come last
@@ -451,7 +454,7 @@ function route(r: Robot, p: THREE.Vector3, goal: THREE.Vector3, near: number, ke
   return r.reached ? goal : null;
 }
 
-// Tools standing at the truck's level (footprint grown by CLEAR), the hole and the fence, around the truck and its goal.
+// Tools standing at the truck's level and the factory (footprints grown by CLEAR), the hole and the fence, around the truck and its goal.
 function buildGrid(p: THREE.Vector3, goal: THREE.Vector3, margin: number): Grid {
   const env = ctx.env;
   const lim = env.half - 1.3;
@@ -468,6 +471,19 @@ function buildGrid(p: THREE.Vector3, goal: THREE.Vector3, margin: number): Grid 
       if (Math.abs(x) > lim || Math.abs(z) > lim || env.holeDist(x, z) < holeR) cells[iz * nx + ix] = 1;
     }
   }
+  // marks every cell inside the rectangle (centre, yaw, half sizes)
+  const block = (cx: number, cz: number, yaw: number, hx: number, hz: number): void => {
+    const cos = Math.cos(yaw);
+    const sin = Math.sin(yaw);
+    const reach = Math.hypot(hx, hz);
+    for (let iz = Math.max(0, Math.floor((cz - reach - z0) / CELL)); iz <= Math.min(nz - 1, Math.ceil((cz + reach - z0) / CELL)); iz++) {
+      for (let ix = Math.max(0, Math.floor((cx - reach - x0) / CELL)); ix <= Math.min(nx - 1, Math.ceil((cx + reach - x0) / CELL)); ix++) {
+        const dx = x0 + ix * CELL - cx;
+        const dz = z0 + iz * CELL - cz;
+        if (Math.abs(dx * cos - dz * sin) < hx && Math.abs(dx * sin + dz * cos) < hz) cells[iz * nx + ix] = 1;
+      }
+    }
+  };
   for (const o of ctx.machines.list) {
     const b = MACHINE_BOX[o.type];
     if (o.type === 'robot' || !b) continue;
@@ -482,19 +498,9 @@ function buildGrid(p: THREE.Vector3, goal: THREE.Vector3, margin: number): Grid 
     const tall = upright ? b.half[1] : radius;
     if (t.y + c.y - tall > p.y + 0.7 || t.y + c.y + tall < p.y + 0.03) continue; // above the truck (stacked) or flat in the ground
     const yaw = upright ? Math.atan2(2 * (q.x * q.z + q.w * q.y), 1 - 2 * (q.x * q.x + q.y * q.y)) : 0;
-    const hx = (upright ? b.half[0] : radius) + CLEAR;
-    const hz = (upright ? b.half[2] : radius) + CLEAR;
-    const cos = Math.cos(yaw);
-    const sin = Math.sin(yaw);
-    const reach = Math.hypot(hx, hz);
-    for (let iz = Math.max(0, Math.floor((cz - reach - z0) / CELL)); iz <= Math.min(nz - 1, Math.ceil((cz + reach - z0) / CELL)); iz++) {
-      for (let ix = Math.max(0, Math.floor((cx - reach - x0) / CELL)); ix <= Math.min(nx - 1, Math.ceil((cx + reach - x0) / CELL)); ix++) {
-        const dx = x0 + ix * CELL - cx;
-        const dz = z0 + iz * CELL - cz;
-        if (Math.abs(dx * cos - dz * sin) < hx && Math.abs(dx * sin + dz * cos) < hz) cells[iz * nx + ix] = 1;
-      }
-    }
+    block(cx, cz, yaw, (upright ? b.half[0] : radius) + CLEAR, (upright ? b.half[2] : radius) + CLEAR);
   }
+  for (const f of ctx.factory.footprints) block(f.x, f.z, f.yaw, f.hx + CLEAR, f.hz + CLEAR);
   // the truck may already stand close to a tool: let it leave
   const r = Math.ceil(ESCAPE / CELL);
   const px = Math.round((p.x - x0) / CELL);

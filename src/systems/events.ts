@@ -166,11 +166,12 @@ export class Events {
           g.parade = i;
         });
         for (let i = recruits.length; i < 16; i++) {
-          const g = ctx.factory.produce(i % 2 ? 'blue' : 'classic');
-          if (g) {
+          ctx.factory.produce(i % 2 ? 'blue' : 'classic', (g) => {
+            // they come out one by one; the parade may be over before a late one
+            if (this.parade <= 0) return;
             g.awake = true;
             g.parade = i;
-          }
+          });
         }
         break;
       }

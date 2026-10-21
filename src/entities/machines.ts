@@ -454,13 +454,21 @@ export class Machines {
     m.body.setTranslation(pos, true);
   }
 
-  restore(placed: PlacedMachine[]): void {
+  // returns how many tools it left in the inventory because they would be buried in the factory
+  restore(placed: PlacedMachine[]): number {
+    let inFactory = 0;
     for (const p of placed) {
       if (!UPGRADE_BY_ID[p.type] || this.available(p.type) <= 0) continue;
+      // buried under the chute, pedestal or gear in an old save: back to the inventory, like the hole skip in blueprints
+      if (p.y < 1.0 && ctx.factory.inside(p.x, p.z)) {
+        inFactory++;
+        continue;
+      }
       // saves from before free rotation only have yaw and tilt
       const q = p.qw !== undefined ? new THREE.Quaternion(p.qx, p.qy, p.qz, p.qw) : machineRotation(p.yaw, p.tilt);
       this.place(p.type, new THREE.Vector3(p.x, p.y, p.z), q);
     }
+    return inFactory;
   }
 
   serialize(): PlacedMachine[] {

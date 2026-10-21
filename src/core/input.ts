@@ -1,5 +1,8 @@
 import { prefs } from './settings';
 
+// px in one mouse report or frame event: logged as a jump, never dropped (measurement for "mysz przeskakuje przy fabryce", PP 2026-10-20)
+const SPIKE = 250;
+
 export class Input {
   keys = new Set<string>();
   pressed = new Set<string>(); // keys pressed this frame
@@ -10,6 +13,17 @@ export class Input {
   typed = '';
   // Blink reports the whole outside jump as movementX on the first move after re-entry
   private skipMove = false;
+  // ask for pointer lock with raw mouse input (no OS acceleration); off after the browser refused the option
+  private raw = true;
+  // the current lock was granted with raw input
+  private rawOk = false;
+  // a raw request or its plain retry is out: the raw refusal's pointerlockerror is not the player's
+  private retrying = false;
+  // mouse jumps for main to send once per frame; per page load at most 5 locked ones (the measurement target) and 5
+  // others (free cursor, re-entry skip), so the others cannot use up the locked budget
+  jumps: { ex: number; ey: number; n: number; max: number; locked: boolean; raw: boolean; skip: boolean }[] = [];
+  private jumpCount = 0;
+  private freeJumpCount = 0;
   onLockChange: (locked: boolean) => void = () => {};
   onLockError: () => void = () => {};
 
@@ -54,24 +68,69 @@ export class Input {
       this.mouse.dx += e.movementX * prefs.sensitivity;
       this.mouse.dy += e.movementY * prefs.sensitivity * (prefs.invertY ? -1 : 1);
     });
+    // read-only: the largest single report of this event; pointer events fire before the compat mousemove, so skip
+    // still holds the re-entry flag
+    window.addEventListener('pointermove', (e) => {
+      const list = e.getCoalescedEvents?.() ?? [];
+      let max = 0;
+      for (const c of list) max = Math.max(max, Math.abs(c.movementX), Math.abs(c.movementY));
+      const real = this.locked && !this.skipMove;
+      if (Math.max(max, Math.abs(e.movementX), Math.abs(e.movementY)) > SPIKE && (real ? this.jumpCount : this.freeJumpCount) < 5) {
+        if (real) this.jumpCount++;
+        else this.freeJumpCount++;
+        this.jumps.push({ ex: e.movementX, ey: e.movementY, n: list.length, max, locked: this.locked, raw: this.rawOk, skip: this.skipMove });
+      }
+    });
     window.addEventListener('wheel', (e) => {
       this.mouse.wheel += Math.sign(e.deltaY);
     });
     document.addEventListener('pointerlockchange', () => {
       this.locked = document.pointerLockElement === this.canvas;
-      if (!this.locked) this.keys.clear();
+      if (!this.locked) {
+        this.keys.clear();
+        this.rawOk = false;
+      }
       this.onLockChange(this.locked);
     });
     // Browsers refuse pointer lock without a user gesture (e.g. right after Esc).
-    document.addEventListener('pointerlockerror', () => this.onLockError());
+    document.addEventListener('pointerlockerror', () => {
+      if (!this.retrying) this.onLockError();
+    });
   }
 
   lock(): void {
     this.wanted = true;
+    this.request();
+  }
+
+  private request(): void {
+    if (this.raw) this.retrying = true;
     try {
-      const p = this.canvas.requestPointerLock() as unknown as Promise<void> | undefined;
-      p?.catch?.(() => this.onLockError());
+      const p = this.canvas.requestPointerLock(this.raw ? { unadjustedMovement: true } : undefined) as unknown as Promise<void> | undefined;
+      if (!p?.then) {
+        this.retrying = false;
+        return;
+      }
+      p.then(
+        () => {
+          this.rawOk = this.raw;
+          this.retrying = false;
+        },
+        (e: unknown) => {
+          // the browser cannot give raw input: every later lock is plain, and one plain retry now, only while the
+          // player still wants the lock (an Esc meanwhile cleared `wanted`)
+          if (this.raw && (e as { name?: string })?.name === 'NotSupportedError') {
+            this.raw = false;
+            if (this.wanted && !this.locked) return this.request();
+            this.retrying = false;
+          } else {
+            this.retrying = false;
+            this.onLockError();
+          }
+        },
+      );
     } catch {
+      this.retrying = false;
       this.onLockError();
     }
   }

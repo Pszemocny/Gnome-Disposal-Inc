@@ -17,6 +17,13 @@ const rightClickAt = (x, y) => cdp({ method: 'Input.dispatchMouseEvent', params:
 const clickEl = (sel) => { const el = document.querySelector(sel); el.scrollIntoView({ block: 'center' }); const r = el.getBoundingClientRect(); return clickAt(r.x + r.width / 2, r.y + r.height / 2); };
 const mouseTo = (x, y) => cdp({ method: 'Input.dispatchMouseEvent', params: { type: 'mouseMoved', x, y } });
 
+// every beacon the game sends (crash reports and measurement lines), instead of the network
+const beacons = [];
+navigator.sendBeacon = (u, b) => (beacons.push(String(b)), true);
+const notes = (kind) => beacons.map((b) => JSON.parse(b).message).filter((m) => m.startsWith(kind));
+// one frame that takes 150 ms of real time
+const slowFrame = () => new Promise((r) => requestAnimationFrame(() => { const t = performance.now(); while (performance.now() - t < 150); r(); }));
+
 const ev = [];
 const t0 = performance.now();
 const T = () => Math.round(performance.now() - t0);
@@ -272,6 +279,32 @@ const toLocked = async () => { if (!locked()) { if (g.paused) await toFree(); aw
     await settle();
     return `locked=${locked()} hint=${hint()} held=${g.player.held ?? 'none'} rightPressed=${rp || g.input.mouse.rightPressed}`;
   });
+  // stand 4 m in front of the chute, inside the factory's `near` radius (4.5 m)
+  const nearFactory = () => {
+    const fp = g.factory.pos;
+    const fy = Math.atan2(-fp.x, -fp.z);
+    const w = { x: fp.x + 4 * Math.sin(fy), z: fp.z + 4 * Math.cos(fy) };
+    g.player.body.setTranslation({ x: w.x, y: 1, z: w.z }, true);
+    g.player.position.set(w.x, 1, w.z);
+  };
+  await step('30_slow_frame_paused', async () => {
+    if (g.paused) { await gap(); await clickEl('.menu [data-a="play"]'); await settle(); }
+    nearFactory(); await frames(3);
+    const nearRunning = g.factory.near;
+    for (let i = 0; i < 3 && !g.paused; i++) { await gap(); await esc(); await settle(); }
+    const n0 = notes('slow-frame').length;
+    for (let i = 0; i < 3; i++) { await slowFrame(); await frames(1); }
+    return `slowWhilePaused=${notes('slow-frame').length - n0} paused=${g.paused} near=${nearRunning}`;
+  });
+  await step('31_shake_in_lines', async () => {
+    if (g.paused) { await gap(); await clickEl('.menu [data-a="play"]'); await settle(); }
+    nearFactory(); await frames(3);
+    const n0 = notes('slow-frame').length;
+    g.fx.shake(0.7); await slowFrame(); await frames(1);
+    const l = notes('slow-frame').slice(n0).map((s) => JSON.parse(s.slice(11)));
+    return `shake=${l.at(-1)?.shake} lines=${l.length} paused=${g.paused} near=${g.factory.near}`;
+  });
+  // the deep pauses the game for good: keep it last
   await step('19_deep_esc', async () => {
     g.hud.deep(1, () => {}); await settle();
     await esc(); await settle();
