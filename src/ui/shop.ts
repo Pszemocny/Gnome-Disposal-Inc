@@ -17,7 +17,7 @@ const CSS = `
 .tree-lines path { fill: none; stroke: #4a5058; stroke-width: 3; stroke-dasharray: 6 5; }
 .tree-lines path.on { stroke: #5fd0ff; stroke-dasharray: none; }
 .badge.needs { background: var(--bad); color: #fff; }
-/* nine tabs (with Deep) in one line, so the tree keeps its height */
+/* eight tabs (with Deep) in one line, so the tree keeps its height */
 .shop:not(.legend) .tab { padding: 8px 10px; }
 @media (max-width: 700px) { .shop:not(.legend) .tab { font-size: 12px; padding: 6px 6px; letter-spacing: 0; } }
 /* dark monitor window: title bar, taskbar tabs, status bar, monospace chrome, faint scanlines */
@@ -33,7 +33,7 @@ const CSS = `
 .shop.skill .tab { position: relative; font: 700 14px/18px var(--mono); letter-spacing: 0; padding: 7px 10px; border: 2px solid #3b434d; border-bottom: 0; border-radius: 6px 6px 0 0; background: #1b222b; color: #9fb3c8; }
 .shop.skill .tab.on { background: #10151c; color: #fff; border-color: #5fd0ff; }
 .shop.skill .tab .ti { margin-right: 5px; }
-/* icon only where nine labelled tabs would wrap to a second line (measured: they wrap at 950 px and below) */
+/* icon only where the labelled tabs would wrap to a second line (measured with nine tabs, before Land left: 950 px and below) */
 @media (max-width: 950px) { .shop.skill .tab .tl { display: none; } .shop.skill .tab .ti { margin: 0; font-size: 17px; } }
 /* green count of affordable items on a tab */
 .tab-n { position: absolute; top: -2px; right: -4px; min-width: 16px; height: 16px; padding: 0 4px; border-radius: 8px; background: var(--good); color: #10301a; font: 700 11px/16px var(--font); text-align: center; }

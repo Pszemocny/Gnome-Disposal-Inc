@@ -18,7 +18,7 @@ export const MUSHROOMS: MushroomDef[] = [
   { id: 'booze', name: 'Green Grog', cap: 0x3ab84a, spots: 0xe0ffb0, duration: 15, desc: 'BOOZED! Everything x2, the world wobbles', weight: 8 },
   { id: 'daynight', name: 'Eclipse Cap', cap: 0x1c1c4a, spots: 0xfff3b0, duration: 20, desc: 'x2 money, the sky flips day and night', weight: 10 },
   // Golden Hour is a mushroom, not a random event (PP 2026-10-21 "gold hour to tez byl grzybek nie event")
-  { id: 'goldhour', name: 'Golden Hour', cap: 0xe8b020, spots: 0xffffff, duration: 25, desc: 'Every gnome turns to gold for 25 s', weight: 8 },
+  { id: 'goldhour', name: 'Golden Hour', cap: 0xe8b020, spots: 0xffffff, duration: 25, desc: 'Every gnome turns to gold', weight: 8 },
   { id: 'rainbow', name: 'Rainbow Shroom', cap: 0xff66cc, spots: 0x66ffee, duration: 15, desc: 'All of the above + gnome rain', weight: 2 },
 ];
 

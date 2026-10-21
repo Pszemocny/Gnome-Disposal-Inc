@@ -33,7 +33,7 @@ const HINTS: Record<string, string> = {
   conveyor: 'Carries gnomes the way it faces. Tilt it to make a ramp.',
   wheel: 'Kicks everything in front of it.',
   magnet: 'Pulls gnomes in a big radius. Place it next to the hole.',
-  cannon: 'Loads gnomes that walk in and fires them the way it faces.',
+  cannon: 'Pulls in nearby gnomes and fires them into the hole. It turns to the hole by itself.',
   vacuum: 'Sucks nearby gnomes straight into the hole.',
   blackhole: 'Eats gnomes on the spot at full value.',
   robot: 'Place its station: it collects gnomes around it and tips them into the hole. Saboteurs hit the fuse box on the station pole.',

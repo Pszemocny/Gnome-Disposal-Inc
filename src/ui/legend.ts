@@ -41,7 +41,7 @@ const KEYS: [string, string][] = [
 const TEXT: Record<string, string> = {
   classic: 'Wanders around the yard. The bread and butter of the hole.',
   blue: 'Same as the classic gnome, only blue.',
-  golden: 'Runs away from you, fast. Very valuable. Comes with Gold Fever, the Golden Hour event and late hole levels.',
+  golden: 'Runs away from you, fast. Very valuable. Comes with Gold Fever, the Golden Hour mushroom and late hole levels.',
   greedy: 'Steals coins lying on the ground and runs for the fence. Eat it before it escapes to get the coins back.',
   boom: 'Looks normal but has a burning fuse. Explodes when the hole eats it and throws nearby gnomes off the rim.',
   angry: 'Charges you and knocks you back. When bored it kicks other gnomes around.',
@@ -50,10 +50,10 @@ const TEXT: Record<string, string> = {
   shadow: 'Comes out of the dark behind you at night and stares. It vanishes when you come close; robots and tools leave it alone for 20 s. Left alone too long, it takes some of your money.',
   wizard: 'Casts a spell that throws gnomes away from the hole and teleports around the yard.',
   fat: 'Big and heavy, slow. Hard to throw far.',
-  king: 'Arrives with an event at a high hole level. Too heavy for any magnet: only machines (tractor, cannon, vacuum...) can move him. He stomps the ground.',
-  mushrooms: 'Mushrooms sometimes pop out of the hole when it eats a gnome, and the Mushroom Bloom event sprouts them everywhere. Walk over one to eat it. Effects of the same kind add up their time.',
+  king: 'Arrives with an event at a high hole level. Too heavy for any magnet: only the tractor and machines (fans, cannon, black hole...) can move him. He stomps the ground.',
+  mushrooms: 'Mushrooms sometimes pop out of the hole when it eats a gnome, every big combo text spits one out, and the Mushroom Bloom event sprouts them everywhere. Walk over one to eat it. Effects of the same kind add up their time.',
   combo: 'Feed gnomes one after another to grow the combo. Each gnome raises the money multiplier up to the cap. Holding a gnome keeps the combo alive.',
-  tricks: 'Thrown gnomes pay more: LONG SHOT and SNIPER from far away, AIR when the gnome never touched the ground, TRICK after a bounce off a tool, BULLSEYE through the golden hoop. Tricks multiply each other up to a cap, and each one also pays a flat bonus times the hole multiplier.',
+  tricks: 'Thrown gnomes pay more: LONG SHOT and SNIPER from far away, AIR when the gnome never touched the ground, TRICK after a bounce off a tool, BULLSEYE through the golden hoop. Tricks multiply each other up to a cap, and each one also pays a flat bonus times the hole multiplier, smaller on the first hole levels.',
   strike: 'STRIKE: a fast thrown gnome that knocks other gnomes into the hole pays a bonus per gnome. A long chain is a TURKEY.',
   events: 'Once the hole grows a bit, random events start from time to time. Four-leaf Clover makes them more frequent.',
   contracts: 'A timed task shows up under the GOAL panel. Finish it in time for a money reward; hard ones pay more. A failed one is replaced after a short wait.',
@@ -175,7 +175,7 @@ export class Legend {
       .map((w) => `<tr><td>${w.id}</td><td>${w.mass} kg</td><td>x${w.scale}</td><td>x${w.value}</td><td>x${w.flee}</td></tr>`)
       .join('');
     return `<h3>Gnome types · ${album.discovered}/${GNOME_TYPES.length} discovered</h3><div class="lg-grid">${cards}</div>
-      <h3>Weight classes</h3><p>Every gnome type comes in these classes. The deeper the hole, the more heavy ones the factory makes. Heavy gnomes slip off the magnet and fly shorter; at the last Strong Arm level every gnome flies the same.</p>
+      <h3>Weight classes</h3><p>Every gnome type comes in these classes. The deeper the hole, the more heavy ones the factory makes. Heavy gnomes slip off the magnet and fly shorter; at the last Strong Arm level or with Feeding Frenzy every gnome flies the same.</p>
       <table><tr><th>Class</th><th>Weight</th><th>Size</th><th>Money and XP</th><th>Run speed</th></tr>${tiers}</table>`;
   }
 

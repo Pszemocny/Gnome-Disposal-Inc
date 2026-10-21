@@ -16,7 +16,7 @@ interface EventDef {
 // exported for the legend (L), which lists events from this table
 export const EVENTS: EventDef[] = [
   { id: 'rain', name: 'GNOME RAIN', sub: 'It is raining rare gnomes. Hallelujah.', weight: 3, ok: () => true },
-  { id: 'golden', name: 'GOLDEN HOUR', sub: 'Every gnome turns to gold for 25 s! Catch them!', weight: 0, ok: () => false }, // only the Golden Hour mushroom starts it
+  { id: 'golden', name: 'GOLDEN HOUR', sub: 'Every gnome turns to gold! Catch them!', weight: 0, ok: () => false }, // only the Golden Hour mushroom starts it
   { id: 'parade', name: 'GNOME PARADE', sub: 'A conga line! Parade gnomes are worth x3.', weight: 2, ok: () => true },
   { id: 'wind', name: 'GUSTY WIND', sub: 'A side wind for 30 s: aim against it, thrown gnomes drift!', weight: 1.5, ok: () => ctx.state.holeLevel >= 3 },
   { id: 'rush', name: 'OVERTIME', sub: 'The factory goes wild for 20 s. Everything eaten now is worth x1.5.', weight: 2, ok: () => true },

@@ -22,10 +22,10 @@ const U = (id: string, tab: Tab, name: string, desc: string, max: number, cost: 
 const BEFORE_TOOLS: Upgrade[] = [
   // tree tabs: data order is the layout order (a root, then its children, then the next root)
   U('kick', 'Plow', 'Steel Toes', '+20% kick power and area.', 5, 40, 1.6),
-  U('tractor', 'Plow', 'Plow Tractor', 'Press C to drive a tractor with a plow blade. It pushes every gnome in front of it.', 1, 1500, 1, 3),
+  U('tractor', 'Plow', 'Plow Tractor', 'A tractor with a plow blade: take it from the tool wheel (hold Tab). It pushes every gnome in front of it.', 1, 1500, 1, 3),
   U('plowWidth', 'Plow', 'Wider Plow', '+0.8 m plow blade width (needs the Plow Tractor).', 5, 700, 1.7, 3, 'tractor'),
   // mid-tier like the Magnet Gun and the Cooling Fan
-  U('blower', 'Plow', 'Leaf Blower', 'Press C to hold a leaf blower. Hold LMB to blow gnomes away in a cone.', 1, 150, 1),
+  U('blower', 'Plow', 'Leaf Blower', 'Take the leaf blower from the tool wheel (hold Tab). Hold LMB to blow gnomes away in a cone.', 1, 150, 1),
   U('blowPower', 'Plow', 'Turbo Fan', '+25% blow power (needs the Leaf Blower).', 4, 80, 1.6, 1, 'blower'),
   U('blowRange', 'Plow', 'Long Nozzle', '+1.5 m blow range (needs the Leaf Blower).', 4, 100, 1.6, 1, 'blower'),
 
@@ -68,7 +68,7 @@ const TOOLS: Upgrade[] = [
   U('panel', 'Tools', 'Metal Panel', '+1 metal panel. Make covers, tunnels, ramps to guide gnomes into the hole.', 10, 60, 1.25),
   // PP 2026-10-20: "wiecej fanow np z 10 i raili" (fans 4 -> 10, belts 6 -> 10)
   // 20 fans, growth 1.9 -> 1.4 (PP 2026-10-21 "wiecej wiatrakow"): 11th $5.8k, 20th $120k; the Tools tab has no late surcharge
-  U('fan', 'Tools', 'Cooling Fan', '+1 fan. Gently blows gnomes away in a cone.', 20, 200, 1.4),
+  U('fan', 'Tools', 'Cooling Fan', '+1 fan. Blows gnomes away in a cone. Press N on a placed fan to set its power.', 20, 200, 1.4),
   U('fanPower', 'Tools', 'Big Blades', '+25% push on every Cooling Fan (needs a Cooling Fan).', 4, 150, 1.6, 1, 'fan'),
   U('conveyor', 'Tools', 'Conveyor Belt', '+1 conveyor. Carries gnomes the way it faces. Tilt it to make a ramp.', 10, 250, 1.5),
   U('beltWidth', 'Tools', 'Wide Belt', '+0.6 m belt width on every Conveyor Belt: more gnomes side by side (needs a Conveyor Belt).', 3, 400, 1.8, 1, 'conveyor'),
@@ -84,7 +84,7 @@ const TOOLS: Upgrade[] = [
   U('robotBed', 'Tools', 'Bigger Bed', '+3 gnomes per robot load (5 at start).', 4, 150, 1.6, 2, 'robot'),
   U('robotSpeed', 'Tools', 'Faster Motor', '+0.6 m/s robot speed (2.5 m/s at start).', 4, 120, 1.6, 2, 'robot'),
   U('robotArea', 'Tools', 'Wider Area', '+2 m robot work radius (6 m at start).', 4, 150, 1.6, 2, 'robot'),
-  // a catcher for what the fans blow (PP 2026-10-25 "rure do lapania taki lejek"): cheap, right after the Kicking Wheel (F1 a)
+  // a catcher for what the fans blow (PP 2026-10-25 "rure do lapania taki lejek"): $1500 x1.8 from hole level 4 (PP 2026-10-21)
   U('funnel', 'Tools', 'Gnome Funnel', '+1 funnel. Hang it in the air where you look: gnomes that fall or fly into its mouth shoot out of the elbow towards the hole.', 3, 1500, 1.8, 4),
 ];
 
@@ -117,7 +117,7 @@ const AFTER_TOOLS: Upgrade[] = [
   // caps raised (PP 2026-10-20 "wiecej poziomow" for shards): a post-batch run gives 30-90 shards, the old catalogue (302) was gone in a few rebirths
   { id: 'dValue', tab: 'Deep', name: 'Deep Value', desc: '+20% money forever.', max: 15, cost: 1, growth: 1.5, currency: 'shards' },
   { id: 'dStart', tab: 'Deep', name: 'Head Start', desc: 'Start each run with money ($100 x 3^level).', max: 7, cost: 2, growth: 2, currency: 'shards' },
-  { id: 'dTools', tab: 'Deep', name: 'Keep Tools', desc: 'Keep tool upgrades after rebirth.', max: 1, cost: 8, growth: 1, currency: 'shards' },
+  { id: 'dTools', tab: 'Deep', name: 'Keep Tools', desc: 'Keep all Tools, the tractor and the blower, with upgrades, after rebirth.', max: 1, cost: 8, growth: 1, currency: 'shards' },
   { id: 'dCombo', tab: 'Deep', name: 'Deep Combo', desc: '+0.5x combo cap forever.', max: 6, cost: 3, growth: 2, currency: 'shards' },
   { id: 'dXp', tab: 'Deep', name: 'Deep Hunger', desc: '+25% hole XP forever.', max: 9, cost: 2, growth: 1.7, currency: 'shards' },
 ];
@@ -129,7 +129,7 @@ export const UPGRADE_BY_ID: Record<string, Upgrade> = Object.fromEntries(UPGRADE
 // placeable tools: the Tools rows without a parent (crate size, robot, fan, belt and fuse upgrades all need their tool)
 export const TOOL_IDS = UPGRADES.filter((u) => u.tab === 'Tools' && !u.requires).map((u) => u.id);
 // what the Deep upgrade Keep Tools carries through a rebirth: every Tools upgrade (also the non-placeable ones)
-// plus the drivable and hand-held tools in Movement with their upgrades
+// plus the drivable and hand-held tools in the Plow tab with their upgrades (not Steel Toes)
 export const KEEP_TOOL_IDS = [...UPGRADES.filter((u) => u.tab === 'Tools').map((u) => u.id), 'tractor', 'plowWidth', 'blower', 'blowPower', 'blowRange'];
 
 // levels above the 5th cost extra x1.3 per level: the shop ran out at hole level 8 (PP 2026-10-20 "drozsze najwyzsze levele");
