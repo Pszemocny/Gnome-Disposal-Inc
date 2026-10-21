@@ -3,9 +3,8 @@ import type RAPIER from '@dimforge/rapier3d-compat';
 import { ctx, drawPose, G, groups, rand, savePose } from '../core/context';
 import * as M from '../world/models';
 import { tex } from '../world/textures';
-import { inQuad, outBack } from '../core/ease';
+import { outBack } from '../core/ease';
 import { LETTER_SPOTS } from '../data/letters';
-import { glowTexture } from './mushrooms';
 
 export interface Prop {
   kind: 'chair' | 'flamingo' | 'letter';
@@ -26,22 +25,11 @@ const NORMAL = groups(G.PROP, 0xffff);
 const NONE = groups(G.PROP, 0);
 const GOLD = 0xffd23f;
 const POP_TIME = 0.25;
-const GLINT_FADE = 0.2;
-
-// pulsing gold glint (a sprite, not a light: lights added at runtime recompile every material)
-function glint(): THREE.Sprite {
-  const s = new THREE.Sprite(new THREE.SpriteMaterial({ map: glowTexture(), color: GOLD, transparent: true, blending: THREE.AdditiveBlending, depthWrite: false }));
-  s.scale.setScalar(2);
-  return s;
-}
 
 export class Props {
   list: Prop[] = [];
   byCollider = new Map<number, Prop>();
   shovel: THREE.Mesh | null = null;
-  private shovelGlint: THREE.Sprite | null = null;
-  private glintFade = 0; // seconds since the shovel was taken
-  private glintFrom = 0; // glint scale at that moment
   private shovelPos = new THREE.Vector3(-20.4, 0.15, 20.6);
 
   constructor() {
@@ -55,10 +43,8 @@ export class Props {
       this.shovel = new THREE.Mesh(M.shovelGeometry(), M.vcMat({ metalness: 0.8, roughness: 0.2, emissive: 0x332200 }));
       this.shovel.position.copy(this.shovelPos);
       this.shovel.rotation.set(0.3, 0.4, 1.35);
-      // the shovel lies under a bush: its glint sits at the bush's top, wider than a letter's, so it shows on sunny grass
-      this.shovelGlint = glint();
-      this.shovelGlint.position.set(this.shovelPos.x, 1.3, this.shovelPos.z);
-      ctx.scene.add(this.shovel, this.shovelGlint);
+      // gold metal only, no glow: the shovel and the letters do not shine (PP 2026-10-21 "ma nie swiecic")
+      ctx.scene.add(this.shovel);
     }
     const bush = new THREE.Mesh(M.bushGeometry(), M.vcMat({ map: tex('mottle') }));
     bush.position.set(-20.6, 0, 20.9);
@@ -88,7 +74,6 @@ export class Props {
     let mesh: THREE.Mesh;
     if (kind === 'letter') {
       mesh = new THREE.Mesh(M.letterGeometry(letter!), M.vcMat({ metalness: 0.8, roughness: 0.2, emissive: 0x332200 }));
-      mesh.add(glint());
       mesh.scale.setScalar(0);
       // physics like a gnome (PP): no dominance group, so gnomes push letters; the gnome's mass, damping, friction and bounce.
       // Upright and facing the middle of the yard, so it reads from inside the fence.
@@ -161,7 +146,6 @@ export class Props {
       if (p.kind === 'letter') {
         p.pop += dt;
         p.mesh.scale.setScalar(outBack(Math.min(1, p.pop / POP_TIME)));
-        p.mesh.children[0].scale.setScalar(2 + Math.sin(ctx.time * 6) * 0.3);
         const v = p.body.linvel();
         // nothing in the hands: a held crate can carry the letter, and a held letter is not resting
         const high = !p.falling && !ctx.player.held && t.y > 2.5 && Math.hypot(v.x, v.y, v.z) < 0.2;
@@ -185,17 +169,7 @@ export class Props {
     }
     if (this.shovel) {
       this.shovel.position.y = 0.15 + Math.sin(ctx.time * 2) * 0.03;
-      this.shovelGlint!.scale.setScalar(3 + Math.sin(ctx.time * 6) * 0.4);
       if (ctx.player.position.distanceTo(this.shovelPos) < 2.6 && ctx.input.hit('KeyE')) this.takeShovel();
-    } else if (this.shovelGlint) {
-      // the shovel was taken: its glint shrinks away over GLINT_FADE s
-      this.glintFade += dt;
-      const k = Math.min(1, this.glintFade / GLINT_FADE);
-      this.shovelGlint.scale.setScalar(this.glintFrom * (1 - inQuad(k)));
-      if (k >= 1) {
-        ctx.scene.remove(this.shovelGlint);
-        this.shovelGlint = null;
-      }
     }
   }
 
@@ -207,8 +181,6 @@ export class Props {
     if (!this.shovel) return;
     ctx.scene.remove(this.shovel);
     this.shovel = null;
-    this.glintFade = 0;
-    this.glintFrom = this.shovelGlint!.scale.x;
     ctx.state.secrets.push('shovel');
     ctx.achievements.unlock('shovel');
     ctx.hud.toast('You found the GOLDEN SHOVEL! +10% value forever. The ground rumbles...', 'secret');

@@ -54,7 +54,6 @@ setTimeout(() => { if (!window.__done) window.__done = JSON.stringify({ checks, 
       g.player.held = null;
       for (const p of g.props.list) { g.physics.removeRigidBody(p.body); g.scene.remove(p.mesh); }
       if (g.props.shovel) g.scene.remove(g.props.shovel);
-      if (g.props.shovelGlint) g.scene.remove(g.props.shovelGlint);
       g.state = st;
       g.goals = new Goals();
       g.goals.update = () => {};
@@ -385,7 +384,7 @@ setTimeout(() => { if (!window.__done) window.__done = JSON.stringify({ checks, 
       ok('L20', ACHIEVEMENTS.length === 26 && b.secret === true && b.name === 'Properly Boozed' && b.desc === 'Feed the hole the word GNOME.', `${ACHIEVEMENTS.length} "${b.desc}"`);
     }
 
-    // ---- L17: the shovel glints, day and night; the glint goes with the shovel
+    // ---- L17: the shovel and the letters are gold without a glow; the shovel goes when taken
     {
       g.buffs.timers.clear(); // no Green Grog wobble from L10 on the screenshots
       const st = freshState(); st.holeLevel = 6;
@@ -395,13 +394,12 @@ setTimeout(() => { if (!window.__done) window.__done = JSON.stringify({ checks, 
       g.env.dayClock = 0;
       await gameWait(1.5);
       const sh = g.props.shovel;
-      const sp = g.props.shovelGlint;
-      const sc = new Set();
-      for (let i = 0; i < 10; i++) { await frames(1); sc.add(sp.scale.x.toFixed(3)); }
+      // gold metal, no glow sprite near the shovel or on any letter (PP 2026-10-21 "lopata ma nie swiecic [...] litery tez nie")
+      const sprites = [];
+      g.scene.traverse((o) => { if (o.type === 'Sprite' && o.position.distanceTo(sh.position) < 2) sprites.push(o); });
+      const letterSprites = g.props.list.filter((p) => p.kind === 'letter').reduce((n, p) => n + p.mesh.children.filter((c) => c.type === 'Sprite').length, 0);
       placePlayer(-17.5, 17.8, Math.atan2(2.9, -2.8), -0.35);
       await gameWait(1);
-      // on the widest pulse
-      for (let i = 0; i < 300 && sp.scale.x < 3.35; i++) await frames(1);
       g.paused = true;
       await shot('shovel');
       g.paused = false;
@@ -412,11 +410,9 @@ setTimeout(() => { if (!window.__done) window.__done = JSON.stringify({ checks, 
       placePlayer(-19.5, 19.6, 0);
       await frames(1);
       g.input.pressed.add('KeyE');
-      // animation rule 3: the glint shrinks to 0 over about 0.2 s, then leaves the scene
-      const fade = [];
-      for (let i = 0; i < 30 && sp.parent; i++) { await frames(1); fade.push(+sp.scale.x.toFixed(3)); }
-      const faded = fade.some((v) => v > 0 && v < 2.5) && !sp.parent;
-      ok('L17', sp.type === 'Sprite' && sc.size >= 3 && g.props.shovel === null && !sh.parent && faded && g.state.secrets.includes('shovel'), `sprite ${sp.type} distinct scales ${sc.size} shovel gone ${g.props.shovel === null} glint fade [${fade}] night shade ${night.toFixed(2)}`);
+      await frames(3);
+      const gold = sh.material.metalness >= 0.8;
+      ok('L17', sprites.length === 0 && letterSprites === 0 && gold && g.props.shovel === null && !sh.parent && g.state.secrets.includes('shovel'), `sprites near shovel ${sprites.length} on letters ${letterSprites} gold ${gold} shovel gone ${g.props.shovel === null} night shade ${night.toFixed(2)}`);
     }
 
     window.__done = JSON.stringify({ checks, errors });

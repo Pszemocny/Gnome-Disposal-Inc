@@ -4,6 +4,7 @@ Newest build first. Each build lists what changed and what to test. Shown in the
 
 ## 2026-10-26 18:00
 
+- The golden shovel and the GNOME letters stay gold but no longer glow.
 - Trick shot bonuses start small and reach full size at hole level 4, so the golden hoop no longer buys the whole early shop.
 
 ## 2026-10-26 13:00
