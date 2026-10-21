@@ -29,7 +29,7 @@ export const ACHIEVEMENTS: Achievement[] = [
   { id: 'chair', name: 'Comfy Abyss', desc: 'Feed the hole an armchair.', secret: true },
   { id: 'flamingo', name: 'Pink Sacrifice', desc: 'Feed the hole a flamingo.', secret: true },
   { id: 'shovel', name: 'Dig Deep', desc: 'Find the golden shovel.', secret: true },
-  { id: 'booze', name: 'Properly Boozed', desc: 'Find the secret word.', secret: true },
+  { id: 'booze', name: 'Properly Boozed', desc: 'Feed the hole the word GNOME.', secret: true },
   { id: 'fall', name: 'Curiosity', desc: 'Fall into the hole.', secret: true },
   { id: 'shadow', name: 'Stare Back', desc: 'Feed a shadow gnome.', secret: true },
 ];

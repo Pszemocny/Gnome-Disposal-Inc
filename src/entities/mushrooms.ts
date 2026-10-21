@@ -148,7 +148,7 @@ export class Mushrooms {
       m.mesh.visible = blink;
       const d = Math.hypot(m.mesh.position.x - pp.x, m.mesh.position.z - pp.z);
       if (d < 1.6 && Math.abs(m.mesh.position.y - (pp.y - 1)) < 1.8) {
-        // counted here, not in buffs.apply: the BOOZE code must not pass the mushroom lesson
+        // counted here, not in buffs.apply: the GNOME letters must not pass the mushroom lesson
         ctx.state.stats.mushrooms++;
         ctx.buffs.apply(m.def.id);
         ctx.fx.burst(m.mesh.position.clone().setY(0.5), m.def.cap, 30);

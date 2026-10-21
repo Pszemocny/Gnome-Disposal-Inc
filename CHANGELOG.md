@@ -2,6 +2,11 @@
 
 Newest build first. Each build lists what changed and what to test. Shown in the start menu (button "What's new").
 
+## 2026-10-25 20:00
+
+- The secret code is gone: five gold letters G N O M E now lie around the lands, the far ones visible beyond the fence. Feed them all to the hole for BOOZED mode, once per save.
+- The golden shovel now glints, so a sharp eye can spot it.
+
 ## 2026-10-25 16:00
 
 - Dumping a crate into the hole now pays full hole XP for every gnome in it. A crate tipped over at the rim still pays a quarter.

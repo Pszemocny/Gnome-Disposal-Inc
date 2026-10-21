@@ -106,7 +106,7 @@ Gnome Rain, Golden Hour, Gnome Parade (conga line, x3 value), Hole Burp (coin fo
 
 - Throw the armchair or a flamingo into the hole.
 - Golden shovel hidden at the forest edge: +10% value forever.
-- Type `BOOZE` on the keyboard: BOOZED mode.
+- Feed the five gold letters G N O M E to the hole (one per land, two on Dark Forest; once per save): BOOZED mode.
 - Fall into the hole yourself: the hole spits you out with a coin fountain.
 - Cryptic messages from the hole on each level up.
 - 24 achievements with toasts.
@@ -141,7 +141,7 @@ All milestones 1-7 are implemented. Verified in headless Chromium (software WebG
 - grab → throw → gnome eaten → coins → money; combo tiers; hole levels 1 → 12 (radius and multiplier grow)
 - every gnome type spawns and behaves; all 10 events and all 6 mushrooms start without errors; night cycle
 - tool placement from the hotbar, panel tilt and height, X pick-up, saboteur break + E repair, PC desk opens the shop, all shop tabs render
-- kick, falling into the hole (spit out + achievement), secret word `BOOZE`
+- kick, falling into the hole (spit out + achievement), the five GNOME letters
 - game logic costs about 0.9 ms per frame with ~280 gnomes (rendering not measured: the test browser has no GPU)
 
 Not verified by a human: game feel and balance (costs, spawn rates, throw power). Those need a play session.

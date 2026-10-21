@@ -3,9 +3,15 @@ import type RAPIER from '@dimforge/rapier3d-compat';
 import { ctx, drawPose, G, groups, rand, savePose } from '../core/context';
 import * as M from '../world/models';
 import { tex } from '../world/textures';
+import { inQuad, outBack } from '../core/ease';
+import { LETTER_SPOTS } from '../data/letters';
+import { glowTexture } from './mushrooms';
 
 export interface Prop {
-  kind: 'chair' | 'flamingo';
+  kind: 'chair' | 'flamingo' | 'letter';
+  letter?: string;
+  pop: number; // seconds since the letter (re)appeared: 0.25 s scale-in
+  stuck: number; // seconds a letter has rested high up out of reach (house or factory top)
   mesh: THREE.Mesh;
   body: RAPIER.RigidBody;
   collider: RAPIER.Collider;
@@ -18,11 +24,24 @@ export interface Prop {
 
 const NORMAL = groups(G.PROP, 0xffff);
 const NONE = groups(G.PROP, 0);
+const GOLD = 0xffd23f;
+const POP_TIME = 0.25;
+const GLINT_FADE = 0.2;
+
+// pulsing gold glint (a sprite, not a light: lights added at runtime recompile every material)
+function glint(): THREE.Sprite {
+  const s = new THREE.Sprite(new THREE.SpriteMaterial({ map: glowTexture(), color: GOLD, transparent: true, blending: THREE.AdditiveBlending, depthWrite: false }));
+  s.scale.setScalar(2);
+  return s;
+}
 
 export class Props {
   list: Prop[] = [];
   byCollider = new Map<number, Prop>();
   shovel: THREE.Mesh | null = null;
+  private shovelGlint: THREE.Sprite | null = null;
+  private glintFade = 0; // seconds since the shovel was taken
+  private glintFrom = 0; // glint scale at that moment
   private shovelPos = new THREE.Vector3(-20.4, 0.15, 20.6);
 
   constructor() {
@@ -30,11 +49,16 @@ export class Props {
     this.add('flamingo', new THREE.Vector3(-17, 0.75, -6));
     this.add('flamingo', new THREE.Vector3(-18, 0.75, -4.5));
     this.add('flamingo', new THREE.Vector3(-16.2, 0.75, -3.8));
+    // every letter not eaten yet, also on lands not bought: those lie beyond the fence until the land is bought
+    for (const s of LETTER_SPOTS) if (!ctx.state.secrets.includes(`letter-${s.ch}`)) this.add('letter', new THREE.Vector3(s.x, 0.6, s.z), s.ch);
     if (!ctx.state.secrets.includes('shovel')) {
       this.shovel = new THREE.Mesh(M.shovelGeometry(), M.vcMat({ metalness: 0.8, roughness: 0.2, emissive: 0x332200 }));
       this.shovel.position.copy(this.shovelPos);
       this.shovel.rotation.set(0.3, 0.4, 1.35);
-      ctx.scene.add(this.shovel);
+      // the shovel lies under a bush: its glint sits at the bush's top, wider than a letter's, so it shows on sunny grass
+      this.shovelGlint = glint();
+      this.shovelGlint.position.set(this.shovelPos.x, 1.3, this.shovelPos.z);
+      ctx.scene.add(this.shovel, this.shovelGlint);
     }
     const bush = new THREE.Mesh(M.bushGeometry(), M.vcMat({ map: tex('mottle') }));
     bush.position.set(-20.6, 0, 20.9);
@@ -57,16 +81,36 @@ export class Props {
     return new THREE.Vector3(12, 0.5, 12);
   }
 
-  private add(kind: Prop['kind'], pos: THREE.Vector3): void {
+  private add(kind: Prop['kind'], pos: THREE.Vector3, letter?: string): void {
     const { R, physics, scene } = ctx;
-    const mesh = new THREE.Mesh(kind === 'chair' ? M.armchairGeometry() : M.flamingoGeometry(), M.vcMat());
+    let body: RAPIER.RigidBody;
+    let collider: RAPIER.Collider;
+    let mesh: THREE.Mesh;
+    if (kind === 'letter') {
+      mesh = new THREE.Mesh(M.letterGeometry(letter!), M.vcMat({ metalness: 0.8, roughness: 0.2, emissive: 0x332200 }));
+      mesh.add(glint());
+      mesh.scale.setScalar(0);
+      // physics like a gnome (PP): no dominance group, so gnomes push letters; the gnome's mass, damping, friction and bounce.
+      // Upright and facing the middle of the yard, so it reads from inside the fence.
+      body = physics.createRigidBody(
+        R.RigidBodyDesc.dynamic()
+          .setTranslation(pos.x, pos.y, pos.z)
+          .setRotation(new THREE.Quaternion().setFromEuler(new THREE.Euler(0, Math.atan2(-pos.x, -pos.z), 0)))
+          .setLinearDamping(0.15)
+          .setAngularDamping(0.6),
+      );
+      collider = physics.createCollider(R.ColliderDesc.cuboid(0.35, 0.49, 0.08).setMass(1).setFriction(0.7).setRestitution(0.15).setCollisionGroups(NORMAL), body);
+      ctx.fx.burst(pos, GOLD, 12);
+    } else {
+      mesh = new THREE.Mesh(kind === 'chair' ? M.armchairGeometry() : M.flamingoGeometry(), M.vcMat());
+      // dominance 1: gnomes cannot push garden props around, only the player and kicks can
+      body = physics.createRigidBody(R.RigidBodyDesc.dynamic().setDominanceGroup(1).setTranslation(pos.x, pos.y, pos.z).setRotation(new THREE.Quaternion().setFromEuler(new THREE.Euler(0, kind === 'chair' ? 0.6 : Math.random() * 6, 0))));
+      const desc = kind === 'chair' ? R.ColliderDesc.cuboid(0.55, 0.45, 0.5).setMass(8) : R.ColliderDesc.cuboid(0.18, 0.5, 0.25).setMass(1.5);
+      collider = physics.createCollider(desc.setCollisionGroups(NORMAL).setFriction(0.8), body);
+    }
     mesh.castShadow = true;
     scene.add(mesh);
-    // dominance 1: gnomes cannot push garden props around, only the player and kicks can
-    const body = physics.createRigidBody(R.RigidBodyDesc.dynamic().setDominanceGroup(1).setTranslation(pos.x, pos.y, pos.z).setRotation(new THREE.Quaternion().setFromEuler(new THREE.Euler(0, kind === 'chair' ? 0.6 : Math.random() * 6, 0))));
-    const desc = kind === 'chair' ? R.ColliderDesc.cuboid(0.55, 0.45, 0.5).setMass(8) : R.ColliderDesc.cuboid(0.18, 0.5, 0.25).setMass(1.5);
-    const collider = physics.createCollider(desc.setCollisionGroups(NORMAL).setFriction(0.8), body);
-    const p: Prop = { kind, mesh, body, collider, home: pos.clone(), falling: false, respawn: 0, prevPos: new THREE.Vector3(), prevRot: new THREE.Quaternion() };
+    const p: Prop = { kind, letter, pop: 0, stuck: 0, mesh, body, collider, home: pos.clone(), falling: false, respawn: 0, prevPos: new THREE.Vector3(), prevRot: new THREE.Quaternion() };
     savePose(p, body);
     this.list.push(p);
     this.byCollider.set(collider.handle, p);
@@ -100,20 +144,58 @@ export class Props {
         p.collider.setCollisionGroups(NONE);
       }
       if (p.falling && t.y < -2.6) {
-        ctx.hole.consumeProp(p.kind);
+        if (p.kind === 'letter') {
+          ctx.hole.consumeLetter(p.letter!);
+          p.respawn = Infinity; // an eaten letter never comes back (once per save); `falling` stays true
+        } else {
+          ctx.hole.consumeProp(p.kind);
+          p.respawn = 45;
+        }
         p.body.setEnabled(false);
         p.mesh.visible = false;
-        p.respawn = 45;
+        continue;
       }
-      if (t.y < -10 || Math.abs(t.x) > 300) {
+      // a letter must stay reachable (the word must always be completable, PP): thrown over the fence, or resting
+      // on the house or factory top for 3 s, it goes home. A letter of a land not bought lies beyond the fence at home.
+      let lost = false;
+      if (p.kind === 'letter') {
+        p.pop += dt;
+        p.mesh.scale.setScalar(outBack(Math.min(1, p.pop / POP_TIME)));
+        p.mesh.children[0].scale.setScalar(2 + Math.sin(ctx.time * 6) * 0.3);
+        const v = p.body.linvel();
+        // nothing in the hands: a held crate can carry the letter, and a held letter is not resting
+        const high = !p.falling && !ctx.player.held && t.y > 2.5 && Math.hypot(v.x, v.y, v.z) < 0.2;
+        p.stuck = high ? p.stuck + dt : 0;
+        const outside = Math.max(Math.abs(t.x), Math.abs(t.z)) > ctx.env.half + 1 && Math.hypot(t.x - p.home.x, t.z - p.home.z) > 2;
+        lost = outside || p.stuck > 3;
+      }
+      if (t.y < -10 || Math.abs(t.x) > 300 || lost) {
+        // a gold burst where the letter vanishes, then it pops in at home
+        if (p.kind === 'letter') ctx.fx.burst(new THREE.Vector3(t.x, t.y, t.z), GOLD, 12);
         p.body.setTranslation({ x: p.home.x, y: p.home.y + 2, z: p.home.z }, true);
         savePose(p, p.body);
         p.body.setLinvel({ x: 0, y: 0, z: 0 }, true);
+        if (p.kind === 'letter') {
+          p.stuck = 0;
+          p.pop = 0;
+          p.mesh.scale.setScalar(0);
+          ctx.fx.burst(p.home, GOLD, 12);
+        }
       }
     }
     if (this.shovel) {
       this.shovel.position.y = 0.15 + Math.sin(ctx.time * 2) * 0.03;
+      this.shovelGlint!.scale.setScalar(3 + Math.sin(ctx.time * 6) * 0.4);
       if (ctx.player.position.distanceTo(this.shovelPos) < 2.6 && ctx.input.hit('KeyE')) this.takeShovel();
+    } else if (this.shovelGlint) {
+      // the shovel was taken: its glint shrinks away over GLINT_FADE s
+      this.glintFade += dt;
+      const k = Math.min(1, this.glintFade / GLINT_FADE);
+      this.shovelGlint.scale.setScalar(this.glintFrom * (1 - inQuad(k)));
+      if (k >= 1) {
+        ctx.scene.remove(this.shovelGlint);
+        this.shovelGlint = null;
+      }
     }
   }
 
@@ -125,6 +207,8 @@ export class Props {
     if (!this.shovel) return;
     ctx.scene.remove(this.shovel);
     this.shovel = null;
+    this.glintFade = 0;
+    this.glintFrom = this.shovelGlint!.scale.x;
     ctx.state.secrets.push('shovel');
     ctx.achievements.unlock('shovel');
     ctx.hud.toast('You found the GOLDEN SHOVEL! +10% value forever. The ground rumbles...', 'secret');

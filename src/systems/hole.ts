@@ -6,6 +6,7 @@ import { money } from '../core/format';
 import { HOLE_LEVELS, MAX_HOLE_LEVEL, holeLevel } from '../data/holeLevels';
 import { KEEP_TOOL_IDS } from '../data/upgrades';
 import { LAND } from '../data/land';
+import { WORD } from '../data/letters';
 import type { Gnome } from '../entities/gnomes';
 import { machineBox, type Machine } from '../entities/machines';
 import { glowTexture } from '../entities/mushrooms';
@@ -241,6 +242,25 @@ export class Hole {
     } else {
       ctx.achievements.unlock('flamingo');
       ctx.hud.toast('A pink sacrifice. The hole approves.', 'secret');
+    }
+  }
+
+  // A letter of the secret word: no money; the whole word, in any order, gives Green Grog (BOOZED), once per save.
+  consumeLetter(ch: string): void {
+    const s = ctx.state;
+    const has = (c: string) => s.secrets.includes(`letter-${c}`);
+    if (has(ch)) return;
+    s.secrets.push(`letter-${ch}`);
+    ctx.audio.slurp();
+    ctx.fx.burst(this.holeOrigin, 0xffd23f, 20);
+    const word = WORD.split('').map((c) => (has(c) ? c : '_')).join(' ');
+    ctx.hud.toast(`The hole swallowed ${ch}: ${word}`, 'secret');
+    if (WORD.split('').every(has)) {
+      ctx.buffs.apply('booze');
+      ctx.achievements.unlock('booze');
+      ctx.coins.burst(250 * this.valueScale, this.holeOrigin, 1.5);
+      ctx.hud.toast('GNOME! The hole is properly boozed.', 'secret');
+      saveState(s);
     }
   }
 

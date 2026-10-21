@@ -485,7 +485,7 @@ export class Hud {
     const sw = gun ? p.ballGnomes : [];
     const label = gun
       ? `MAGNET GUN ${sw.length} gnomes · ball ${p.ballR.toFixed(1)} m`
-      : `MAGNET · ${g ? `${g.type.name} <b class="tier t-${g.tier.id}">${g.tier.id}</b>` : h?.crate ? `Crate ${h.crate.queue.length}/${crateCap()}` : h?.prop ? 'Garden prop' : 'nothing'}`;
+      : `MAGNET · ${g ? `${g.type.name} <b class="tier t-${g.tier.id}">${g.tier.id}</b>` : h?.crate ? `Crate ${h.crate.queue.length}/${crateCap()}` : h?.prop ? (h.prop.kind === 'letter' ? `Letter ${h.prop.letter}` : 'Garden prop') : 'nothing'}`;
     // what the hole would pay for it right now (no trick shot bonus)
     const gnomeWorth = (x: Gnome) => x.type.value * x.tier.value * hole.valueScale * hole.comboMult;
     const total = sw.length ? sw.reduce((s, x) => s + gnomeWorth(x), 0) : g ? gnomeWorth(g) : 0;

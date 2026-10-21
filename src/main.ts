@@ -279,11 +279,6 @@ async function boot(): Promise<void> {
       replay.record();
 
       codeCd -= realDt;
-      if (ctx.input.consumeTyped('BOOZE') && codeCd <= 0) {
-        codeCd = 120;
-        ctx.buffs.apply('booze');
-        ctx.achievements.unlock('booze');
-      }
       if (ctx.input.consumeTyped('GNOMERAIN') && codeCd <= 0) {
         codeCd = 120;
         ctx.events.start('rain');

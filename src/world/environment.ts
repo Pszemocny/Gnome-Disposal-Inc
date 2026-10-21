@@ -2,6 +2,7 @@ import * as THREE from 'three';
 import type RAPIER from '@dimforge/rapier3d-compat';
 import { ctx, G, groups, rand } from '../core/context';
 import { LAND } from '../data/land';
+import { LETTER_SPOTS } from '../data/letters';
 import { holeLevel } from '../data/holeLevels';
 import * as M from './models';
 import { tex } from './textures';
@@ -396,6 +397,8 @@ export class Environment {
       const out = Math.max(Math.abs(x), Math.abs(z));
       if (out < h + 3) continue;
       if (Math.abs(x) < 10 && z < -h && z > -h - 12) continue;
+      // a letter beyond the fence stays in sight: no tree canopy (up to 4.2 m wide) over its spot; bushes may cover it
+      if (LETTER_SPOTS.some((s) => Math.hypot(x - s.x, z - s.z) < 5)) continue;
       q.setFromEuler(new THREE.Euler(0, rand(0, 6), 0));
       m.compose(new THREE.Vector3(x, 0, z), q, new THREE.Vector3().setScalar(rand(0.8, 1.9)));
       this.trees.setMatrixAt(n++, m);

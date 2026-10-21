@@ -320,6 +320,25 @@ export function shovelGeometry(): THREE.BufferGeometry {
   ]);
 }
 
+// 5x7 bitmaps of the secret word's letters, top row first
+const LETTER_BITMAPS: Record<string, string[]> = {
+  G: [' ### ', '#   #', '#    ', '# ###', '#   #', '#   #', ' ### '],
+  N: ['#   #', '##  #', '# # #', '#  ##', '#   #', '#   #', '#   #'],
+  O: [' ### ', '#   #', '#   #', '#   #', '#   #', '#   #', ' ### '],
+  M: ['#   #', '## ##', '# # #', '#   #', '#   #', '#   #', '#   #'],
+  E: ['#####', '#    ', '#    ', '#### ', '#    ', '#    ', '#####'],
+};
+
+// Block letter, 0.7 m wide, 0.98 m tall, 0.16 m deep, centred: cubes, because TextGeometry needs a font file
+// (no asset downloads, CLAUDE.md).
+export function letterGeometry(ch: string): THREE.BufferGeometry {
+  const parts: Part[] = [];
+  LETTER_BITMAPS[ch].forEach((row, r) => {
+    for (let c = 0; c < row.length; c++) if (row[c] === '#') parts.push({ g: box(0.14, 0.14, 0.16), c: 0xffd23f, p: [(c - 2) * 0.14, (3 - r) * 0.14, 0] });
+  });
+  return build(parts);
+}
+
 export function ufoGeometry(): THREE.BufferGeometry {
   return build([
     { g: sph(3, 20, 10), c: 0x9aa4b0, s: [1, 0.22, 1] },
