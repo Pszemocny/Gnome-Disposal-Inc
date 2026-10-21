@@ -8,16 +8,17 @@ Plik jest aktualizowany po każdej wdrożonej zmianie: co się zmieniło dla gra
 ### Cel i pętla gry
 
 - Gracz stoi w ogrodzie w pierwszej osobie. Fabryka robi gnomy. Gracz wrzuca gnomy do dziury i dostaje pieniądze.
-- Za każdego zjedzonego gnoma z dziury wylatują monety: wartość gnoma x mnożnik dziury x combo x ulepszenia x bonusy odrodzenia. Każdy gnom dodaje też punkty dziury (XP). Zwykły gnom = 1 XP.
+- Za każdego zjedzonego gnoma z dziury wylatują monety: wartość gnoma x mnożnik dziury x combo x ulepszenia x bonusy odrodzenia. Każdy gnom dodaje też punkty dziury (XP). Zwykły gnom = 1 XP za rzut ręką; salwa Magnet Guna x1/√n na gnoma; maszyny, skrzynia, roboty, spych, dmuchawa i kopniak x0,25; król zawsze 200. Kasa bez zmian.
 - Monety zbiera gracz (promień Coin Magnet) albo Piggy Bank. Każda moneta leci na ekranie do licznika pieniędzy (0,5 s) i dopiero wtedy dolicza się do kasy. Monety zostawione na trawie same wracają po 40 s.
 - Pieniądze idą do sklepu (komputer przy biurku albo klawisz B z Laptopem). Sklep daje narzędzia, maszyny i ulepszenia.
 - Dziura rośnie: 12 poziomów, większy promień i mnożnik, nowe typy gnomów, nowe ziemie, eventy. Na poziomie 12 gracz wskakuje do dziury (The Deep), widzi zakończenie i odradza się z odłamkami (Hole Shards) na stałe bonusy.
-- Drogi do poziomu 12 (model ekonomii, czasy z symulatora): ręce 307 min, Magnet Gun 39 min, skrzynia 23 min, automatyzacja 27 min, traktor 30 min. Cel PP to 2-3 godziny, dziś maszyny kończą w pół godziny (otwarte pytanie do PP).
+- Drogi do poziomu 12 (model ekonomii, czasy z symulatora, sprzed zmiany XP wg sposobu karmienia): ręce 307 min, Magnet Gun 39 min, skrzynia 23 min, automatyzacja 27 min, traktor 30 min. Cel PP to 2-3 godziny; po zmianie XP maszyny, skrzynia i traktor idą wolniej, czasów nie przeliczono.
 
 Decyzje:
 - (PP, 2026-10-19) Mnożnik dziury x1..x10 zamiast x100, kasa z maszyn pełna, ceny rosną łagodnie: bo pierwszy playtest skończył się na 5 wentylatorach i $119m, gra wyglądała jak idle clicker.
 - (PP, 2026-10-19) Gra ma być zręcznościowa: gnomy mają wagę, nosi się jedno naraz (chyba że Magnet Gun), tricki płacą więcej.
-- (PP, 2026-10-20) „Gra przechodzi się w pół godziny” na razie zostaje bez zmian; tempo XP wg sposobu karmienia odłożone („jeszcze nie wiem co i jak”).
+- (PP, 2026-10-20, 10a) XP zależy od sposobu karmienia (rzut ręką x1, salwa x1/√n, reszta x0,25), bo automatyzacja i skrzynia kończyły grę w pół godziny, a ręce w pięć; kasa bez zmian. Kopnięty w locie gnom nie płaci już tricków (kopniak to nie rzut). Skrzynia przewrócona przy dziurze liczy jak zrzut: bez tricków, x0,25.
+- (rekomendacja planu, 2026-10-21, do potwierdzenia przez PP) Król zawsze daje pełne 200 XP, bo nie da się go nakarmić ręką i reguła 10a zabrałaby nagrodę za bossa. Salwa ma wzór 1/√n bez podłogi, więc kula ponad 16 gnomów daje na gnoma mniej niż maszyna. Puszczona albo powoli opuszczona kula liczy się jak salwa całego chwytu, a pojedynczy gnom puszczony nad dziurą jak rzut ręką. Gnom, który sam wejdzie albo którego wepchnie event, daje x0,25. Rzut ręką z pomocą narzędzia po drodze (trampolina, taśma, wentylator, magnes) liczy x1, a zjedzony przez wieżę ssącą, czarną dziurę albo robota x0,25.
 - (PP, 2026-10-20) Gra nazywa się „Gnome Disposal Inc.” (tytuł karty, logo w menu, adres GitHub Pages `/gnome-disposal-inc/`), żeby nie kopiować nazwy oryginału. Klucze zapisu w przeglądarce zostają ze starą nazwą, bo nowe klucze skasowałyby istniejące zapisy.
 
 ### Dziura
@@ -31,7 +32,6 @@ Decyzje:
 - STRIKE: gnom rzucony przez gracza (ponad 6 m/s), który wepchnie 2+ gnomy do dziury w 2 s, daje +$25 x liczba x mnożnik, napis STRIKE xN; 5+ to TURKEY. Ciężkie gnomy to najlepsze kule.
 - Zrzut skrzyni: wszystkie gnomy ze skrzyni naraz, do tego premia 2 x liczba x mnożnik („CRATE DUMP x12!”). Gnomy wrzucone do skrzyni tracą flagi tricków.
 - Nastroje dziury (od poziomu 2, co 150-200 s): przez 45 s dziura „pragnie” jednego typu (nigdy zwykłego, złotego ani króla), ten typ płaci x3; baner i szept. Drwiny: po 5 pudłach z rzędu „Five misses. Pathetic.”, po LONG SHOT „Ooh.”.
-- Slow-mo: combo 60 lub 100 i zjedzony król zamrażają grę na 0,08 s, potem 0,6 s w ćwierć tempa; najwyżej raz na 5 s.
 - Wpadnięcie gracza do dziury: dziura go wypluwa z fontanną monet, ale płaci tylko raz na poziom w danym biegu.
 - Dziura nie ma obwódki; jedzenie przyspiesza wir, od combo 10 wir zmienia kolor (biały → fiolet → złoto).
 
@@ -43,7 +43,8 @@ Decyzje:
 - (PP, 2026-10-20) Bez obwódki dziury i animacji jedzenia obwódką.
 - (sesja, 2026-10-20) Fotel i flaming płacą pełną stawkę tylko do zdobycia osiągnięcia, potem 10%; chciwy gnom oddaje łup x1 bez monet; wpadnięcie gracza płaci raz na poziom: bo to były pętle na nieskończoną kasę (F4, F5, F6).
 - (PP, 2026-10-20) Trickshot (BULLSEYE) nie zwalnia już czasu, zostają napis, premia, iskry, fanfara i drżenie: „myślałem, że gra się zacina”.
-- (sesja, 2026-10-20) Slow-mo i STRIKE bez zapisu: po przeładowaniu zaczynają od zera, bo to chwilowe efekty.
+- (sesja, 2026-10-20) STRIKE bez zapisu: po przeładowaniu zaczyna od zera, bo to chwilowy efekt.
+- (PP, 2026-10-20) Żadnego zwalniania czasu: combo 60/100 i król już nie spowalniają gry, zostaje tylko koło narzędzi (Tab): „myślałem, że gra się zacina”. Napis, drżenie i dźwięk combo zostają.
 
 ### Gnomy
 
@@ -100,16 +101,16 @@ Ceny: pierwszy poziom x wzrost na poziom, maksimum sztuk, wymagany poziom dziury
 - Wooden Crate: $70 za każdą, max 6. Skrzynia bez wieka, gnomy wrzucone lub wrzucone rzutem zostają w niej (12 + 6 za poziom Bigger Crate, $70, max 8 → do 60). Niesiona ręką (zawsze podnosi się, 1,5 kg), zrzut do dziury zjada wszystko naraz z premią. Skrzynia poza ogrodem wraca pod biurko. Gnomy nie przesuwają skrzyni ani rekwizytów.
 - Trampoline: $100 x1,8, max 4. Odbija wzdłuż swojej normalnej; siła rośnie z ziemią (Backyard 44% starej, Dark Forest 135%). Trick TRICK x3.
 - Metal Panel: $60 x1,25, max 10. Osłony, tunele, rampy; bez bezpieczników.
-- Cooling Fan: $200 x1,9, max 4. Dmucha stożkiem 10 m, 55 m/s² przy wentylatorze, niezależnie od wagi, przechylony dmucha w górę. Idące gnomy przewraca tylko do 9 m, gnomy w powietrzu pcha do 10 m. Łopaty rozkręcają się i zwalniają płynnie, siła działa od razu.
+- Cooling Fan: $200 x1,9, max 10 (było 4; 10. kosztuje $64,5k). Dmucha stożkiem 10 m, 55 m/s² przy wentylatorze, niezależnie od wagi, przechylony dmucha w górę. Idące gnomy przewraca tylko do 9 m, gnomy w powietrzu pcha do 10 m. Łopaty rozkręcają się i zwalniają płynnie, siła działa od razu.
   Decyzje: sesja 20.10: przewracanie do 9 m, bo na końcu strumienia gnom wstawał i od razu znów padał, leżał tam bez końca. PP 20.10: sabotażysta idący od przodu wentylatora jest odrzucany w kółko i tak zostaje („a”), bo wentylator ustawiony przodem sam się broni, to taktyka dla gracza. PP 20.10: rozkręcanie łopat to „tylko wygląd”, bo zmiana siły ruszyłaby balans maszyn.
-- Conveyor Belt: $250 x1,5, max 6. Taśma 4,5 m/s wzdłuż strzałek, bandy z boku, na końcu wyrzuca gnoma 2 m dalej; przechylona = rampa.
+- Conveyor Belt: $250 x1,5, max 10 (było 6). Taśma 4,5 m/s wzdłuż strzałek, bandy z boku, na końcu wyrzuca gnoma 2 m dalej; przechylona = rampa.
 - Kicking Wheel: $500 x2,5, max 2, poziom 4. Buty na kole, wykopuje wszystko przed sobą 20 m/s (ok. 18 m).
 - Gnome Magnet: $2000, max 1, poziom 5. Odwrócone L: podstawa, słup 3,2 m, ramię 3,7 m z podkową na końcu. Ciągnie gnomy do 13 m w stronę linii pod głowicą (każdą wagę tak samo), w promieniu 1,2 m puszcza. Ramię może wisieć nad dziurą (liczy się tylko podstawa); duch pokazuje zielony pierścień, gdy głowica jest nad dziurą.
 - Gnome Cannon: $4000 x2,5, max 2, poziom 6. Ładuje wchodzące gnomy i strzela do dziury (odrzut i obrót lufy animowane).
 - Vacuum Tower: $8000 x2,5, max 2, poziom 8. Zasysa gnomy wokół prosto do dziury.
 - Mini Black Hole: $50000, max 1, poziom 10. Zjada gnomy na miejscu za pełną wartość (Boom Gnome wybucha przy niej).
 - Cleaning Robot: $400 x1,3, max 12, poziom 2 (patrz „Roboty sprzątające”).
-- Fuses (bezpieczniki): $300 x1,8, max 5, poziom 5, nie stawia się. Każda maszyna i robot (bez skrzyni i panelu) dostaje skrzynkę z L zielonymi bezpiecznikami. Trafienie sabotażysty zmienia jeden na czerwony; maszyna psuje się dopiero przy trafieniu L+1. Pierwsze E na zepsutej maszynie ją naprawia i wymienia jeden bezpiecznik, każde następne E wymienia kolejny (animacja: czerwony wyjeżdża, zielony wskakuje). Spalone bezpieczniki nie zapisują się; Keep Tools zachowuje poziom Fuses. Bez Fuses maszyna psuje się przy pierwszym trafieniu i sama wraca po 30 s.
+- Fuses (bezpieczniki): $300 x1,8, max 5, poziom 5, nie stawia się. Każda maszyna i robot (bez skrzyni i panelu) dostaje skrzynkę z L zielonymi bezpiecznikami; każda postawiona sztuka ma własne bezpieczniki (skrzynia i panel bez, bo sabotażysta ich nie atakuje). Trafienie sabotażysty zmienia jeden na czerwony; maszyna psuje się dopiero przy trafieniu L+1. Pierwsze E na zepsutej maszynie ją naprawia i wymienia jeden bezpiecznik, każde następne E wymienia kolejny (animacja: czerwony wyjeżdża, zielony wskakuje). Spalone bezpieczniki nie zapisują się; Keep Tools zachowuje poziom Fuses. Bez Fuses maszyna psuje się przy pierwszym trafieniu i sama wraca po 30 s.
 - Zepsuta maszyna: dym, nie działa, aż gracz naprawi ją E (celując w nią).
 - Maszyny płacą pełną wartość, ale nie liczą tricków (gnom „rzucony przez maszynę”).
 
@@ -119,6 +120,8 @@ Decyzje:
 - (PP, 2026-10-19) Taśmy „w ogóle nie działały”: strzałki pokazywały zły kierunek, więc gnom wyrzucony na koniec taśmy spadał; naprawione, do tego bandy i wyrzut.
 - (PP, 2026-10-20) Magnes jako odwrócone L do powieszenia nad dziurą.
 - (PP, 2026-10-20) Bezpieczniki jako drzewko, E wymienia czerwone na zielone, animacja jak w starych autach. Maszyna psuje się na L+1 (PP: wariant a).
+- (PP, 2026-10-20) „Daj wiecej fanow np z 10 i raili”: wentylatorów i taśm do 10, ceny dalej rosną x1,9 i x1,5, więc ostatnie wentylatory kupuje się pod koniec gry (rekomendacja planu, do potwierdzenia przez PP).
+- (PP, 2026-10-20) „Wszystkie narzedzia maja fuzes osobno”: tak już działało, każda sztuka ma swoje bezpieczniki; bez zmiany w kodzie (rekomendacja planu, do potwierdzenia przez PP).
 - (PP, 2026-10-20) E ma naprawiać maszynę także, gdy obok stoi postawiona rzecz / gracz trzyma ducha: wcześniej w trybie stawiania E nic nie robiło.
 - (sesja, 2026-10-20) Ceny Gnome Magnet $3k → $2k, Cannon $6k → $4k, Vacuum $15k → $8k, Kicking Wheel $900 → $500: bo gracz skrzyniowy i automatyczny nie mógł ich kupić przez wiele minut po odblokowaniu.
 - (sesja, 2026-10-20) Ulepszenia wymagają bazy (Coil → Magnet Gun, Wider Plow → traktor, Bigger Crate → skrzynia, robot x3 → robot, dmuchawa x2 → dmuchawa, Batches → Gears, Auto Crank → Batches): bo kasa szła na ulepszenie czegoś, czego gracz nie miał. Magnet Dish bez wymogu, bo rozszerza też ręczny magnes.
@@ -195,7 +198,7 @@ Decyzje:
 
 ### Eventy i pogoda
 
-- Losowe eventy od poziomu 2 (Four-leaf Clover częściej): GNOME RAIN (deszcz specjalnych gnomów), GOLDEN HOUR (25 s, wszystko złote), GNOME PARADE (konga, x3), GUSTY WIND (od 3, boczny wiatr 30 s na rzucone gnomy, strzałka w HUD), OVERTIME (fabryka szaleje 20 s, x1,5), HOLE BURP (fontanna monet), MUSHROOM BLOOM, EARTHQUAKE (wszystko zsuwa się do dziury), GNOME UPRISING (od 3, wszystkie wściekłe 20 s), GNOMENADO (od 3, 20 s: tornado idzie krzywą obok dziury, podnosi do 12 gnomów na 4-7 m i część wrzuca do dziury; rzucony przez gracza gnom zachowuje AIR), CLOSE ENCOUNTER (od 4, UFO kradnie gnomy, trafione 3 rzutami daje jackpot), Night Visitor (od 6, nocą, Shadow Gnome), THE KING GNOME (od 10, 1000 zwykłych gnomów, 40 kg).
+- Losowe eventy od poziomu 2 (Four-leaf Clover częściej): GNOME RAIN (deszcz specjalnych gnomów), GOLDEN HOUR (25 s, wszystko złote), GNOME PARADE (konga, x3), GUSTY WIND (od 3, boczny wiatr 30 s na rzucone gnomy, strzałka w HUD), OVERTIME (fabryka szaleje 20 s, x1,5), HOLE BURP (fontanna monet), MUSHROOM BLOOM, EARTHQUAKE (wszystko zsuwa się do dziury), GNOME UPRISING (od 3, wszystkie wściekłe 20 s), GNOMENADO (od 3, 20 s: tornado idzie krzywą obok dziury, podnosi do 12 gnomów na 4-7 m i część wrzuca do dziury; rzucony przez gracza gnom zachowuje AIR), CLOSE ENCOUNTER (od 4, UFO kradnie gnomy, trafione 3 rzutami daje jackpot), Night Visitor (od 6, nocą, Shadow Gnome), THE KING GNOME (od 10, 1000 zwykłych gnomów, 40 kg). UFO i król losowani częściej (UFO ok. co 9 min od poziomu 4, król ok. co 16 min od 10) i król zawsze raz, 6 s po wejściu na poziom 10.
 - DOWNPOUR (od poziomu 3, co 4-7 min, 45 s): trawa i gnomy śliskie (gnom pchnięty 8 m/s sunie 18 m zamiast 2 m), ciemniej, smugi deszczu. Nie mylić z GNOME RAIN.
 - Dzień i noc od poziomu 6, cykl 240 s. Nocą czapki gnomów świecą; na jakości Low wygląd zostaje dzienny, ale noc liczy się dalej (Shadow Gnome przychodzi).
 - Grzybki (wypadają z gnomów, Spore Bag częściej, Long Trip dłużej): Red Combo Cap (+3 do limitu combo, combo rośnie x2), Blue Zoomies (szybkość i skok), Purple Chaos (wysyp gnomów, x2), Gold Midas (następne 15 gnomów x5), Green Grog = BOOZED (ekran się chwieje, x3), Rainbow Shroom (wszystko + deszcz gnomów).
@@ -207,7 +210,8 @@ Decyzje:
 - (sesja, 2026-10-20) Baner deszczu to DOWNPOUR, nie RAIN, żeby nie mylił się z GNOME RAIN; tarcie 0,04/0,06 zamiast planowanych 0,1/0,15, bo gnom nie sunął 15 m.
 - (sesja, 2026-10-20) Kontrakt HEAVY HAUL liczy tylko massive (gra nie liczy heavy); kontrakt combo losowany tylko bez trwającego combo.
 - (sesja, 2026-10-20) Gnome Baron za $100m zamiast $1b: $1b było poza zasięgiem.
-- (sesja, 2026-10-20) Legenda opisuje tricki, nastroje, deszcz i slow-mo słowami, bez liczb: liczby to prywatne stałe i kopia rozjechałaby się po balansie.
+- (PP, 2026-10-20, 6b) UFO waga 5 zamiast 1,5, król 3 zamiast 0,6 w losowaniu eventów, a król „powinien pojawić się zawsze na poziomie 10”: gwarancja 6 s po awansie już była w grze. Zapis, który już jest na poziomie 10 albo wyżej, nie dostaje drugiej gwarancji; król przychodzi z losowania (rekomendacja planu, do potwierdzenia przez PP).
+- (sesja, 2026-10-20) Legenda opisuje tricki, nastroje i deszcz słowami, bez liczb: liczby to prywatne stałe i kopia rozjechałaby się po balansie.
 - (PP, 2026-10-20) „pierwsze gole pokazywaly mechaniki gry mushrooms, mnozniki, gnomy”, decyzja „Od pierwszej minuty, grzybek pewny”: lekcje startują po „Collect coins”, a grzybek z lekcji jest pewny, bo losowo gracz czekałby średnio 40 gnomów.
 - (sesja, 2026-10-20) LONG SHOT jest lekcją, nie kamieniem milowym: liczy się tylko rzut ręką, więc gracz grający maszynami utknąłby na nim i nie zobaczyłby celów poziomów (ten sam błąd, który naprawił podział na dwa tory). Mnożnik w samouczku uczy combo 5, które da się zrobić bez rzutu.
 - (sesja, 2026-10-20) Lekcje liczą się równolegle, typy gnomów przed trickami: rzadki gnom albo trick, którego gracz nie umie, blokuje tylko własną linię. Stary zapis z wieloma już spełnionymi lekcjami dostaje jedną wypłatę i jeden komunikat zamiast serii.
@@ -221,7 +225,7 @@ Decyzje:
 - „Crate full!”: zielony napis nad samą skrzynką w chwili, gdy się zapełni (nie komunikat w kolumnie).
 - Sklep: wiadomość o zakupie tylko w pasku stanu na dole okna, bez komunikatu w kolumnie.
 - Menu startowe: START, „What's new (data)” (changelog z pliku, wbudowany w build), „Daily challenge <data>”. Menu pauzy (Esc): Resume, Achievements, Leaderboard, Graphics Low / Medium / High, Mouse sensitivity, Invert Y, Volume, Mute (M), Reset save (dwa kliknięcia). Esc wraca do gry od razu, bez dodatkowego kliknięcia; RESUME w menu pauzy działa jak Esc. Gdy przeglądarka odmówi przechwycenia kursora (Chrome i Brave robią tak po Esc), gra i tak biegnie z wolnym kursorem i małym napisem „Click or press W to capture the mouse” pod paskiem dziury (tam nie zasłania linii narzędzia, podpowiedzi ani lewej kolumny; tylko w bardzo niskim oknie, około 360 px, nachodzi na podpowiedź pierwszego użycia narzędzia, bo nie ma tam wolnego miejsca, a napis znika przy pierwszym ruchu); dowolny przycisk myszy lub W/A/S/D/Space/Shift go przechwytuje. Z wolnym kursorem działa wszystko poza przyciskami myszy (pierwsze naciśnięcie tylko przechwytuje, nic nie rzuca), także koło narzędzi (Tab); kursor, który wyjdzie poza okno i wróci z drugiej strony, nie obraca widoku skokiem; utrata fokusu okna pauzuje grę. Trzymany Esc nie miga pauzą. Esc w rankingu otwartym z pauzy wraca do menu pauzy.
-- Legenda L (pauzuje): zakładki Gnomes (album, tabela wag), Mushrooms, Tools (tabela klawiszy, wszystkie ulepszenia z poziomem i ceną), Mechanics (poziomy dziury, ziemie, combo, tricki, STRIKE, eventy, kontrakty, nastroje, deszcz, slow-mo, odrodzenie).
+- Legenda L (pauzuje): zakładki Gnomes (album, tabela wag), Mushrooms, Tools (tabela klawiszy, wszystkie ulepszenia z poziomem i ceną), Mechanics (poziomy dziury, ziemie, combo, tricki, STRIKE, eventy, kontrakty, nastroje, deszcz, odrodzenie).
 - Schematy K (pauzuje): 3 sloty SAVE / LOAD / CLEAR. LOAD usuwa postawione rzeczy i odbudowuje zapisane wokół obecnej dziury (rzecz, która wpadłaby do dziury, jest pomijana z komunikatem). Z cofa ostatnie postawienie w ciągu 10 s. Schematy przeżywają odrodzenie; w daily nie nadpisują slotów ogrodu.
 - Powtórka I: odtwarza ostatnie 10 s gnomów i kamery przy zamrożonej grze, potem wraca dokładnie do stanu na żywo (monety, roboty, cząstki stoją). I lub Esc przerywa. Stały bufor 12,3 MB.
 - Tablica wyników (menu pauzy, i przy odrodzeniu „SUBMIT YOUR RUN”): imię i nazwisko (1-24 znaki, litery każdego alfabetu, bez HTML), top 10 (50 zapamiętanych), zakładki ALL-TIME i DAILY. Wspólna tablica online (Supabase) gdy build ma `VITE_SUPABASE_URL`, `VITE_SUPABASE_KEY` i `VITE_SUPABASE_SALT`; bez nich albo gdy serwis nie odpowiada, tablica lokalna z komunikatem. Wynik zawsze zapisuje się najpierw na komputerze gracza. Online stopka mówi „Names are shown publicly online”, a pola imienia nie podpowiadają danych z przeglądarki. Klucz jest publiczny: każdy może wysłać dowolny wynik w granicach sprawdzeń bazy; baza przyjmuje najwyżej 30 wyników na minutę na jedną tablicę i najwyżej 2000 nowych wyników na dobę na wszystkich tablicach razem.

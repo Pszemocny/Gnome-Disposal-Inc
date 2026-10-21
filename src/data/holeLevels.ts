@@ -1,5 +1,5 @@
 export interface HoleLevel {
-  xp: number; // xp needed to reach the next level (1 xp = 1 ordinary gnome)
+  xp: number; // xp needed to reach the next level (1 xp = 1 ordinary gnome thrown by hand)
   radius: number;
   mult: number;
   unlock: string;

@@ -3,7 +3,7 @@ import type RAPIER from '@dimforge/rapier3d-compat';
 import { ctx, drawPose, G, groups, lvl, rand, savePose } from '../core/context';
 import type { PlacedMachine } from '../core/state';
 import { money } from '../core/format';
-import { UPGRADE_BY_ID } from '../data/upgrades';
+import { TOOL_IDS, UPGRADES, UPGRADE_BY_ID } from '../data/upgrades';
 import { build, crateGeometry, fuseBoxGeometry, fuseGeometry, vcMat } from '../world/models';
 import { tex } from '../world/textures';
 import { isFree, type Gnome } from './gnomes';
@@ -46,8 +46,10 @@ const moving = (m: Machine) => m.type === 'box' || m.type === 'robot';
 // Fuses (PP 2026-10-20 "bezpieczniki"): every tool but the crate and the panel carries `fuses` level slots.
 export const fuseCount = (m: Machine): number => (m.type === 'box' || m.type === 'panel' ? 0 : lvl('fuses'));
 export const needsRepair = (m: Machine): boolean => m.broken > 0 || m.blown > 0;
-const FUSE_CAP = 170; // 34 fuse-able tools at most (Tools max values without crate and panel) x 5 fuses
-const BOX_CAP = 34;
+// fuse-able tools at most: Tools max values without the crate and the panel, so a limit change keeps every fuse drawn
+const FUSE_ABLE = UPGRADES.filter((u) => TOOL_IDS.includes(u.id) && u.id !== 'box' && u.id !== 'panel').reduce((s, u) => s + u.max, 0);
+const FUSE_CAP = FUSE_ABLE * UPGRADE_BY_ID.fuses.max;
+const BOX_CAP = FUSE_ABLE;
 const FUSE_GAP = 0.07;
 const FUSE_Z = 0.05; // fuses stand out of the box's front face
 const FUSE_RED = new THREE.Color(0xff4040);
@@ -656,7 +658,7 @@ export class Machines {
         for (const g of dumped) {
           g.throwPos = null;
           g.bullseye = false;
-          ctx.hole.consume(g);
+          ctx.hole.consume(g, undefined, true);
         }
         ctx.coins.burst(bonus, ctx.hole.holeOrigin, 1.5);
         // after the gnomes, so this is the big text the player reads (not a combo tier)
@@ -838,7 +840,6 @@ export class Machines {
           const T = Math.max(0.9, to.length() / 14);
           const vel = new THREE.Vector3(to.x / T, (to.y + 0.5 * GRAVITY * T * T) / T, to.z / T);
           gn.release(g, muzzle, vel);
-          g.thrownBy = 'machine';
           ctx.audio.kick();
           ctx.fx.puff(muzzle, 0xdddddd);
           ctx.fx.shake(0.05);
@@ -857,7 +858,7 @@ export class Machines {
           if (d < 1.7 && m.t > (m.type === 'vacuum' ? 0.2 : 0.08)) {
             m.t = 0;
             ctx.fx.burst(new THREE.Vector3(p.x, p.y, p.z), m.type === 'vacuum' ? 0x6ae0ff : 0xb07aff, 10);
-            ctx.hole.consume(g, m.type === 'blackhole' ? centre : undefined);
+            ctx.hole.consume(g, m.type === 'blackhole' ? centre : undefined, true);
             return;
           }
           tmpV.set(centre.x - p.x, centre.y - p.y, centre.z - p.z).normalize();

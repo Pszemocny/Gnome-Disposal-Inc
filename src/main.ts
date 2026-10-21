@@ -26,7 +26,6 @@ import { Hud } from './ui/hud';
 import { Shop } from './ui/shop';
 import { Menu } from './ui/menu';
 import { Moods } from './systems/moods';
-import { Slowmo } from './systems/slowmo';
 import { Weather } from './systems/weather';
 import { Strike } from './systems/strike';
 import { Blueprints } from './ui/blueprints';
@@ -99,7 +98,6 @@ async function boot(): Promise<void> {
   ctx.legend = new Legend();
   ctx.contracts = new Contracts();
   ctx.moods = new Moods();
-  ctx.slowmo = new Slowmo();
   ctx.weather = new Weather();
   ctx.strike = new Strike();
 
@@ -231,8 +229,7 @@ async function boot(): Promise<void> {
     const rawDt = timer.getDelta();
     const realDt = Math.max(0, Math.min(0.05, rawDt));
     // the open tool wheel slows the game; it damps on real time
-    // slow-mo moments scale it too; both damp on real time
-    const dt = realDt * ctx.player.wheel.slow(realDt) * ctx.slowmo.scale;
+    const dt = realDt * ctx.player.wheel.slow(realDt);
     // during the instant replay the live game is frozen: no system, no physics step, no recording
     replay.update(realDt);
     if (!replay.playing && !ctx.paused) {
@@ -267,8 +264,6 @@ async function boot(): Promise<void> {
       ctx.achievements.update(dt);
       ctx.goals.update();
       ctx.contracts.update(dt);
-      // must get real time: during the freeze (scale 0) a scaled dt would never end it
-      ctx.slowmo.update(realDt);
       ctx.moods.update(dt);
       ctx.blueprints.update(dt);
       ctx.legend.update();

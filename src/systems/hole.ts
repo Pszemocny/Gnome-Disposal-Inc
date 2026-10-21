@@ -32,6 +32,9 @@ export const TRICK_CAP = 20;
 // a Magnet Gun volley (n > 1 gnomes in one throw): the trick product is capped lower and the flat bonus is paid
 // once per throw, otherwise every gnome of a 70-gnome ball scored the full trick (night plan F2)
 export const VOLLEY_CAP = 8; // PP 2026-10-20: raised from 4 so AIR still pays on a SNIPER volley
+// XP for a gnome a machine, crate, robot, plow, blower or kick fed (PP 2026-10-20 10a); a hand throw pays x1,
+// a Magnet Gun ball x1/sqrt(n); the King always pays his full XP
+export const FEED_XP = 0.25;
 const RIM_CARRY = 1.5; // tools within this distance of the rim move with the hole (night plan F7)
 const MACHINE_GLIDE = 0.25; // seconds a carried tool takes to follow a level-up
 const MACHINE_GONE = 0.2; // seconds a swallowed tool shrinks before it goes back to the inventory
@@ -82,7 +85,8 @@ export class Hole {
     ctx.hud.moneyPulse();
   }
 
-  consume(g: Gnome, at?: THREE.Vector3): void {
+  // `machine`: a machine ate it on the spot or tipped it in (crate dump, vacuum, black hole, robot), whoever threw it
+  consume(g: Gnome, at?: THREE.Vector3, machine = false): void {
     const s = ctx.state;
     const gain = ctx.buffs.active('combo') ? 2 : 1;
     const before = this.combo;
@@ -146,7 +150,8 @@ export class Hole {
     const rush = ctx.factory.rush > 0 ? 1.5 : 1;
     // stolen loot comes back x1 straight to the counter, not as coins a greedy gnome could steal again (night plan F6)
     const value = g.type.value * g.tier.value * trick * rush * this.valueScale * this.comboMult * ctx.buffs.valueMult() * g.valueMult * (g.parade >= 0 ? 3 : 1) + bonus * this.valueScale;
-    const xp = g.type.xp * g.tier.value * (1 + lvl('hunger') * 0.1) * (1 + deep('dXp') * 0.25);
+    const feed = g.type.id === 'king' ? 1 : machine || g.thrownBy !== 'player' ? FEED_XP : 1 / Math.sqrt(g.xpGroup?.n ?? 1);
+    const xp = g.type.xp * g.tier.value * feed * (1 + lvl('hunger') * 0.1) * (1 + deep('dXp') * 0.25);
     const origin = at ?? this.holeOrigin;
     ctx.gnomes.remove(g);
 
@@ -174,6 +179,7 @@ export class Hole {
     if (g.type.id === 'king') {
       ctx.hud.bigText('THE KING HAS FALLEN', '#ffd23f');
       ctx.fx.shake(1);
+      ctx.audio.rumble(0.3);
       ctx.coins.burst(value * 2, origin, 2);
     }
 
@@ -182,6 +188,7 @@ export class Hole {
         const color = n >= 60 ? '#ff4a8a' : n >= 15 ? '#ffd23f' : '#ffffff';
         ctx.hud.bigText(name, color);
         ctx.audio.tier();
+        if (n === 60 || n === 100) ctx.audio.rumble(0.3);
         ctx.fx.shake(Math.min(0.15 + n / 200, 0.6));
         this.startRays(color);
       }

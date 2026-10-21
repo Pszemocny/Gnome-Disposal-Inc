@@ -29,7 +29,7 @@ export interface Gnome {
   angryOverride: boolean;
   parade: number; // -1 = not in a parade
   life: number;
-  thrownBy: 'player' | 'machine' | null;
+  thrownBy: 'player' | 'machine' | 'kick' | null;
   noGrabUntil: number; // thrown gnomes cannot be caught again right away
   tier: WeightTier;
   // trick-shot tracking for a player throw
@@ -38,6 +38,7 @@ export interface Gnome {
   bounced: boolean;
   bullseye: boolean;
   volley: Volley | null; // shared by every gnome of one throw (a Magnet Gun ball throws many at once)
+  xpGroup: { n: number } | null; // one Magnet Gun hold: every gnome of the ball shares it, XP x1/sqrt(n) (PP 2026-10-20 10a); null = hands
   // impact feel: last frame's vertical speed, landing squash timer, one scream per throw
   prevVy: number;
   squash: number;
@@ -235,7 +236,7 @@ export class Gnomes {
       id: this.nextId++, type, body, collider, slot: slots.length, state: awake ? 'walk' : 'statue', awake,
       timer: 0, think: rand(0, 0.5), target: null, yaw, scale, loot: 0, valueMult: 1, cooldown: 0, angryOverride: false,
       parade: -1, life: 0, thrownBy: null, noGrabUntil: 0, tier,
-      throwPos: null, touchedGround: false, bounced: false, bullseye: false, volley: null,
+      throwPos: null, touchedGround: false, bounced: false, bullseye: false, volley: null, xpGroup: null,
       prevVy: 0, squash: 0, screamed: false, pop: 0, goldFrom, scared: 0, fleeing: false,
       prevPos: new THREE.Vector3(pos.x, pos.y, pos.z), prevRot: tmpQ.clone(), ph: 0,
       lag: this.parts.has(typeId) ? { yaw, swing: 0, hatP: 0, hatY: 0, beardP: 0, beardY: 0, beardVP: 0, beardVY: 0, roll: 0, hatR: 0 } : null,
@@ -285,6 +286,7 @@ export class Gnomes {
     n.bounced = g.bounced;
     n.bullseye = g.bullseye;
     n.volley = g.volley;
+    n.xpGroup = g.xpGroup;
     n.screamed = g.screamed;
     n.noGrabUntil = g.noGrabUntil;
     n.prevVy = g.prevVy;
@@ -300,7 +302,7 @@ export class Gnomes {
     return n;
   }
 
-  ragdoll(g: Gnome, seconds = rand(2.5, 4.5), by: 'player' | 'machine' | null = null): void {
+  ragdoll(g: Gnome, seconds = rand(2.5, 4.5), by: Gnome['thrownBy'] = null): void {
     if (!isFree(g)) return;
     if (g.state === 'walk' || g.state === 'statue') g.body.lockRotations(false, true);
     g.state = 'ragdoll';
@@ -319,6 +321,7 @@ export class Gnomes {
     if (g.state === 'walk' || g.state === 'statue') g.body.lockRotations(false, true);
     g.state = 'held';
     g.collider.setCollisionGroups(HELD);
+    g.xpGroup = null; // hands hold one; a re-grabbed ball member starts a fresh group
     g.timer = rand(1.5, 3); // next struggle line
     if (!heldQuiet() && Math.random() < 0.4) this.say(g, pick(g.type.lines), true);
   }
@@ -356,7 +359,11 @@ export class Gnomes {
     g.body.setAngvel({ x: rand(-6, 6), y: rand(-4, 4), z: rand(-6, 6) }, true);
     g.state = 'ragdoll';
     g.timer = rand(2.5, 4);
-    g.thrownBy = 'player';
+    // let out by a machine (crate tipped over, tool taken back, cannon): not a throw, as the crate dump (machines.ts dump branch)
+    g.thrownBy = 'machine';
+    g.throwPos = null;
+    g.bounced = false;
+    g.bullseye = false;
   }
 
   wake(g: Gnome): void {

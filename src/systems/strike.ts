@@ -30,13 +30,13 @@ export class Strike {
 
     // 1. fast player throws mark the free gnomes they pass through (collect inside forEachNear, act after)
     for (const g of list) {
-      if (g.thrownBy !== 'player' || g.state !== 'ragdoll') continue;
+      if ((g.thrownBy !== 'player' && g.thrownBy !== 'kick') || g.state !== 'ragdoll') continue;
       const v = g.body.linvel();
       if (v.x * v.x + v.y * v.y + v.z * v.z < MIN_SPEED * MIN_SPEED) continue;
       const p = g.body.translation();
       this.hits.length = 0;
       ctx.gnomes.forEachNear(tmp.set(p.x, p.y, p.z), HIT_RADIUS, (o) => {
-        if (o !== g && !(o.thrownBy === 'player' && o.state === 'ragdoll')) this.hits.push(o);
+        if (o !== g && !((o.thrownBy === 'player' || o.thrownBy === 'kick') && o.state === 'ragdoll')) this.hits.push(o);
       });
       for (const o of this.hits) {
         const m = this.marks.get(o);

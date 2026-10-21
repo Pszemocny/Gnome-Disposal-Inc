@@ -91,7 +91,7 @@ export class Pound {
       dir.normalize();
       if (toHole) dir.add(bias.set(hole.x - p.x, 0, hole.z - p.z).normalize().multiplyScalar(HOLE_BIAS)).normalize();
       const s = PUSH * k * (1 - (0.3 * d) / R);
-      ctx.gnomes.ragdoll(g, rand(1.5, 2.5), 'player');
+      ctx.gnomes.ragdoll(g, rand(1.5, 2.5), 'kick');
       g.body.setLinvel({ x: dir.x * s, y: rand(6, 8), z: dir.z * s }, true);
       g.body.setAngvel({ x: rand(-6, 6), y: rand(-4, 4), z: rand(-6, 6) }, true);
     }

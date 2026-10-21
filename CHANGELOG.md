@@ -2,6 +2,13 @@
 
 Newest build first. Each build lists what changed and what to test. Shown in the start menu (button "What's new").
 
+## 2026-10-21 12:00
+
+- The UFO and the King come more often: the UFO about every 9 minutes from hole level 4, the King about every 16 minutes from level 10, and the King always arrives once, 6 s after the hole reaches level 10. Test: play a save at hole level 9 up to level 10 and wait 6 s for the King.
+- Nothing slows the game down any more: combo 60, combo 100 and an eaten King keep the big text, the shake and the sound, but the game runs at full speed. Only the Tab tool wheel still slows the game while you hold it. Test: build a combo past 60 and feed the King; the game must not stutter.
+- Hole XP depends on how you feed it (money stays the same): a gnome thrown or dropped by hand gives its full XP, a Magnet Gun ball of n gnomes gives 1/√n per gnome (4 gnomes: half each), and gnomes fed by machines, crates, robots, the plow, the blower or a kick give a quarter. The King always gives his full 200 XP. A crate tipped over next to the hole now counts like a crate dump (no trick shots). Test: throw one gnome by hand and watch the XP bar move by 1; feed the same with a crate dump and see a quarter.
+- Up to 10 Cooling Fans and 10 Conveyor Belts (was 4 and 6). The new ones get more expensive (the 10th fan costs $64.5k); every placed tool keeps its own fuses. Test: buy a 5th fan and a 7th belt in the shop, place them, let a saboteur hit one fan and check the other keeps all its green fuses.
+
 ## 2026-10-21 08:00
 
 - Errors from the online version are reported to the developers (no names, no addresses), so a crash on GitHub Pages is no longer lost. The game keeps running when the report cannot be sent. Test (Pages version): play normally; nothing changes on screen.

@@ -60,6 +60,7 @@ export class Player {
   held: { body: RAPIER.RigidBody; gnome?: Gnome; prop?: Prop; crate?: Machine } | null = null;
   // gnomes on the Magnet Gun; `caught` once a gnome has been inside the ball, `out` = seconds stuck outside it
   swarm: { g: Gnome; caught: boolean; inBall: boolean; out: number }[] = [];
+  private ballGroup: { n: number } | null = null; // XP group of the current Magnet Gun hold
   // Trick Scope label for the HUD: tricks the predicted throw scores, where it lands, fade 0..1
   aimText = '';
   aimPos = new THREE.Vector3();
@@ -552,10 +553,17 @@ export class Player {
           if (look && this.grabbable(look) && !picked.includes(look)) picked.unshift(look);
           const batch = picked.slice(0, Math.max(0, this.ballCap - this.swarm.length));
           if (batch.length) {
+            if (!this.swarm.length) this.ballGroup = { n: 0 };
             if (!this.holdsGnome) ctx.audio.whoosh();
             // the whole batch joins the swarm before hold(), so a big ball stays quiet from frame 1
             for (const g of batch) this.swarm.push({ g, caught: false, inBall: false, out: 0 });
-            for (const g of batch) this.grab(g);
+            // after grab: hold() clears the group; a gnome that slipped off and comes back is counted once
+            for (const g of batch) {
+              const member = g.xpGroup === this.ballGroup;
+              this.grab(g);
+              g.xpGroup = this.ballGroup;
+              if (!member) this.ballGroup!.n++;
+            }
           }
         }
       }
@@ -811,7 +819,7 @@ export class Player {
       kicked.add(body);
       if (g) {
         if (!isFree(g)) continue;
-        ctx.gnomes.ragdoll(g, 3, 'player');
+        ctx.gnomes.ragdoll(g, 3, 'kick');
         if (Math.random() < 0.3) ctx.gnomes.say(g, ['OOF!', 'MY SPINE!', 'Not cool!', 'Yeeeet!'][Math.floor(Math.random() * 4)]);
       }
       // gnomes: base type mass, so heavy tiers fly shorter; the crate gets a softer kick

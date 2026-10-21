@@ -24,9 +24,9 @@ export const EVENTS: EventDef[] = [
   { id: 'quake', name: 'EARTHQUAKE', sub: 'Everything slides towards the hole!', weight: 1.5, ok: () => true },
   { id: 'uprising', name: 'GNOME UPRISING', sub: 'They fight back! Every gnome is angry for 20 s.', weight: 1.5, ok: () => ctx.state.holeLevel >= 3 },
   { id: 'gnomenado', name: 'GNOMENADO!', sub: 'A tornado crosses the yard. Gnomes fly, some straight into the hole!', weight: 1.5, ok: () => ctx.state.holeLevel >= 3 },
-  { id: 'ufo', name: 'CLOSE ENCOUNTER', sub: 'A UFO is stealing your gnomes! Hit it 3 times with thrown gnomes.', weight: 1.5, ok: () => ctx.state.holeLevel >= 4 },
+  { id: 'ufo', name: 'CLOSE ENCOUNTER', sub: 'A UFO is stealing your gnomes! Hit it 3 times with thrown gnomes.', weight: 5, ok: () => ctx.state.holeLevel >= 4 }, // PP 2026-10-20 6b
   { id: 'visitor', name: '...', sub: 'Something is watching you from the dark.', weight: 3, ok: () => ctx.state.holeLevel >= 6 && ctx.env.isNight },
-  { id: 'king', name: 'THE KING GNOME', sub: 'His Majesty is here. He is very heavy. Use your machines!', weight: 0.6, ok: () => ctx.state.holeLevel >= 10 && !ctx.gnomes.list.some((g) => g.type.id === 'king') },
+  { id: 'king', name: 'THE KING GNOME', sub: 'His Majesty is here. He is very heavy. Use your machines!', weight: 3, ok: () => ctx.state.holeLevel >= 10 && !ctx.gnomes.list.some((g) => g.type.id === 'king') }, // PP 2026-10-20 6b
 ];
 
 export class Events {

@@ -58,8 +58,9 @@ export const UPGRADES: Upgrade[] = [
   // trampoline, fan and conveyor are affordable on hole level 1 after a few hundred dollars (PP 2026-10-19)
   U('trampoline', 'Tools', 'Trampoline', '+1 trampoline. Bounces gnomes the way it faces.', 4, 100, 1.8),
   U('panel', 'Tools', 'Metal Panel', '+1 metal panel. Make covers, tunnels, ramps to guide gnomes into the hole.', 10, 60, 1.25),
-  U('fan', 'Tools', 'Cooling Fan', '+1 fan. Gently blows gnomes away in a cone.', 4, 200, 1.9),
-  U('conveyor', 'Tools', 'Conveyor Belt', '+1 conveyor. Carries gnomes the way it faces. Tilt it to make a ramp.', 6, 250, 1.5),
+  // PP 2026-10-20: "wiecej fanow np z 10 i raili" (fans 4 -> 10, belts 6 -> 10)
+  U('fan', 'Tools', 'Cooling Fan', '+1 fan. Gently blows gnomes away in a cone.', 10, 200, 1.9),
+  U('conveyor', 'Tools', 'Conveyor Belt', '+1 conveyor. Carries gnomes the way it faces. Tilt it to make a ramp.', 10, 250, 1.5),
   U('wheel', 'Tools', 'Kicking Wheel', '+1 kicking wheel. Boots on a wheel. Kicks everything in front of it.', 2, 500, 2.5, 4),
   // F9 (2026-10-20): cut so the crate and automation paths can pay them near the unlock level
   U('magnet', 'Tools', 'Gnome Magnet', '+1 magnet. Pulls gnomes in a big radius. Place it next to the hole.', 1, 2000, 1, 5),

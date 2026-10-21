@@ -58,7 +58,6 @@ const TEXT: Record<string, string> = {
   contracts: 'A timed task shows up under the GOAL panel. Finish it in time for a money reward; hard ones pay more. A failed one is replaced after a short wait.',
   moods: 'Once the hole grows a bit, it sometimes craves one gnome type. Those gnomes pay extra while the craving lasts. The hole also comments on your throws.',
   rain: 'Later in the game it rains every few minutes. Wet grass and wet gnomes are slippery: thrown gnomes slide much further.',
-  slowmo: 'A very big combo or an eaten King freezes the game for a moment and plays it in slow motion.',
   rebirth: 'At the last hole level THE DEEP opens: jump into the hole to start over. You keep shards, achievements and Deep upgrades; shards buy permanent bonuses.',
 };
 const GENERIC = 'A gnome. Feed it to the hole.';
@@ -233,7 +232,7 @@ export class Legend {
     const deepUps = UPGRADES.filter((u) => u.currency === 'shards').map((u) => `<tr><td>${u.name}</td><td>${u.desc}</td></tr>`).join('');
     const sec = (title: string, id: string, extra = '') => `<h3>${title}</h3><p>${TEXT[id] ?? GENERIC}</p>${extra}`;
 
-    return `<h3>Hole levels</h3><p>Feed the hole to fill its XP bar. Every level makes the hole bigger and every gnome worth more.</p>
+    return `<h3>Hole levels</h3><p>Feed the hole to fill its XP bar. A hand throw pays a gnome's full XP, a Magnet Gun ball of n gnomes pays 1/√n each, and a machine, crate, robot, plow, blower or kick pays a quarter; the King always pays in full. Every level makes the hole bigger and every gnome worth more.</p>
       <table><tr><th>Level</th><th>XP to next</th><th>Radius</th><th>Money</th><th>Unlocks</th></tr>${levels}</table>
       <h3>Land</h3><p>Bought in the shop (Land tab). A bigger yard holds more gnomes and machines.</p>
       <table><tr><th>Land</th><th>Size</th><th>Price</th><th>Hole level</th></tr>${land}</table>
@@ -244,7 +243,6 @@ export class Legend {
       ${sec('Contracts', 'contracts', contractList)}
       ${sec('Hole moods', 'moods')}
       ${sec('Rain', 'rain')}
-      ${sec('Slow motion', 'slowmo')}
       ${sec('Rebirth and The Deep', 'rebirth', `<p class="dim">A rebirth now would give ${h.shardsForRebirth()} 💎. You have ${s.shards} 💎.</p><table>${deepUps}</table>`)}`;
   }
 }

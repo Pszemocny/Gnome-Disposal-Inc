@@ -21,7 +21,6 @@ import type { Fx } from '../systems/fx';
 import type { Hud } from '../ui/hud';
 import type { Shop } from '../ui/shop';
 import type { Moods } from '../systems/moods';
-import type { Slowmo } from '../systems/slowmo';
 import type { Weather } from '../systems/weather';
 import type { Strike } from '../systems/strike';
 import type { Blueprints } from '../ui/blueprints';
@@ -55,7 +54,6 @@ export interface Ctx {
   hud: Hud;
   shop: Shop;
   moods: Moods;
-  slowmo: Slowmo;
   weather: Weather;
   strike: Strike;
   blueprints: Blueprints;

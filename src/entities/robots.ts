@@ -666,7 +666,7 @@ function tip(m: Machine, r: Robot, dt: number): void {
     const load = m.queue;
     m.queue = [];
     ctx.audio.thud();
-    for (const g of load) ctx.hole.consume(g);
+    for (const g of load) ctx.hole.consume(g, undefined, true);
   }
   if (t >= up + TIP_BACK) {
     r.bed.rotation.x = 0;
