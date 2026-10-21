@@ -1,10 +1,14 @@
 #!/bin/sh
-# Checks the security of the online leaderboard against the real project, with the public key only.
-# Usage: sh supabase/check.sh <Project URL> <publishable key> <VITE_SUPABASE_SALT>
-# Every line prints "<case>: got <result> want <result> ok|FAIL". The valid test rows use the name "Check Script";
-# remove them afterwards in SQL Editor: delete from public.scores where first_name = 'Check' and last_name = 'Script';
+# Checks the security of the online leaderboard and the error table against the real project, with the public key only.
+# Usage: [ONLY=errors|scores|all] sh supabase/check.sh <Project URL> <publishable key> [<VITE_SUPABASE_SALT>]
+# The salt is needed only for the scores checks; ONLY=errors needs no secret and never writes to the public board.
+# Every line prints "<case>: got <result> want <result> ok|FAIL". Remove the test rows afterwards in SQL Editor:
+#   delete from public.scores where first_name = 'Check' and last_name = 'Script';
+#   delete from public.errors where build = 'check.sh';
 URL="$1"; KEY="$2"; SALT="$3"
-[ -n "$URL" ] && [ -n "$KEY" ] && [ -n "$SALT" ] || { echo "usage: sh supabase/check.sh <url> <key> <salt>"; exit 2; }
+usage() { echo "usage: [ONLY=errors|scores|all] sh supabase/check.sh <url> <key> [<salt>]"; }
+[ -n "$URL" ] && [ -n "$KEY" ] || { usage; exit 2; }
+[ -n "$SALT" ] || [ "${ONLY:-all}" = errors ] || { usage; exit 2; }
 T=$(date -u +%Y-%m-%d)
 Y=$(date -u -v-1d +%Y-%m-%d 2>/dev/null || date -u -d yesterday +%Y-%m-%d)
 O=$(date -u -v-2d +%Y-%m-%d 2>/dev/null || date -u -d '2 days ago' +%Y-%m-%d)
@@ -21,6 +25,7 @@ say() { # case got want(4xx|2xx|exact)
   echo "$1: got $2 want $3 $ok"; ok=
 }
 
+scores_checks() {
 say "valid row" "$(post "$(row Script main "$(k main "$T")")")" 2xx
 say "valid row stored" "$(count Script)" 1
 say "key from yesterday" "$(post "$(row Script main "$(k main "$Y")")")" 2xx
@@ -54,4 +59,27 @@ n=0; for f in "$D"/*; do grep -q '^2' "$f" && n=$((n + 1)); done; rm -rf "$D"
 say "40 parallel POSTs on daily-$Y: accepted" "$n" 30
 say "41st POST on daily-$Y" "$(post "$(row Script "daily-$Y" "$(k "daily-$Y" "$Y")")")" 4xx
 say "POST on daily-$T same minute" "$(post "$(row Script "daily-$T" "$(k "daily-$T" "$T")")")" 2xx
+}
+
+errors_checks() {
+erow() { printf '{"session":"%s","build":"check.sh","source":"error","message":"check","stack":"","ua":"check.sh","level":1,"land":0,"count":1}' "$1"; }
+epost() { code -X POST "$URL/rest/v1/errors" -H "Prefer: return=minimal" -d "$1"; }
+S=$(uuidgen | tr A-F a-f)
+say "errors: valid row" "$(epost "$(erow "$S")")" 2xx
+say "errors: GET" "$(code "$URL/rest/v1/errors?select=message&limit=1")" 4xx
+say "errors: PATCH" "$(code -X PATCH "$URL/rest/v1/errors?build=eq.check.sh" -d '{"count":5}')" 4xx
+say "errors: DELETE" "$(code -X DELETE "$URL/rest/v1/errors?build=eq.check.sh")" 4xx
+say "errors: id in body" "$(epost "$(erow "$S" | sed 's/^{/{"id":1,/')")" 4xx
+say "errors: source x" "$(epost "$(erow "$S" | sed 's/"source":"error"/"source":"x"/')")" 4xx
+say "errors: session abc" "$(epost "$(erow abc)")" 4xx
+say "errors: stack 3001" "$(epost "$(erow "$S" | sed "s/\"stack\":\"\"/\"stack\":\"$(printf 'a%.0s' $(seq 1 3001))\"/")")" 4xx
+# per-session cap: of 25 POSTs with one fresh session sent at once exactly 20 pass, the next is refused
+S=$(uuidgen | tr A-F a-f); D=$(mktemp -d)
+for i in $(seq 1 25); do epost "$(erow "$S")" > "$D/$i" & done; wait
+n=0; for f in "$D"/*; do grep -q '^2' "$f" && n=$((n + 1)); done; rm -rf "$D"
+say "errors: 25 parallel POSTs one session: accepted" "$n" 20
+say "errors: 26th POST" "$(epost "$(erow "$S")")" 4xx
+}
+
+case "${ONLY:-all}" in errors) errors_checks;; scores) scores_checks;; *) scores_checks; errors_checks;; esac
 echo "failed: $FAILS"

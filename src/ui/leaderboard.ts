@@ -92,6 +92,17 @@ export async function scoreKey(salt: string, score: number, board: string, date:
   return hex(await crypto.subtle.sign('HMAC', k, enc.encode(`${hex(raw.buffer)}|${board}|${date}`)));
 }
 
+// one Supabase REST call; also used by the error table (crash.ts)
+export async function restCall(url: string, key: string, path: string, init: RequestInit = {}): Promise<Response> {
+  const r = await fetch(`${url}/rest/v1/${path}`, {
+    ...init,
+    headers: { apikey: key, 'Content-Type': 'application/json', ...(init.headers ?? {}) },
+    signal: AbortSignal.timeout(TIMEOUT_MS),
+  });
+  if (!r.ok) throw Object.assign(new Error(`HTTP ${r.status}`), { status: r.status, body: await r.text().catch(() => '') });
+  return r;
+}
+
 // shared board over Supabase REST; every score is written locally first, so the network can only add, never lose one
 export class RemoteStore implements LeaderboardStore {
   warning: string | null = null;
@@ -103,14 +114,8 @@ export class RemoteStore implements LeaderboardStore {
     private salt: string,
   ) {}
 
-  private async call(path: string, init: RequestInit = {}): Promise<Response> {
-    const r = await fetch(`${this.url}/rest/v1/${path}`, {
-      ...init,
-      headers: { apikey: this.key, 'Content-Type': 'application/json', ...(init.headers ?? {}) },
-      signal: AbortSignal.timeout(TIMEOUT_MS),
-    });
-    if (!r.ok) throw Object.assign(new Error(`HTTP ${r.status}`), { status: r.status, body: await r.text().catch(() => '') });
-    return r;
+  private call(path: string, init: RequestInit = {}): Promise<Response> {
+    return restCall(this.url, this.key, path, init);
   }
 
   async list(board = 'main'): Promise<Entry[]> {
@@ -146,14 +151,18 @@ export class RemoteStore implements LeaderboardStore {
 }
 
 // online only in a production build with all three variables and the publishable key; the dev server never goes online
-export function pickStore(): LeaderboardStore {
+export const online: { url: string; key: string; salt: string } | null = (() => {
   const { DEV, VITE_SUPABASE_URL: url, VITE_SUPABASE_KEY: key, VITE_SUPABASE_SALT: salt } = import.meta.env;
-  if (DEV || !url || !key || !salt) return new LocalStore();
+  if (DEV || !url || !key || !salt) return null;
   if (keyRole(String(key)) !== 'anon') {
     console.warn('VITE_SUPABASE_KEY is not the publishable key: online board off');
-    return new LocalStore();
+    return null;
   }
-  return new RemoteStore(String(url).replace(/\/$/, ''), String(key), String(salt));
+  return { url: String(url).replace(/\/$/, ''), key: String(key), salt: String(salt) };
+})();
+
+export function pickStore(): LeaderboardStore {
+  return online ? new RemoteStore(online.url, online.key, online.salt) : new LocalStore();
 }
 
 // null when the name is fine, otherwise the message for the player

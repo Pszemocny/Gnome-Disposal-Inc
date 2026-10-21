@@ -2,6 +2,10 @@
 
 Newest build first. Each build lists what changed and what to test. Shown in the start menu (button "What's new").
 
+## 2026-10-21 08:00
+
+- Errors from the online version are reported to the developers (no names, no addresses), so a crash on GitHub Pages is no longer lost. The game keeps running when the report cannot be sent. Test (Pages version): play normally; nothing changes on screen.
+
 ## 2026-10-21 02:00
 
 - Leaderboard: one shared online board for everyone playing the GitHub Pages version (ALL-TIME and today's DAILY). Your score is always saved on your computer first; when the online board cannot be reached you see your local scores and a short notice. Names are shown publicly online, so the name fields no longer suggest your real name. Test (Pages version): open the Leaderboard, submit a run, switch tabs, then turn Wi-Fi off and submit again.

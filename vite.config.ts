@@ -88,6 +88,8 @@ export default defineConfig({
   // GitHub Pages serves the site under /<repo>/ (set in .github/workflows/deploy.yml)
   base: process.env.VITE_BASE ?? '/',
   plugins: [errorLog(), shotLog()],
+  // GitHub Actions sets GITHUB_SHA; the crash box and the error table show it after the bundle name
+  define: { 'import.meta.env.VITE_COMMIT': JSON.stringify(process.env.GITHUB_SHA ?? '') },
   server: { host: true, port: 5300, strictPort: true },
   preview: { host: true, port: 5300, strictPort: true },
 });

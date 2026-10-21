@@ -32,7 +32,7 @@ jobs:
           case "$KEY" in sb_publishable_*) exit 0;; esac
           node -e 'let r;try{r=JSON.parse(Buffer.from(process.env.KEY.split(".")[1]??"","base64url")).role}catch{};if(r!=="anon"){console.error("VITE_SUPABASE_KEY has role "+r+": paste the publishable key");process.exit(1)}'
       # Pages serves the site under /<repo>/, so VITE_BASE must match the GitHub repo name
-      # the online leaderboard needs all three repository variables; without them the game keeps the local board
+      # the online leaderboard and the error log need all three repository variables; without them the game keeps the local board
       - run: npm run build
         env:
           VITE_BASE: /${{ github.event.repository.name }}/
