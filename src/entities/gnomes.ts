@@ -40,6 +40,7 @@ export interface Gnome {
   bullseye: boolean;
   volley: Volley | null; // shared by every gnome of one throw (a Magnet Gun ball throws many at once)
   xpGroup: { n: number } | null; // one Magnet Gun hold: every gnome of the ball shares it, XP x1/sqrt(n) (PP 2026-10-20 10a); null = hands
+  fullXp: boolean; // shot by a funnel the player fed it into: the player's XP (PP F3 b), but no trick shot
   // impact feel: last frame's vertical speed, landing squash timer, one scream per throw
   prevVy: number;
   squash: number;
@@ -75,6 +76,7 @@ export interface Volley {
 
 const SQUASH_TIME = 0.15;
 export const POP_TIME = 0.25;
+export const GNOME_DAMPING = 0.15; // linear damping of every gnome body; the cannon and funnel arcs count it
 const SWALLOW_TIME = 0.5; // an eaten gnome shrinks to 0 in this time
 const SWALLOW_SPIN = Math.PI * 3; // radians around the hole axis over the swallow
 // Gnome built from moving parts (demo on classic, PP 2026-10-20 "gnom z ruchomych czesci").
@@ -235,7 +237,7 @@ export class Gnomes {
       R.RigidBodyDesc.dynamic()
         .setTranslation(pos.x, pos.y, pos.z)
         .setRotation({ x: tmpQ.x, y: tmpQ.y, z: tmpQ.z, w: tmpQ.w })
-        .setLinearDamping(0.15)
+        .setLinearDamping(GNOME_DAMPING)
         .setAngularDamping(0.6)
         .setCcdEnabled(false),
     );
@@ -253,7 +255,7 @@ export class Gnomes {
       id: this.nextId++, type, body, collider, slot: slots.length, state: awake ? 'walk' : 'statue', awake,
       timer: 0, think: rand(0, 0.5), target: null, yaw, scale, loot: 0, valueMult: 1, cooldown: 0, angryOverride: false,
       parade: -1, life: 0, thrownBy: null, noGrabUntil: 0, tier, xpTier,
-      throwPos: null, touchedGround: false, bounced: false, bullseye: false, volley: null, xpGroup: null,
+      throwPos: null, touchedGround: false, bounced: false, bullseye: false, volley: null, xpGroup: null, fullXp: false,
       prevVy: 0, squash: 0, screamed: false, pop: 0, goldFrom, scared: 0, fleeing: false,
       prevPos: new THREE.Vector3(pos.x, pos.y, pos.z), prevRot: tmpQ.clone(), ph: 0,
       lag: this.parts.has(typeId) ? { yaw, swing: 0, hatP: 0, hatY: 0, beardP: 0, beardY: 0, beardVP: 0, beardVY: 0, roll: 0, hatR: 0 } : null,
@@ -303,6 +305,7 @@ export class Gnomes {
     n.bounced = g.bounced;
     n.bullseye = g.bullseye;
     n.volley = g.volley;
+    n.fullXp = g.fullXp;
     n.xpGroup = g.xpGroup;
     n.screamed = g.screamed;
     n.noGrabUntil = g.noGrabUntil;
@@ -379,6 +382,7 @@ export class Gnomes {
     // let out by a machine (crate tipped over, tool taken back, cannon): not a throw, as the crate dump (machines.ts dump branch)
     g.thrownBy = 'machine';
     g.throwPos = null;
+    g.fullXp = false;
     g.bounced = false;
     g.bullseye = false;
   }
@@ -440,8 +444,7 @@ export class Gnomes {
     const env = ctx.env;
     const t = ctx.time * 0.25 + i * 0.18;
     const R = env.holeRadius + 6;
-    const h = env.half - 2;
-    return new THREE.Vector3(clamp(env.hole.x + Math.cos(t) * R, h), 0, clamp(env.hole.z + Math.sin(t) * R, h));
+    return env.clampTo(new THREE.Vector3(env.hole.x + Math.cos(t) * R, 0, env.hole.z + Math.sin(t) * R), 2);
   }
 
   forEachNear(pos: THREE.Vector3, r: number, cb: (g: Gnome, d: number, p: RAPIER.Vector) => void, all = false): void {
@@ -493,7 +496,6 @@ export class Gnomes {
 
     const pp = ctx.player.position;
     const r = env.holeRadius;
-    const half = env.half;
 
     for (let i = this.list.length - 1; i >= 0; i--) {
       const g = this.list[i];
@@ -531,7 +533,7 @@ export class Gnomes {
         this.startFalling(g);
         continue;
       }
-      if (p.y < -8 || Math.abs(p.x) > half + 30 || Math.abs(p.z) > half + 30) {
+      if (p.y < -8 || !env.inside(p.x, p.z, -30)) {
         this.remove(g);
         continue;
       }
@@ -583,7 +585,7 @@ export class Gnomes {
       g.think -= dt;
       if (g.think <= 0) {
         g.think = rand(0.25, 0.45);
-        this.decide(g, p, pp, r, half);
+        this.decide(g, p, pp, r);
         // decide() may remove the gnome (escaped, vanished); its body is gone then
         if (this.list[i] !== g) continue;
       }
@@ -646,6 +648,7 @@ export class Gnomes {
     g.state = 'walk';
     g.thrownBy = null;
     g.throwPos = null;
+    g.fullXp = false;
     g.body.lockRotations(true, true);
     g.body.setAngvel({ x: 0, y: 0, z: 0 }, true);
     tmpQ.setFromAxisAngle(UP, g.yaw);
@@ -655,7 +658,7 @@ export class Gnomes {
     if (Math.random() < 0.25) this.say(g, pick(g.type.lines));
   }
 
-  private decide(g: Gnome, p: RAPIER.Vector, pp: THREE.Vector3, r: number, half: number): void {
+  private decide(g: Gnome, p: RAPIER.Vector, pp: THREE.Vector3, r: number): void {
     const dx = pp.x - p.x;
     const dz = pp.z - p.z;
     const dPlayer = Math.hypot(dx, dz);
@@ -698,7 +701,7 @@ export class Gnomes {
       case 'flee':
         if (dPlayer < 10) {
           tmpV.set(-dx, 0, -dz).normalize().multiplyScalar(6);
-          g.target = new THREE.Vector3(clamp(p.x + tmpV.x, half - 1.5), 0, clamp(p.z + tmpV.z, half - 1.5));
+          g.target = ctx.env.clampTo(new THREE.Vector3(p.x + tmpV.x, 0, p.z + tmpV.z), 1.5);
           if (Math.random() < 0.05) this.say(g, pick(g.type.lines));
           return;
         }
@@ -706,8 +709,14 @@ export class Gnomes {
       case 'steal': {
         if (g.loot > 0) {
           // run to the nearest fence and escape over it
-          const h = half - 0.5;
-          const best = Math.abs(p.x) > Math.abs(p.z) ? new THREE.Vector3(Math.sign(p.x) * h, 0, p.z) : new THREE.Vector3(p.x, 0, Math.sign(p.z) * h);
+          // each candidate differs from p on one axis only, so |dx| + |dz| is its distance
+          const { min, max } = ctx.env;
+          const best = [
+            new THREE.Vector3(min.x + 0.5, 0, p.z),
+            new THREE.Vector3(max.x - 0.5, 0, p.z),
+            new THREE.Vector3(p.x, 0, min.z + 0.5),
+            new THREE.Vector3(p.x, 0, max.z - 0.5),
+          ].reduce((a, b) => (Math.abs(b.x - p.x) + Math.abs(b.z - p.z) < Math.abs(a.x - p.x) + Math.abs(a.z - p.z) ? b : a));
           const bd = best.distanceTo(tmpV.set(p.x, 0, p.z));
           if (bd < 1.5) {
             ctx.state.stats.stolen += g.loot;
@@ -732,7 +741,7 @@ export class Gnomes {
       }
       case 'sabotage': {
         if (g.cooldown <= 0) {
-          const m = ctx.machines.nearestWorking(new THREE.Vector3(p.x, 0, p.z));
+          const m = ctx.machines.nearestWorking(new THREE.Vector3(p.x, p.y, p.z));
           if (m) {
             g.target = m.pos.clone();
             if (m.pos.distanceTo(tmpV.set(p.x, m.pos.y, p.z)) < 1.8) {
@@ -786,7 +795,7 @@ export class Gnomes {
             ctx.fx.burst(new THREE.Vector3(p.x, p.y + 1, p.z), 0xb07aff, 30);
           }
           if (n === 0 && Math.random() < 0.5) {
-            const np = new THREE.Vector3(rand(-half + 3, half - 3), 0.6, rand(-half + 3, half - 3));
+            const np = ctx.env.randomPoint(3, 0.6);
             if (ctx.env.holeDist(np.x, np.z) > r + 4) {
               g.body.setTranslation(np, true);
               savePose(g, g.body);
@@ -798,7 +807,7 @@ export class Gnomes {
         break;
       case 'boss':
         // a scared king backs off slowly but still stomps
-        if (g.scared > 0) this.fleeFrom(g, p, dx, dz, half);
+        if (g.scared > 0) this.fleeFrom(g, p, dx, dz);
         else g.target = pp.clone();
         if (g.cooldown <= 0 && dPlayer < 9) {
           g.cooldown = 5;
@@ -817,12 +826,12 @@ export class Gnomes {
 
     // default: back off from a close player (charging, stalking, fleeing and coin-chasing gnomes returned above), else wander
     if (g.scared > 0 && beh !== 'charge') {
-      this.fleeFrom(g, p, dx, dz, half);
+      this.fleeFrom(g, p, dx, dz);
       return;
     }
     if (!g.target || Math.random() < 0.08) {
       for (let k = 0; k < 4; k++) {
-        const t = new THREE.Vector3(clamp(p.x + rand(-8, 8), half - 2), 0, clamp(p.z + rand(-8, 8), half - 2));
+        const t = ctx.env.clampTo(new THREE.Vector3(p.x + rand(-8, 8), 0, p.z + rand(-8, 8)), 2);
         if (ctx.env.holeDist(t.x, t.z) > r + 3) {
           g.target = t;
           break;
@@ -833,9 +842,9 @@ export class Gnomes {
   }
 
   // Walk target 6 m straight away from the player, kept inside the fence (no pathfinding).
-  private fleeFrom(g: Gnome, p: RAPIER.Vector, dx: number, dz: number, half: number): void {
+  private fleeFrom(g: Gnome, p: RAPIER.Vector, dx: number, dz: number): void {
     tmpV.set(-dx, 0, -dz).normalize().multiplyScalar(6);
-    g.target = new THREE.Vector3(clamp(p.x + tmpV.x, half - 1.5), 0, clamp(p.z + tmpV.z, half - 1.5));
+    g.target = ctx.env.clampTo(new THREE.Vector3(p.x + tmpV.x, 0, p.z + tmpV.z), 1.5);
     g.fleeing = true;
   }
 
@@ -956,10 +965,6 @@ export class Gnomes {
   clearAll(): void {
     while (this.list.length) this.remove(this.list[this.list.length - 1]);
   }
-}
-
-function clamp(v: number, h: number): number {
-  return Math.max(-h, Math.min(h, v));
 }
 
 // body roll of a walker at speed fraction a, shared by the drawn body and the hat lag

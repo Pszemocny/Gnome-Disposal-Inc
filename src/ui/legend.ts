@@ -23,6 +23,7 @@ const KEYS: [string, string][] = [
   ['1-0', 'pick a tool to place'],
   ['X', 'pick up a placed tool'],
   ['G', 'move a placed tool'],
+  ['N', 'power of the fan you look at: 100 → 75 → 50 → 25 %'],
   ['R / T / V', 'placing: turn, tilt, reset rotation'],
   ['Q', 'cancel placing'],
   ['K', 'blueprints'],
@@ -216,7 +217,7 @@ export class Legend {
       (h, i) => `<tr class="${i + 1 === hl ? 'on' : ''}"><td>${i + 1}</td><td>${isFinite(h.xp) ? h.xp : 'max'}</td><td>${h.radius} m</td><td>x${h.mult}</td><td>${i + 1 <= hl + 1 ? h.unlock : '???'}</td></tr>`,
     ).join('');
     const land = LAND.map(
-      (t, i) => `<tr class="${i === s.land ? 'on' : ''}"><td>${i <= s.land + 1 || t.hole <= hl ? t.name : '???'}</td><td>${t.half * 2} m</td><td>${t.cost ? money(t.cost) : 'free'}</td><td>${t.hole}</td></tr>`,
+      (t, i) => `<tr class="${i === s.land ? 'on' : ''}"><td>${i <= s.land + 1 || t.hole <= hl ? t.name : '???'}</td><td>${t.half * 2} m</td><td>${t.hole}</td></tr>`,
     ).join('');
     const h = ctx.hole;
     const combos = UPGRADES.filter((u) => u.tab === 'Combos').map((u) => u.name).join(', ');
@@ -234,8 +235,8 @@ export class Legend {
 
     return `<h3>Hole levels</h3><p>Feed the hole to fill its XP bar. A hand throw pays a gnome's full XP, a Magnet Gun ball of n gnomes pays 1/√n each, and a machine, robot, plow, blower or kick pays a quarter; a crate dump and the King always pay in full. Every level makes the hole bigger and every gnome worth more.</p>
       <table><tr><th>Level</th><th>XP to next</th><th>Radius</th><th>Money</th><th>Unlocks</th></tr>${levels}</table>
-      <h3>Land</h3><p>Bought in the shop (Land tab). A bigger yard holds more gnomes and machines.</p>
-      <table><tr><th>Land</th><th>Size</th><th>Price</th><th>Hole level</th></tr>${land}</table>
+      <h3>Land</h3><p>Comes by itself at hole level 3 / 5 / 8; the yard grows toward the hole. A bigger yard holds more gnomes and machines.</p>
+      <table><tr><th>Land</th><th>Size</th><th>Hole level</th></tr>${land}</table>
       ${sec('Combo', 'combo', `<p class="dim">Now: ${h.comboWindow.toFixed(1)} s to keep it alive, cap x${h.comboCap}. Upgrades: ${combos}.</p>`)}
       ${sec('Trick shots', 'tricks')}
       ${sec('STRIKE', 'strike')}

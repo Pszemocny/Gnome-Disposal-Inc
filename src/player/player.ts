@@ -6,7 +6,7 @@ import { WEIGHT_TIERS } from '../data/gnomeTypes';
 import { TOOL_IDS, UPGRADE_BY_ID } from '../data/upgrades';
 import { isFree, type Gnome } from '../entities/gnomes';
 import type { Prop } from '../entities/props';
-import { footprintOverHole, machineBox, machineVisual, needsRepair, type Machine } from '../entities/machines';
+import { boxBottom, footprintOverHole, machineBox, machineVisual, needsRepair, type Machine } from '../entities/machines';
 import { Sweeper, type Gear } from './sweeper';
 import { ToolWheel } from './wheel';
 import { Pound } from './pound';
@@ -29,6 +29,8 @@ const SCOPE_GOLD = 0xffd23f;
 // placement on a top face: the ghost may step up this much onto the highest part of the thing you aim at
 const STEP_UP = 1;
 const EYE = 0.75;
+const STAND_EYE = 0.55 + 0.35 + EYE; // capsule half height + radius + EYE: the eye of a player standing on the ground
+const LOOK_REACH = 6; // m of the look ray that finds tools (E/G/X)
 // kick leg phases, seconds: pull back, strike (contact at KICK_BACK + KICK_HIT, the impulse lands then), return with overshoot
 const KICK_BACK = 0.02;
 const KICK_HIT = 0.04;
@@ -90,6 +92,7 @@ export class Player {
   private ghostQuat = new THREE.Quaternion();
   private ghostDist = 7;
   private ghostPos = new THREE.Vector3();
+  private ghostPower = 1; // a fan moved with G keeps its power for the one placement
   ghostBlocked = false;
   private kickLeg: THREE.Mesh;
   private kickAnim = 0;
@@ -443,6 +446,10 @@ export class Player {
     this.updateAids();
   }
 
+  private jumpSpeed(zoom: boolean): number {
+    return 7.8 * (1 + lvl('jump') * 0.15) * (zoom ? 1.35 : 1);
+  }
+
   private move(dt: number): void {
     const inp = ctx.input;
     const zoom = ctx.buffs.active('zoom');
@@ -460,7 +467,7 @@ export class Player {
 
     if (this.grounded) this.jumps = 0;
     if (inp.hit('Space') && !ctx.paused) {
-      const jumpV = 7.8 * (1 + lvl('jump') * 0.15) * (zoom ? 1.35 : 1);
+      const jumpV = this.jumpSpeed(zoom);
       if (this.grounded) {
         this.vy = jumpV;
         this.jumps = 1;
@@ -531,7 +538,8 @@ export class Player {
 
   private updateLook(): void {
     this.lookAt = {};
-    const hit = this.raycast(6);
+    // 6 m for every tool, a funnel hung high too: the player jumps up to reach it (PP 2026-10-21, F2)
+    const hit = this.raycast(LOOK_REACH);
     if (hit) {
       const h = hit.collider.handle;
       const g = ctx.gnomes.byCollider.get(h);
@@ -620,8 +628,9 @@ export class Player {
       const m = this.lookAt.machine;
       const rot = m.quat.clone();
       ctx.machines.remove(m);
-      this.selectTool(m.type, rot);
+      this.selectTool(m.type, rot, m.power);
     }
+    if (inp.hit('KeyN') && this.lookAt.machine?.type === 'fan') ctx.machines.cyclePower(this.lookAt.machine);
   }
 
   // Magnet Gun ball radius: 0.8 m, +0.2 m per Magnet Coil; it holds as many gnomes as fit
@@ -884,7 +893,7 @@ export class Player {
     }
   }
 
-  selectTool(type: string, rotation?: THREE.Quaternion): void {
+  selectTool(type: string, rotation?: THREE.Quaternion, power = 1): void {
     if (this.placing === type) {
       this.cancelPlacement();
       return;
@@ -899,6 +908,7 @@ export class Player {
     // the gun stays in hand (it slides out while placing); the tractor and the blower are put away
     if (!this.sweeper.grabs) this.setGear('hands');
     this.placing = type;
+    this.ghostPower = power;
     const { root } = machineVisual(type);
     root.traverse((o) => {
       const mesh = o as THREE.Mesh;
@@ -999,7 +1009,18 @@ export class Player {
       },
     );
     if (footprintOverHole(centre, half, q)) blocked = true;
-    if (Math.abs(centre.x) > ctx.env.half - 0.5 || Math.abs(centre.z) > ctx.env.half - 0.5) blocked = true;
+    if (!ctx.env.inside(centre.x, centre.z, 0.5)) blocked = true;
+    // any tool hung higher than the look ray reaches from the top of a jump could never be repaired, moved or picked up:
+    // red. Reach from the surface under it: standing eye + jump (twice with Gnome Boots, no Zoom buff) + LOOK_REACH;
+    // the funnel's collider starts 0.5 m above its box bottom (the elbow has none)
+    if (!blocked) {
+      const bottom = boxBottom(type, this.ghostPos, q);
+      const down = ctx.physics.castRay(new ctx.R.Ray({ x: centre.x, y: bottom, z: centre.z }, { x: 0, y: -1, z: 0 }), 200, true, undefined, undefined, this.collider, undefined, surface);
+      const floor = down ? bottom - down.timeOfImpact : 0;
+      const v = this.jumpSpeed(false);
+      const jump = ((lvl('boots') ? 2 : 1) * v * v) / (2 * GRAVITY);
+      if (bottom + (type === 'funnel' ? 0.5 : 0) > floor + STAND_EYE + jump + LOOK_REACH) blocked = true;
+    }
     this.ghostBlocked = blocked;
 
     const g = this.ghost!;
@@ -1015,7 +1036,8 @@ export class Player {
         ctx.audio.deny();
         return;
       }
-      ctx.machines.place(type, this.ghostPos.clone(), q);
+      ctx.machines.place(type, this.ghostPos.clone(), q, this.ghostPower);
+      this.ghostPower = 1;
       ctx.hud.hideHint();
       ctx.audio.buy();
       ctx.fx.burst(centre, 0xffffff, 15);

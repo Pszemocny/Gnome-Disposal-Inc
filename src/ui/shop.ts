@@ -1,12 +1,11 @@
 import { ctx, deep, lvl } from '../core/context';
 import { money } from '../core/format';
 import { saveState } from '../core/state';
-import { LAND } from '../data/land';
 import { massiveOdds } from '../data/gnomeTypes';
 import { FUSE_TOOLS, TOOL_IDS, UPGRADE_BY_ID, UPGRADES, upgradeCost, type Tab, type Upgrade } from '../data/upgrades';
-import { FALLBACK_ICON, ICONS, LAND_ICONS, MODELS, TAB_ICONS, thumbnail, warmThumbnails } from './icons';
+import { FALLBACK_ICON, ICONS, MODELS, TAB_ICONS, thumbnail, warmThumbnails } from './icons';
 
-const TABS: Tab[] = ['Plow', 'Magnet', 'Factory', 'Movement', 'Tools', 'Combos', 'Bonuses', 'Land', 'Deep'];
+const TABS: Tab[] = ['Plow', 'Magnet', 'Factory', 'Movement', 'Tools', 'Combos', 'Bonuses', 'Deep'];
 // tree cell (px): a node is 120 x 90, the rest is the gap the edges run through
 const CW = 150;
 const CH = 94;
@@ -81,10 +80,10 @@ interface NodeView {
   locked: boolean;
 }
 
-// a node before layout: Land tiers and upgrades go through the same tree
+// a node before layout
 interface Item {
-  key: string; // upgrade id or `land${i}`
-  attr: string; // data-buy="id" | data-land="i"
+  key: string; // upgrade id
+  attr: string; // data-buy="id"
   hole: number;
   parent?: string;
   parentOn: boolean; // the parent is owned: its edge lights up
@@ -125,7 +124,7 @@ export class Shop {
   isOpen = false;
   private el: HTMLDivElement;
   private tab: Tab = 'Tools';
-  private hover: string | undefined; // id of the hovered node (`land1` for a land tier)
+  private hover: string | undefined; // id of the hovered node
   private views = new Map<string, NodeView>();
   private seen: Set<string>; // ids unlocked at the last visit (this session only)
   private fresh = new Set<string>(); // unlocked since the last visit: NEW badge
@@ -150,13 +149,11 @@ export class Shop {
       }
       const buy = t.closest<HTMLElement>('[data-buy]')?.dataset.buy;
       if (buy) this.buy(buy);
-      const land = t.closest<HTMLElement>('[data-land]')?.dataset.land;
-      if (land) this.buyLand(Number(land));
       if (t.closest('[data-close]')) this.close();
     });
     this.el.addEventListener('mouseover', (e) => {
       const n = (e.target as HTMLElement).closest<HTMLElement>('[data-desc]');
-      const id = n?.dataset.buy ?? (n?.dataset.land !== undefined ? 'land' + n.dataset.land : undefined);
+      const id = n?.dataset.buy;
       if (id && id !== this.hover) {
         this.hover = id;
         this.showDesc();
@@ -201,7 +198,7 @@ export class Shop {
 
   private unlockedIds(): string[] {
     const hl = ctx.state.holeLevel;
-    return [...UPGRADES.filter((u) => (u.hole ?? 1) <= hl).map((u) => u.id), ...LAND.flatMap((t, i) => (hl >= t.hole ? [`land${i}`] : []))];
+    return UPGRADES.filter((u) => (u.hole ?? 1) <= hl).map((u) => u.id);
   }
 
   private badges(id: string, afford: boolean): string {
@@ -263,20 +260,6 @@ export class Shop {
     this.msg = text;
   }
 
-  private buyLand(i: number): void {
-    const t = LAND[i];
-    const s = ctx.state;
-    if (i !== s.land + 1 || s.holeLevel < t.hole) return;
-    if (s.money < t.cost) return this.deny();
-    s.money -= t.cost;
-    s.land = i;
-    ctx.env.rebuildLand();
-    ctx.audio.levelUp();
-    this.say(`You bought ${t.name}! More room for gnomes and machines.`);
-    this.render();
-    this.pop(`[data-land="${i}"] .ico`);
-  }
-
   private deny(): void {
     ctx.audio.deny();
     this.el.querySelector('.shop-money')?.classList.add('shake');
@@ -323,37 +306,7 @@ export class Shop {
 
   // the items that pulse green on a tab right now
   private affordCount(t: Tab): number {
-    return t === 'Land' ? this.landItems().filter((i) => i.cls === 'afford').length : UPGRADES.filter((u) => u.tab === t && this.rowData(u).afford).length;
-  }
-
-  // the Land tiers as a chain: only the tier after the owned one can be bought
-  private landItems(): Item[] {
-    const s = ctx.state;
-    const shown = (i: number) => i <= s.land + 1 || s.holeLevel >= LAND[i].hole;
-    return LAND.map((t, i) => {
-      const owned = i <= s.land;
-      const next = i === s.land + 1;
-      const locked = s.holeLevel < t.hole;
-      const need = i > s.land + 1;
-      const afford = next && !locked && s.money >= t.cost;
-      const size = `${(t.half * 2) | 0} m`;
-      const name = shown(i) ? t.name : '???';
-      const desc = shown(i) ? `${t.name}: a bigger yard, more room for gnomes and machines.${i === 3 ? ' Something lives in the dark forest.' : ''}` : 'Feed the hole to find out.';
-      return {
-        key: `land${i}`,
-        attr: `data-land="${i}"`,
-        hole: t.hole,
-        parent: i > 0 ? `land${i - 1}` : undefined,
-        parentOn: i > 0 && i - 1 <= s.land,
-        cls: owned ? 'owned maxed' : need ? 'needs' : locked ? 'locked' : afford ? 'afford' : '',
-        tags: (need ? `<span class="badge needs">needs ${shown(i - 1) ? LAND[i - 1].name : '???'}</span>` : '') + (shown(i) ? this.badges(`land${i}`, afford) : ''),
-        ico: LAND_ICONS[i] ?? FALLBACK_ICON,
-        pips: `<span class="pips">${size}</span>`,
-        name,
-        cost: owned ? 'OWNED' : need ? '' : locked ? `HOLE LVL ${t.hole}` : money(t.cost),
-        view: { sel: `[data-land="${i}"]`, name, head: `${size} · ${owned ? 'OWNED' : money(t.cost)}`, desc, locked: !shown(i) },
-      };
-    });
+    return UPGRADES.filter((u) => u.tab === t && this.rowData(u).afford).length;
   }
 
   // skill tree: one row per root (an item without a parent on this tab), read left to right: the root, then its
@@ -363,7 +316,7 @@ export class Shop {
   // A line lights up when the node's parent is owned.
   private tree(tab: Tab): string {
     const ups = UPGRADES.filter((u) => u.tab === tab);
-    const list = tab === 'Land' ? this.landItems() : ups.map((u) => this.upgradeItem(u, ups));
+    const list = ups.map((u) => this.upgradeItem(u, ups));
     this.views = new Map(list.map((it) => [it.key, it.view]));
     if (!list.length) return '';
     const price = (it: Item) => UPGRADE_BY_ID[it.key]?.cost ?? 0;

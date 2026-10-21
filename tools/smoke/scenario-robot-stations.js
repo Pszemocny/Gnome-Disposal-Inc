@@ -243,6 +243,9 @@ setTimeout(() => { if (!window.__done) window.__done = J({ ...R, checks, timeout
         if (broken) m.broken = 30;
         const posBefore = m.pos.clone();
         g.hole.levelUp();
+        // a level-up that brings a new Land slides the hole over 1 s (level 3): land it now, so "same frame" means
+        // the frame after the hole covers the post, as on the other level-ups
+        if (g.env.sliding) g.env.finishSlide();
         await frames(2);
         const moved2 = hd(m.pos, posBefore) > 0.1;
         await frames(8);

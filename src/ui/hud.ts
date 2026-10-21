@@ -29,7 +29,7 @@ const HINTS: Record<string, string> = {
   box: 'Drop or throw gnomes in, then drag the crate into the hole with the magnet.',
   trampoline: 'Bounces gnomes the way it faces.',
   panel: 'Build covers, ramps and tunnels that guide gnomes to the hole.',
-  fan: 'Blows gnomes away in a cone the way it faces.',
+  fan: 'Blows gnomes away in a cone the way it faces. Press N on a placed fan to set its power (100, 75, 50, 25 %).',
   conveyor: 'Carries gnomes the way it faces. Tilt it to make a ramp.',
   wheel: 'Kicks everything in front of it.',
   magnet: 'Pulls gnomes in a big radius. Place it next to the hole.',
@@ -37,6 +37,7 @@ const HINTS: Record<string, string> = {
   vacuum: 'Sucks nearby gnomes straight into the hole.',
   blackhole: 'Eats gnomes on the spot at full value.',
   robot: 'Place its station: it collects gnomes around it and tips them into the hole. Saboteurs hit the fuse box on the station pole.',
+  funnel: 'Hang it in the air where you look (wheel = distance). Gnomes that fall or get blown into the mouth shoot out towards the hole.',
   tractor: 'Drive into gnomes: the plow pushes everything in front of it.',
   blower: 'Blows gnomes away in a cone, the way you look.',
   magGun: 'Pull many gnomes into a ball, then throw them all at once.',
@@ -59,7 +60,7 @@ const h = <K extends keyof HTMLElementTagNameMap>(tag: K, cls: string, parent: H
 };
 
 export const TOOL_ICONS: Record<string, string> = {
-  box: '📦', trampoline: '🤸', fan: '🌀', panel: '▭', conveyor: '⏩', wheel: '🥾', magnet: '🧲', cannon: '💣', vacuum: '🌪️', blackhole: '🕳️', robot: '🤖',
+  box: '📦', trampoline: '🤸', fan: '🌀', panel: '▭', conveyor: '⏩', wheel: '🥾', magnet: '🧲', cannon: '💣', vacuum: '🌪️', blackhole: '🕳️', robot: '🤖', funnel: '🪣',
 };
 
 interface Card {
@@ -189,7 +190,7 @@ export class Hud {
       this.root,
       '<div class="hb-head">CONTROLS <span>H to hide</span></div>' +
         '<div class="hb-sec">Moving</div><div><b>WASD</b> move · <b>Shift</b> sprint · <b>Space</b> jump · <b>J</b> (in the air) ground pound · <b>F</b> kick · <b>E</b> use · <b>B</b> shop · <b>C</b> hands ↔ current tool · <b>hold Tab</b> tool wheel (hands, Magnet Gun, tractor, blower, tools past the 10th) · <b>K</b> blueprints · <b>Z</b> undo a tool · <b>L</b> legend · <b>I</b> replay · <b>M</b> mute · <b>Esc</b> menu</div>' +
-        '<div class="hb-sec">Magnet</div><div><b>hold LMB</b> grab one thing (many with the Magnet Gun) · release <b>LMB</b> drop · <b>RMB</b> throw · <b>X</b> pick up a tool · <b>G</b> move a tool</div>' +
+        '<div class="hb-sec">Magnet</div><div><b>hold LMB</b> grab one thing (many with the Magnet Gun) · release <b>LMB</b> drop · <b>RMB</b> throw · <b>X</b> pick up a tool · <b>G</b> move a tool · <b>N</b> fan power</div>' +
         '<div class="hb-sec">Placing tools</div><div><b>1-0</b> pick a tool · <b>LMB</b> place · <b>hold RMB</b> + mouse rotate · <b>R</b> turn · <b>T</b> tilt · <b>V</b> reset · wheel distance · <b>Q</b> cancel</div>',
     );
     h('div', 'hud-help', this.root, '<b>H</b> controls · <b>L</b> legend');
@@ -542,6 +543,7 @@ export class Hud {
     else if (p.lookAt.gnome && hands) pr = p.lookAt.gnome.type.id === 'king' ? 'The King is too heavy for any magnet. Use machines!' : `<b>hold LMB</b> magnet ${p.lookAt.gnome.type.name} (${p.lookAt.gnome.tier.id})`;
     else if (p.lookAt.prop && hands) pr = `<b>hold LMB</b> magnet · <b>RMB</b> throw`;
     else if (p.lookAt.machine?.type === 'box') pr = `Crate ${p.lookAt.machine.queue.length}/${crateCap()} · ${hands ? '<b>hold LMB</b> magnet · ' : ''}<b>X</b> pick up`;
+    else if (lm?.type === 'fan') pr = `<b>N</b> power ${Math.round(lm.power * 100)}% · <b>G</b> move · <b>X</b> pick up Cooling Fan`;
     else if (p.lookAt.machine) pr = `<b>G</b> move · <b>X</b> pick up ${UPGRADE_BY_ID[p.lookAt.machine.type].name}`;
     if (this.prompt.innerHTML !== pr) this.prompt.innerHTML = pr;
 

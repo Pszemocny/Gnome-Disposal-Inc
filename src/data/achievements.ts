@@ -22,7 +22,7 @@ export const ACHIEVEMENTS: Achievement[] = [
   { id: 'wizard', name: 'Magic Missile', desc: 'Feed a gnome wizard.' },
   { id: 'king', name: 'Regicide', desc: 'Feed the King Gnome.' },
   { id: 'ufo', name: 'Close Encounter', desc: 'Shoot down the UFO.' },
-  { id: 'land', name: 'Landlord', desc: 'Buy all the land.' },
+  { id: 'land', name: 'Landlord', desc: 'Reach the Dark Forest.' },
   { id: 'sniper', name: 'Gnome Sniper', desc: 'Score a SNIPER shot from 14 m.' },
   { id: 'bullseye', name: 'Dead Centre', desc: 'Throw a gnome through the golden hoop into the hole.' },
   { id: 'rebirth', name: 'Born Again', desc: 'Enter The Deep and come back.' },

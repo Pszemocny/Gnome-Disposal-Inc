@@ -62,7 +62,15 @@ setTimeout(() => { if (!window.__done) window.__done = JSON.stringify({ checks, 
     const letters = () => g.props.list.filter((p) => p.kind === 'letter');
     const L = (ch) => letters().find((p) => p.letter === ch);
     const xzHome = (p) => { const t = p.body.translation(); return Math.hypot(t.x - p.home.x, t.z - p.home.z); };
-    const outside = (p, half = g.env.half) => { const t = p.body.translation(); return Math.max(Math.abs(t.x), Math.abs(t.z)) > half + 1; };
+    // the yard runs from (-22, -22) to maxOf(land) on x and z
+    const maxOf = (land) => 2 * LAND[land].half - 22;
+    const outside = (p, max) => {
+      const t = p.body.translation();
+      if (max === undefined) return !g.env.inside(t.x, t.z, -1);
+      return t.x < -23 || t.z < -23 || t.x > max + 1 || t.z > max + 1;
+    };
+    // the land change comes with the level-up (3 / 5 / 8)
+    const reachLand = (i) => { g.state.holeLevel = LAND[i].hole - 1; g.hole.levelUp(); };
     const goHome = async (p) => { p.body.setTranslation({ x: p.home.x, y: p.home.y, z: p.home.z }, true); p.body.setLinvel({ x: 0, y: 0, z: 0 }, true); p.body.setAngvel({ x: 0, y: 0, z: 0 }, true); await gameWait(1); };
     const feed = async (ch) => {
       const p = L(ch);
@@ -80,18 +88,15 @@ setTimeout(() => { if (!window.__done) window.__done = JSON.stringify({ checks, 
     placePlayer(0, 9, 0);
     await frames(5);
 
-    // ---- L0: spots clear of every hole path and slide line, inside their land, 5 m beyond the previous fence
+    // ---- L0: spots clear of the hole's one line, inside their land, 5 m beyond the previous land's +x or +z fence
     {
       const bad = [];
       for (const s of LETTER_SPOTS) {
         const p = new V3(s.x, 0, s.z);
-        let dmin = Infinity;
-        for (let t = 0; t < LAND.length; t++) dmin = Math.min(dmin, segDist(p, holeAt(1, t), holeAt(12, t)));
-        for (let t = 1; t < LAND.length; t++) for (let lv = LAND[t].hole; lv <= 12; lv++) dmin = Math.min(dmin, segDist(p, holeAt(lv, t - 1), holeAt(lv, t)));
-        const m = Math.max(Math.abs(s.x), Math.abs(s.z));
-        const inside = m <= LAND[s.land].half - 2;
-        const beyond = s.land === 0 || m >= LAND[s.land - 1].half + 5;
-        if (dmin < 6.8 || !inside || !beyond) bad.push(`${s.ch} d ${dmin.toFixed(1)} max ${m}`);
+        const dmin = segDist(p, holeAt(1, 0), holeAt(12, LAND.length - 1));
+        const inside = s.x >= -20 && s.z >= -20 && s.x <= maxOf(s.land) - 2 && s.z <= maxOf(s.land) - 2;
+        const beyond = s.land === 0 || s.x >= maxOf(s.land - 1) + 5 || s.z >= maxOf(s.land - 1) + 5;
+        if (dmin < 6.8 || !inside || !beyond) bad.push(`${s.ch} d ${dmin.toFixed(1)} at ${s.x},${s.z}`);
       }
       const perLand = LAND.map((_, t) => LETTER_SPOTS.filter((s) => s.land === t).length).join(',');
       ok('L0', !bad.length && perLand === '1,1,1,2' && LETTER_SPOTS.map((s) => s.ch).join('') === WORD, `bad [${bad}] per land ${perLand}`);
@@ -155,9 +160,9 @@ setTimeout(() => { if (!window.__done) window.__done = JSON.stringify({ checks, 
       await shot('letter-beyond-fence');
     }
 
-    // ---- L2 / L3: land purchases keep every letter at its spot; N, then all of them, inside the fence
+    // ---- L2 / L3: land changes (with the hole level) keep every letter at its spot; N, then all of them, inside the fence
     {
-      const st = freshState(); st.money = 1e9; st.holeLevel = 8;
+      const st = freshState(); st.money = 1e9;
       reload(st);
       g.env.rebuildHole();
       g.env.rebuildLand();
@@ -169,17 +174,17 @@ setTimeout(() => { if (!window.__done) window.__done = JSON.stringify({ checks, 
         const a = tr.instanceMatrix.array;
         for (const s of LETTER_SPOTS) nearTree = Math.min(nearTree, Math.hypot(a[i * 16 + 12] - s.x, a[i * 16 + 14] - s.z));
       }
-      g.shop.buyLand(1);
+      reachLand(1);
       await gameWait(2);
       const all = letters().length === 5 && letters().every((p) => p.mesh.visible && p.respawn === 0 && xzHome(p) < 1.5);
-      const nIn = !outside(L('N')) && g.env.half === LAND[1].half;
+      const nIn = !outside(L('N')) && g.env.max.x === maxOf(1);
       ok('L2', beyond && nearTree >= 5 && all && nIn, `beyond fence on Backyard ${beyond} nearest tree ${nearTree.toFixed(1)} m, after Garden all at home ${all} N inside ${nIn}`);
-      g.shop.buyLand(2);
+      reachLand(2);
       await gameWait(2);
-      g.shop.buyLand(3);
+      reachLand(3);
       await gameWait(2);
       const allIn = letters().length === 5 && letters().every((p) => !outside(p) && xzHome(p) < 1.5);
-      ok('L3', allIn && g.state.land === 3 && g.env.half === LAND[3].half && L('M').home.x === -50 && L('E').home.z === -52, `land ${g.state.land} all inside at home ${allIn} [${letters().map((p) => `${p.letter} ${xzHome(p).toFixed(2)}`)}]`);
+      ok('L3', allIn && g.state.land === 3 && g.env.max.x === maxOf(3) && L('M').home.x === 86 && L('E').home.z === 88, `land ${g.state.land} all inside at home ${allIn} [${letters().map((p) => `${p.letter} ${xzHome(p).toFixed(2)}`)}]`);
     }
 
     // back to a fresh Backyard for the physics checks
@@ -254,7 +259,7 @@ setTimeout(() => { if (!window.__done) window.__done = JSON.stringify({ checks, 
 
     // ---- L21: over the fence: own-land letter goes home, the chair stays out, a locked-land letter rests at its spot
     {
-      const h = g.env.half;
+      const h = g.env.max.x;
       let bursts = 0;
       const at = [];
       const fb0 = g.fx.burst.bind(g.fx);
@@ -276,8 +281,8 @@ setTimeout(() => { if (!window.__done) window.__done = JSON.stringify({ checks, 
       await goHome(G);
     }
 
-    // ---- L22: resting on the house box goes home after 3 s; flying over it does not. On Garden: on the Backyard the
-    // house stands beyond the fence, so the fence rule sends the letter home at once.
+    // ---- L22: the house stands beyond the back fence on every land, so a letter on its roof goes home at once (fence
+    // rule); resting on the factory top (inside the fence) it goes home after 3 s; flying over it, it does not. On Garden.
     {
       const st = freshState(); st.land = 1; st.holeLevel = 3;
       reload(st);
@@ -287,30 +292,36 @@ setTimeout(() => { if (!window.__done) window.__done = JSON.stringify({ checks, 
       const G = L('G');
       G.body.setTranslation({ x: 0, y: 6.6, z: -27.5 }, true);
       G.body.setLinvel({ x: 0, y: 0, z: 0 }, true);
+      await gameWait(1);
+      const houseHome = xzHome(G) < 3;
+      const top = { x: -7.5, y: 3.4, z: -13 };
+      G.body.setTranslation(top, true);
+      G.body.setLinvel({ x: 0, y: 0, z: 0 }, true);
       await gameWait(0.6);
       const y0 = G.body.translation().y;
+      const early = xzHome(G) < 3;
       await gameWait(4);
       const rested = xzHome(G) < 3;
-      G.body.setTranslation({ x: 0, y: 6.6, z: -27.5 }, true);
+      G.body.setTranslation(top, true);
       G.body.setLinvel({ x: 0, y: 0, z: 8 }, true);
       await frames(3);
       const fy = G.body.translation().y;
       const flyingHome = xzHome(G) < 3;
-      ok('L22', y0 > 5.5 && rested && fy > 2.5 && !flyingHome, `on the house at y ${y0.toFixed(2)}, home after 4 s ${rested}; flying y ${fy.toFixed(2)} home ${flyingHome}`);
+      ok('L22', houseHome && y0 > 2.5 && !early && rested && fy > 2.5 && !flyingHome, `house roof home within 1 s ${houseHome}; on the factory at y ${y0.toFixed(2)}, home at 0.6 s ${early}, after 4 s ${rested}; flying y ${fy.toFixed(2)} home ${flyingHome}`);
       // while the player holds something (here a crate, which may carry the letter) the 3 s rule waits
       placePlayer(5, -15, 0);
       const chair = g.props.list.find((p) => p.kind === 'chair');
       chair.body.setTranslation({ x: 5, y: 1.5, z: -16.5 }, true);
       chair.body.setLinvel({ x: 0, y: 0, z: 0 }, true);
       g.player.held = { body: chair.body, crate: { queue: [] } };
-      G.body.setTranslation({ x: 0, y: 6.6, z: -27.5 }, true);
+      G.body.setTranslation(top, true);
       G.body.setLinvel({ x: 0, y: 0, z: 0 }, true);
       await gameWait(4);
       const stillHeld = !!g.player.held?.crate;
       const hy = G.body.translation().y;
       const heldHome = xzHome(G) < 3;
       g.player.held = null;
-      ok('L22held', stillHeld && hy > 5.5 && !heldHome, `held crate ${stillHeld} letter y ${hy.toFixed(2)} home ${heldHome}`);
+      ok('L22held', stillHeld && hy > 2.5 && !heldHome, `held crate ${stillHeld} letter y ${hy.toFixed(2)} home ${heldHome}`);
       reload(freshState());
       g.env.rebuildHole();
       g.env.rebuildLand();
@@ -363,7 +374,7 @@ setTimeout(() => { if (!window.__done) window.__done = JSON.stringify({ checks, 
       const st = freshState(); st.land = 2; st.holeLevel = 5; st.secrets = ['letter-G', 'letter-N', 'letter-O'];
       reload(st);
       const chs = letters().map((p) => p.letter).join('');
-      ok('L7', chs === 'ME' && letters().every((p) => outside(p, LAND[2].half)), `letters ${chs}`);
+      ok('L7', chs === 'ME' && letters().every((p) => outside(p, maxOf(2))), `letters ${chs}`);
     }
 
     // ---- L10: any order completes

@@ -155,7 +155,7 @@ setTimeout(() => { if (!window.__done) window.__done = JSON.stringify({ ...R, ch
     }
     {
       // P5b fan tilted 45 degrees up, 3 m from the fence, gnomes dropped through the stream
-      const half = g.env.half;
+      const half = g.env.max.x; // the +x fence
       const run = async (L) => {
         await reset(); S().upgrades.fanPower = L;
         const q = qy(Math.PI / 2).multiply(new Qt().setFromAxisAngle(new V3(1, 0, 0), -Math.PI / 4));
@@ -523,7 +523,10 @@ setTimeout(() => { if (!window.__done) window.__done = JSON.stringify({ ...R, ch
     {
       // F3 worst yard: Dark Forest, 20 fans L4, 10 belts L3 in a row, 12 robots, 300 gnomes, 30 s
       await reset(); const s = S();
-      s.land = 3; g.env.rebuildLand(); await frames(10);
+      // the land follows the hole level: level 10 brings the Dark Forest
+      // rebuildHole after rebuildLand: the new Land would slide the hole for 1 s, inside the measured 30 s and under
+      // tools placed around the live `h` mid-slide
+      s.holeLevel = 10; s.land = 3; g.env.rebuildLand(); g.env.rebuildHole(); await frames(10);
       Object.assign(s.upgrades, { fan: 20, fanPower: 4, conveyor: 10, beltWidth: 3, robot: 12, permit: 5 });
       await frames(3);
       const calls0 = g.renderer.info.render.calls;
@@ -586,8 +589,9 @@ setTimeout(() => { if (!window.__done) window.__done = JSON.stringify({ ...R, ch
   ok('F3', R.F3?.updateP95 <= 2.0 && R.F3?.updateMax <= 8 && R.F3?.robots === 12 && R.F3?.gnomes >= 300, J(R.F3));
   // belt half length 1.6 + CLEAR 0.7: a path that goes round it reaches at least 2.3 m sideways
   ok('F3b', R.F3b?.placed && R.F3b?.before?.cell === 0 &&R.F3b?.after?.cell === 1 && R.F3b?.after?.reached && R.F3b?.after?.path > 0 && R.F3b?.after?.around >= 2.3 && R.F3b?.arrived, J(R.F3b));
-  ok('F4', R.F4?.fuses === 270 && R.F4?.boxes === 54 && R.F4?.skipped === 0 && R.F4?.tools === 54, J(R.F4));
-  ok('F5', J(R.F5?.toolIds) === J(['box', 'trampoline', 'panel', 'fan', 'conveyor', 'wheel', 'magnet', 'cannon', 'vacuum', 'blackhole', 'robot']), J(R.F5));
+  // + 3 Gnome Funnels x 5 Funnel Fuses (2026-10-21)
+  ok('F4', R.F4?.fuses === 285 && R.F4?.boxes === 57 && R.F4?.skipped === 0 && R.F4?.tools === 57, J(R.F4));
+  ok('F5', J(R.F5?.toolIds) === J(['box', 'trampoline', 'panel', 'fan', 'conveyor', 'wheel', 'magnet', 'cannon', 'vacuum', 'blackhole', 'robot', 'funnel']), J(R.F5));
   ok('F6', R.F6?.fan6 === '$1.08k' && R.F6?.belt7 === '$2.85k' && R.F6?.robot6 === '$1.49k' && R.F6?.premium6 === '$494', J(R.F6));
   ok('P1', R.P1?.relErr < 1e-6 && near(R.P1?.liftRatio, 0.35), J(R.P1));
   ok('P2', near(R.P2?.pushRatio, 2, 1e-3) && near(R.P2?.liftL4, 0.35, 1e-3) && R.P2?.ratio >= 1.5 && R.P2?.farGnomeMoved === 0, J(R.P2));
@@ -597,10 +601,11 @@ setTimeout(() => { if (!window.__done) window.__done = JSON.stringify({ ...R, ch
   ok('P5c', R.P5c?.maxY < 1.0, J(R.P5c));
   ok('P6', R.P6?.parent === 'fan' && R.P6?.cls === 'needs' && R.P6?.effect === 'x1.00 push, next: x1.25 push' && R.P6?.price === '$150', J(R.P6));
   ok('P7', R.P7?.kept?.fanPower === 4 && R.P7?.kept?.beltWidth === 3 && R.P7?.kept?.fanFuses === 5, J(R.P7));
-  ok('U1', R.U1?.fuseNodes === 9 && J(R.U1?.names) === J(['Trampoline Fuses', 'Fan Fuses', 'Belt Fuses', 'Robot Fuses', 'Wheel Fuses', 'Magnet Fuses', 'Cannon Fuses', 'Vacuum Fuses', 'Black Hole Fuses']) && R.U1?.globalFusesNode === 0 && R.U1?.parents && J(R.U1?.holes) === J({ fanFuses: 5, cannonFuses: 6, vacuumFuses: 8, blackholeFuses: 10 }), J(R.U1));
+  // Funnel Fuses (2026-10-21): the funnel row comes after the Kicking Wheel (both hole level 4, the funnel costs more)
+  ok('U1', R.U1?.fuseNodes === 10 && J(R.U1?.names) === J(['Trampoline Fuses', 'Fan Fuses', 'Belt Fuses', 'Robot Fuses', 'Wheel Fuses', 'Funnel Fuses', 'Magnet Fuses', 'Cannon Fuses', 'Vacuum Fuses', 'Black Hole Fuses']) && R.U1?.globalFusesNode === 0 && R.U1?.parents && J(R.U1?.holes) === J({ fanFuses: 5, cannonFuses: 6, vacuumFuses: 8, blackholeFuses: 10 }), J(R.U1));
   ok('U2', R.U2?.fanBlownAfter3 === 3 && R.U2?.fanBrokenAfter3 === 0 && R.U2?.fanBrokenAfter4 === 30 && R.U2?.trampBrokenAfter1 === 30, J(R.U2));
   ok('U3', R.U3?.robotFuses === 2 && R.U3?.blownAfterHit === 1, J(R.U3));
-  ok('U4', J(R.U4?.perTool) === '[4,4,4,4,4,4,4,4,4]' && R.U4?.fusesKey === undefined && R.U4?.note === 'Fuses are now per tool: every tool got your old level.' && R.U4?.savedHasFuses === false, J(R.U4));
+  ok('U4', J(R.U4?.perTool) === '[4,4,4,4,4,4,4,4,4,4]' && R.U4?.fusesKey === undefined && R.U4?.note === 'Fuses are now per tool: every tool got your old level.' && R.U4?.savedHasFuses === false, J(R.U4));
   ok('U5', R.U5?.afterRebirth?.fanFuses === 5 && R.U5?.afterRebirth?.robotFuses === 5 && R.U5?.afterRebirth?.all, J(R.U5));
   ok('U6', R.U6?.target === 'trampoline', J(R.U6));
   ok('U7', R.U7?.boxFuses === 0 && R.U7?.panelFuses === 0 && R.U7?.nodes === 0, J(R.U7));
@@ -611,10 +616,11 @@ setTimeout(() => { if (!window.__done) window.__done = JSON.stringify({ ...R, ch
   ok('U11', R.U11?.hole === 6 && R.U11?.price === '$1k', J(R.U11));
   ok('U12', R.U12?.hole === 8 && R.U12?.price === '$1k', J(R.U12));
   ok('U13', R.U13?.hole === 10 && R.U13?.price === '$1k', J(R.U13));
-  // 66 rows: the three endgame Bonuses rows (Bottomless Hunger, Spore Storm, Midas Spores) came after the 63
-  ok('U14', R.U14?.legendRows === 66 && R.U14?.upgrades === 66 && R.U14?.fuseRows === 9, J(R.U14));
-  // one row per tool (PP 2026-10-24): 11 rows scroll at 1280x720 at full size instead of shrinking
-  ok('U15', R.U15?.rows === 11 && R.U15?.cols === 5 && R.U15?.scale === 1 && R.U15?.cutNames === 0, J(R.U15));
+  // 68 rows: the three endgame Bonuses rows (Bottomless Hunger, Spore Storm, Midas Spores) came after the 63,
+  // then the Gnome Funnel and its Funnel Fuses (2026-10-21)
+  ok('U14', R.U14?.legendRows === 68 && R.U14?.upgrades === 68 && R.U14?.fuseRows === 10, J(R.U14));
+  // one row per tool (PP 2026-10-24): 12 rows (Gnome Funnel since 2026-10-21) scroll at 1280x720 at full size instead of shrinking
+  ok('U15', R.U15?.rows === 12 && R.U15?.cols === 5 && R.U15?.scale === 1 && R.U15?.cutNames === 0, J(R.U15));
   // Coin Magnet moved from Movement to Magnet (PP 2026-10-21): one root row more in Magnet, one less in Movement
   ok('U15b', J(R.U15b) === J({ plow: 3, magnet: 5, factory: 5, movement: 4, combos: 4, bonuses: 5 }), J(R.U15b));
   ok('U19', R.U19?.children > 0 && R.U19.paths === R.U19.children && !R.U19.missing.length && !R.U19.bent.length && !R.U19.outOfRow.length, J(R.U19));

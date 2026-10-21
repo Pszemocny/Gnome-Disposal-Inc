@@ -1,12 +1,12 @@
 import * as THREE from 'three';
 import type RAPIER from '@dimforge/rapier3d-compat';
 import { ctx, G, groups, rand } from '../core/context';
-import { LAND } from '../data/land';
+import { LAND, LAND_STEP } from '../data/land';
 import { LETTER_SPOTS } from '../data/letters';
 import { holeLevel } from '../data/holeLevels';
 import * as M from './models';
 import { tex } from './textures';
-import { inOutSine } from '../core/ease';
+import { inOutSine, outBack } from '../core/ease';
 import { lowfx, prefs } from '../core/settings';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 
@@ -30,11 +30,16 @@ const SUN_X = new THREE.Vector3(0, 1, 0).cross(SUN_Z).normalize();
 const SUN_Y = SUN_Z.clone().cross(SUN_X);
 const tmpV = new THREE.Vector3();
 export const HOLE_SLIDE_TIME = 1; // seconds the hole takes to move to a new Land's spot
+const FENCE_RISE_TIME = 0.3; // seconds a new land's fence takes to grow out of the ground
+// the one line every hole spot lies on: from the gnome factory (-7.5, -13) through the Backyard hole (0, 0)
+const DIR = new THREE.Vector3(7.5, 0, 13).normalize();
 
 export class Environment {
   holeRadius = 1.6;
   hole = new THREE.Vector3(); // centre of the hole on the ground
-  half = 22;
+  // the fenced yard: the corner behind the factory and house stays, the yard grows toward the hole (+x, +z)
+  readonly min = { x: -22, z: -22 };
+  readonly max = { x: 22, z: 22 };
   deskPos = new THREE.Vector3(7.5, 0, -13);
   night = 0; // 0 day .. 1 night
   nightShade = 0; // the night the player sees: 0 on Low quality, where the look stays day
@@ -114,6 +119,8 @@ export class Environment {
     const ffGeo = new THREE.BufferGeometry();
     ffGeo.setAttribute('position', new THREE.Float32BufferAttribute(new Float32Array(120 * 3), 3));
     this.fireflies = new THREE.Points(ffGeo, new THREE.PointsMaterial({ color: 0xd8ff6a, size: 0.18, transparent: true, opacity: 0, blending: THREE.AdditiveBlending, depthWrite: false }));
+    // the positions move every frame over the whole yard, so the bounding sphere built from the zeros above is wrong
+    this.fireflies.frustumCulled = false;
     scene.add(this.fireflies);
 
     // the player's house and the PC desk
@@ -149,15 +156,19 @@ export class Environment {
     this.bushes.count = 0;
     scene.add(this.bushes);
 
-    const tufts = new THREE.InstancedMesh(M.grassTuftGeometry(), M.vcMat(), 4000);
-    const shrooms = new THREE.InstancedMesh(M.wildMushroomGeometry(), M.vcMat(), 120);
+    const tufts = new THREE.InstancedMesh(M.grassTuftGeometry(), M.vcMat(), 8000);
+    const shrooms = new THREE.InstancedMesh(M.wildMushroomGeometry(), M.vcMat(), 240);
     const m = new THREE.Matrix4();
-    // no grass tufts or mushrooms anywhere the hole will ever be, on any land
-    const onHolePath = (x: number, z: number) =>
-      LAND.some((_, t) => distToSegment(new THREE.Vector3(x, 0, z), Environment.holeCenterFor(1, t), Environment.holeCenterFor(12, t)) < 6.8);
-    for (let i = 0; i < 4000; i++) {
-      const x = rand(-70, 70);
-      const z = rand(-70, 70);
+    // no grass tufts or mushrooms anywhere the hole will ever be, on any land: one line from level 1 to the Forest's 12
+    const pathA = Environment.holeCenterFor(1, 0);
+    const pathB = Environment.holeCenterFor(12, LAND.length - 1);
+    const onHolePath = (x: number, z: number) => distToSegment(new THREE.Vector3(x, 0, z), pathA, pathB) < 6.8;
+    // spread over the Dark Forest yard plus its 40 m forest ring
+    const lo = -22 - 40;
+    const hi = 2 * LAND[LAND.length - 1].half - 22 + 40;
+    for (let i = 0; i < 8000; i++) {
+      const x = rand(lo, hi);
+      const z = rand(lo, hi);
       if (onHolePath(x, z)) {
         i--;
         continue;
@@ -165,14 +176,14 @@ export class Environment {
       m.compose(new THREE.Vector3(x, 0, z), new THREE.Quaternion().setFromEuler(new THREE.Euler(0, rand(0, 6), 0)), new THREE.Vector3().setScalar(rand(0.45, 1.0)));
       tufts.setMatrixAt(i, m);
     }
-    for (let i = 0; i < 120; i++) {
-      const a = rand(0, Math.PI * 2);
-      const d = rand(10, 70);
-      if (onHolePath(Math.cos(a) * d, Math.sin(a) * d)) {
+    for (let i = 0; i < 240; i++) {
+      const x = rand(lo, hi);
+      const z = rand(lo, hi);
+      if (onHolePath(x, z)) {
         i--;
         continue;
       }
-      m.compose(new THREE.Vector3(Math.cos(a) * d, 0, Math.sin(a) * d), new THREE.Quaternion(), new THREE.Vector3().setScalar(rand(0.6, 1.6)));
+      m.compose(new THREE.Vector3(x, 0, z), new THREE.Quaternion(), new THREE.Vector3().setScalar(rand(0.6, 1.6)));
       shrooms.setMatrixAt(i, m);
     }
     scene.add(tufts, shrooms);
@@ -193,12 +204,27 @@ export class Environment {
     return body;
   }
 
-  // Hole centre for a level on a land tier: the land's anchor, then 1.2 m per level further from the gnome factory.
+  // Hole centre for a level on a land tier: on the one line from the gnome factory, LAND_STEP m further per land
+  // and 1.2 m per level (15 m from the factory at level 1 on the Backyard).
   static holeCenterFor(level: number, land = ctx.state.land): THREE.Vector3 {
-    const [x, z] = LAND[land].anchor;
-    const anchor = new THREE.Vector3(x, 0, z);
-    const away = new THREE.Vector3(x + 7.5, 0, z + 13).normalize();
-    return anchor.addScaledVector(away, (level - 1) * 1.2);
+    return new THREE.Vector3().addScaledVector(DIR, LAND_STEP * land + 1.2 * (level - 1));
+  }
+
+  // Is (x, z) inside the fence by at least `margin` m (a negative margin reaches past the fence)?
+  inside(x: number, z: number, margin = 0): boolean {
+    return x >= this.min.x + margin && x <= this.max.x - margin && z >= this.min.z + margin && z <= this.max.z - margin;
+  }
+
+  // Pulls v's x and z (in place) to at least `margin` m inside the fence.
+  clampTo(v: THREE.Vector3, margin: number): THREE.Vector3 {
+    v.x = THREE.MathUtils.clamp(v.x, this.min.x + margin, this.max.x - margin);
+    v.z = THREE.MathUtils.clamp(v.z, this.min.z + margin, this.max.z - margin);
+    return v;
+  }
+
+  // A random point at least `margin` m inside the fence, at height y.
+  randomPoint(margin: number, y = 0): THREE.Vector3 {
+    return new THREE.Vector3(rand(this.min.x + margin, this.max.x - margin), y, rand(this.min.z + margin, this.max.z - margin));
   }
 
   get sliding(): boolean {
@@ -280,7 +306,7 @@ export class Environment {
     this.holeGroup.position.copy(this.hole);
   }
 
-  // A bought Land moves the hole to the new land's anchor: it slides there, ground slabs and grass gap with it.
+  // A new Land (it comes with the hole level) moves the hole LAND_STEP m further: it slides there, ground slabs and grass gap with it.
   private slide: { from: THREE.Vector3; to: THREE.Vector3; t: number; dust: number } | null = null;
   private built = new THREE.Vector3(); // the centre the ground slabs and the grass mesh were built around
 
@@ -343,12 +369,16 @@ export class Environment {
 
   rebuildLand(): void {
     const tier = LAND[ctx.state.land];
-    this.half = tier.half;
-    const h = this.half;
+    const { min, max } = this;
+    max.x = max.z = 2 * tier.half - 22;
+    const w = max.x - min.x;
+    const d = max.z - min.z;
+    const cx = (min.x + max.x) / 2;
+    const cz = (min.z + max.z) / 2;
     // fog starts just past the fence, so the forest ring fades with distance on every land
     const fog = ctx.scene.fog as THREE.Fog;
-    fog.near = h + 15;
-    fog.far = h + 180;
+    fog.near = Math.max(w, d) / 2 + 15;
+    fog.far = Math.max(w, d) / 2 + 180;
     const { physics } = ctx;
     for (const b of this.wallBodies) physics.removeRigidBody(b);
     this.wallBodies = [];
@@ -356,31 +386,33 @@ export class Environment {
       const b = this.fixedCuboid(x, 4, z, hx, 4.5, hz);
       this.wallBodies.push(b);
     };
-    wall(0, -h - 0.5, h + 1, 0.5);
-    wall(0, h + 0.5, h + 1, 0.5);
-    wall(-h - 0.5, 0, 0.5, h + 1);
-    wall(h + 0.5, 0, 0.5, h + 1);
+    wall(cx, min.z - 0.5, w / 2 + 1, 0.5);
+    wall(cx, max.z + 0.5, w / 2 + 1, 0.5);
+    wall(min.x - 0.5, cz, 0.5, d / 2 + 1);
+    wall(max.x + 0.5, cz, 0.5, d / 2 + 1);
 
     this.fenceGroup.clear();
-    const postsPerSide = Math.ceil((h * 2) / 2);
-    const posts = new THREE.InstancedMesh(M.postGeometry(), M.vcMat({ map: tex('wood_diff') }), postsPerSide * 4 + 4);
+    // a post every ~2 m; the x sides own the corners
+    const nx = Math.ceil(w / 2);
+    const nz = Math.ceil(d / 2);
+    const posts = new THREE.InstancedMesh(M.postGeometry(), M.vcMat({ map: tex('wood_diff') }), 2 * (nx + 1) + 2 * (nz - 1));
     posts.castShadow = true;
     const m = new THREE.Matrix4();
     let i = 0;
-    for (let s = 0; s < 4; s++) {
-      for (let k = 0; k <= postsPerSide; k++) {
-        if (k === postsPerSide && s % 2 === 1) continue;
-        const t = -h + (k / postsPerSide) * 2 * h;
-        const [x, z] = s === 0 ? [t, -h] : s === 1 ? [t, h] : s === 2 ? [-h, t] : [h, t];
-        m.makeTranslation(x, 0, z);
-        if (i < posts.count) posts.setMatrixAt(i++, m);
-      }
+    for (let k = 0; k <= nx; k++) {
+      const x = min.x + (k / nx) * w;
+      posts.setMatrixAt(i++, m.makeTranslation(x, 0, min.z));
+      posts.setMatrixAt(i++, m.makeTranslation(x, 0, max.z));
     }
-    posts.count = i;
-    const railMat = new THREE.MeshStandardMaterial({ map: tex('wood_diff', h / 2, 0.1), color: 0xf0e6d2, roughness: 0.9 });
+    for (let k = 1; k < nz; k++) {
+      const z = min.z + (k / nz) * d;
+      posts.setMatrixAt(i++, m.makeTranslation(min.x, 0, z));
+      posts.setMatrixAt(i++, m.makeTranslation(max.x, 0, z));
+    }
+    const railMat = new THREE.MeshStandardMaterial({ map: tex('wood_diff', w / 4, 0.1), color: 0xf0e6d2, roughness: 0.9 });
     for (const y of [0.4, 0.9]) {
-      for (const [x, z, w, d] of [[0, -h, 2 * h, 0.06], [0, h, 2 * h, 0.06], [-h, 0, 0.06, 2 * h], [h, 0, 0.06, 2 * h]] as const) {
-        const rail = new THREE.Mesh(new THREE.BoxGeometry(w, 0.12, d), railMat);
+      for (const [x, z, rw, rd] of [[cx, min.z, w, 0.06], [cx, max.z, w, 0.06], [min.x, cz, 0.06, d], [max.x, cz, 0.06, d]] as const) {
+        const rail = new THREE.Mesh(new THREE.BoxGeometry(rw, 0.12, rd), railMat);
         rail.position.set(x, y, z);
         rail.castShadow = true;
         this.fenceGroup.add(rail);
@@ -393,11 +425,11 @@ export class Environment {
     let nb = 0;
     const q = new THREE.Quaternion();
     for (let t = 0; t < 1400 && n < 700; t++) {
-      const x = rand(-h - 40, h + 40);
-      const z = rand(-h - 40, h + 40);
-      const out = Math.max(Math.abs(x), Math.abs(z));
-      if (out < h + 3) continue;
-      if (Math.abs(x) < 10 && z < -h && z > -h - 12) continue;
+      const x = rand(min.x - 40, max.x + 40);
+      const z = rand(min.z - 40, max.z + 40);
+      if (this.inside(x, z, -3)) continue;
+      // the gap behind the house
+      if (Math.abs(x) < 10 && z < min.z && z > min.z - 12) continue;
       // a letter beyond the fence stays in sight: no tree canopy (up to 4.2 m wide) over its spot; bushes may cover it
       if (LETTER_SPOTS.some((s) => Math.hypot(x - s.x, z - s.z) < 5)) continue;
       q.setFromEuler(new THREE.Euler(0, rand(0, 6), 0));
@@ -415,17 +447,31 @@ export class Environment {
     this.trees.computeBoundingSphere();
     this.bushes.computeBoundingSphere();
 
-    // the hole runs away to this land's spot (no-op when loading a save: rebuildHole already put it there)
+    // the hole runs away to this land's spot (no-op when loading a save: rebuildHole already put it there);
+    // the level-up that brought the land may grow the hole in the same move
     const to = Environment.holeCenterFor(ctx.state.holeLevel);
     if (to.distanceTo(this.hole) > 0.01) {
       const from = this.hole.clone();
       ctx.fx.dust(from.clone().setY(0.1), 1);
       ctx.audio.rumble(HOLE_SLIDE_TIME);
       this.slide = { from, to, t: 0, dust: 0.15 };
-      if (ctx.hole.carry(from, this.holeRadius, to, this.holeRadius, HOLE_SLIDE_TIME)) {
+      this.fenceRise = 0;
+      this.fenceGroup.scale.y = 0;
+      if (ctx.hole.carry(from, this.holeRadius, to, holeLevel(ctx.state.holeLevel).radius, HOLE_SLIDE_TIME)) {
         ctx.hud.toast('The hole moved! Tools in its way went back to your inventory.', 'info');
       }
     }
+  }
+
+  // s since a new land's fence started to grow, -1 when it stands
+  private fenceRise = -1;
+
+  private updateFenceRise(dt: number): void {
+    if (this.fenceRise < 0) return;
+    this.fenceRise += dt;
+    const k = Math.min(1, this.fenceRise / FENCE_RISE_TIME);
+    this.fenceGroup.scale.y = outBack(k);
+    if (k >= 1) this.fenceRise = -1;
   }
 
   addSign(s: THREE.Sprite): void {
@@ -435,14 +481,18 @@ export class Environment {
 
   // A random point on the fence line, for gnomes that run away or sneak in.
   edgePoint(): THREE.Vector3 {
-    const h = this.half - 1.5;
-    const t = rand(-h, h);
+    const p = this.randomPoint(1.5, 0.7);
     const side = Math.floor(Math.random() * 4);
-    return side === 0 ? new THREE.Vector3(t, 0.7, -h) : side === 1 ? new THREE.Vector3(t, 0.7, h) : side === 2 ? new THREE.Vector3(-h, 0.7, t) : new THREE.Vector3(h, 0.7, t);
+    if (side === 0) p.z = this.min.z + 1.5;
+    else if (side === 1) p.z = this.max.z - 1.5;
+    else if (side === 2) p.x = this.min.x + 1.5;
+    else p.x = this.max.x - 1.5;
+    return p;
   }
 
   update(dt: number): void {
     this.updateSlide(dt);
+    this.updateFenceRise(dt);
     const p = ctx.player.position;
     // move the shadow camera in whole shadow-map texels (also along its view axis, which shifts the stored depths):
     // a sub-texel move makes still shadow edges crawl
@@ -494,9 +544,14 @@ export class Environment {
     if (n > 0.05) {
       const pos = this.fireflies.geometry.attributes.position as THREE.BufferAttribute;
       const tt = ctx.time;
+      // spread over the whole yard, around its centre
+      const cx = (this.min.x + this.max.x) / 2;
+      const cz = (this.min.z + this.max.z) / 2;
+      const sx = 0.45 * (this.max.x - this.min.x);
+      const sz = 0.45 * (this.max.z - this.min.z);
       for (let i = 0; i < pos.count; i++) {
         const a = i * 12.9898;
-        pos.setXYZ(i, Math.sin(a) * this.half * 0.9 + Math.sin(tt * 0.3 + a) * 2, 1 + Math.sin(tt * 0.7 + a * 3) * 0.6 + (i % 3), Math.cos(a * 1.7) * this.half * 0.9 + Math.cos(tt * 0.4 + a) * 2);
+        pos.setXYZ(i, cx + Math.sin(a) * sx + Math.sin(tt * 0.3 + a) * 2, 1 + Math.sin(tt * 0.7 + a * 3) * 0.6 + (i % 3), cz + Math.cos(a * 1.7) * sz + Math.cos(tt * 0.4 + a) * 2);
       }
       pos.needsUpdate = true;
     }

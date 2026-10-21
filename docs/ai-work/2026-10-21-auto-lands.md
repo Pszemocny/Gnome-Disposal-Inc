@@ -1,0 +1,63 @@
+# Auto-lands: the yard grows by itself with the hole level
+
+## Problem
+PP (Slack via hub 2026-10-20 23:00): "11 land kupuje się automatycznie a raczej zmienia ci kilka poziomów dziury." PP (terminal 2026-10-20): the map must always grow in one direction, factory → hole → bigger land, never "szukac gdzies dziury za domem". PP (letters): "musi sie dac zlozyc slowo".
+
+Interpretation (confirmed by the orchestrator, PP 2026-10-21: "recommendations taken, may override"): execute `## Plan (plan-senior, final)` of `2026-10-20-plan-auto-lands.md`, corrected by `## Refresh 2026-10-21`; every open question takes its recommendation: L1 a (letter spots G (15,−15), N (36,−10), O (−8,58), M (86,10), E (10,88)), L2 a (goal "Reach hole level 5: the yard grows into the Neighbour's Lawn", $300, arrow to the hole, id `garden`), L3 a (FASTEST entries stay), L4 a (one-time refund, max $49 500), L5 a (`LAND_STEP = 4`), Land tab a (removed, legend keeps the table).
+
+## Summary
+- Lands come at hole levels 3 / 5 / 8 (`landFor`), the LAND shop tab is gone, an old save that bought lands gets the price back once (save `version` 1 → 2).
+- The yard is a rectangle from the fixed corner (−22, −22) to `2·half − 22` on x and z; every yard reader uses `env.min` / `env.max` and the helpers `inside`, `clampTo`, `randomPoint`, `edgePoint`.
+- Every hole spot lies on the line from the factory: `DIR · (4·land + 1.2·(level − 1))`. A land switch slides the hole 1 s (dust, rumble, shake) and grows the new fence out of the ground in 0.3 s (`outBack`).
+- Saved tools beyond the fence or in the hole go back to the inventory on load, counted in the existing note "N tools are back in your inventory: no room there."
+- A crate whose home the moving hole will cover gets a home 1 m past the new rim, beside the hole's path.
+- Letters moved to the new spots; the word can be finished from hole level 8.
+
+Ladder: `landFor`, `LAND_STEP`, `DIR` (rung 5-6, no level → tier helper existed); `inside` / `clampTo` / `randomPoint` (rung 6) replace the `half` square and the per-file `clamp` helpers (rung 1, deleted); slide, `carry`, `loadNotes`, `restore` count, `edgePoint` reused (rung 2); the LAND tab, `buyLand`, `LAND_ICONS`, `anchor` deleted (rung 1). No new dependency.
+
+## Work progress
+
+### Deviations from the plan
+1. `env.min` / `env.max` are plain `{ x, z }` objects, not `THREE.Vector2`: the plan's own checks read `env.max.z`, which a Vector2 does not have.
+2. Fog: `near = half of the longer side + 15` (37 m on the Backyard, as today and as the refresh's "near 37 m"), not "longer side + 15" (59 m), which would have pushed the fog 22 m back on every land.
+3. Crate home (R1): pushed to `newR + 1` from the new centre BESIDE the hole's path (perpendicular to the move, on the home's side), not radially. Reason: radially out from the new centre puts the home on the ground the hole slides over (the 2→3 slide passes DIR·2.4..6.4, a radial push of a home at DIR·4.2 lands at DIR·3.0), so the crate would respawn into the sliding hole again and again for about 0.7 s. The trigger is "home within `newR + 1` of the path old centre → new centre", so a home the slide sweeps is caught too. With no move it stays radial.
+4. A fence rise (0.3 s, `outBack` on the fence group's height) is added; the plan's assumption 6 kept the fence instant. The orchestrator asked for a transition and a cue for the land change (animation rule 3); the slide is the cue, the rise is the transition of the new object.
+5. `machines.restore` keeps its counter name `inFactory` (the refresh asked for `skipped`): the file is being edited by the fan/funnel agent, so the edit stayed one block plus the comment.
+6. `scenario-letters.js` L22 / L22held: the house now stands beyond the back fence on every land, so a letter on its roof goes home at once by the fence rule. L22 now checks that, and the 3 s "resting high up" rule on the factory top (inside the fence) with the same thresholds idea (rest → home after 3 s, flying → not). Not listed in the refresh; without it L22 fails on every land.
+7. `scenario-auto-lands.js` 04 "robot not in rescue": robots have no `rescue` state (`RobotState` = idle/seek/pick/drive/tip/return); the check counts frames with the truck below y = −1 (fell into the hole) and asserts 0, plus the station out of the hole within 2 s.
+8. 05 "placement ghost at (0,0,30) / (0,0,−23)": checks the predicate the ghost uses (`env.inside(x, z, 0.5)`), not a driven ghost (driving the ghost needs camera aiming that I could not verify without running).
+
+### Checks written (not run: the order was "DO NOT run scenarios", only `tsc`)
+`FAKELOCK=1 URL_QUERY='' DEV_PORT=5199 CDP_PORT=9373 MAXPOLL=4000 node tools/smoke/smoke.mjs <out> tools/smoke/scenario-auto-lands.js`
+- 01_formula (48 rows on the line, distance, margin ≥ 2, ≥ 8 m from desk/house/shovel), 01_formula_L12 (12.6, 21.8), 01_formula_dist 15,19,23,27.
+- 02_levelup_garden (crate dump at the rim brings the Garden: land 1, max 42, min −22, slide ≤ 1.5 s and monotonic, fan A gone, fan B rim 1.0 ± 0.3, toast), 02_crate (home ≥ 3.4, one respawn, rests, still placed), 02_fence_rise (a sample strictly between 0 and 1 and an overshoot), screenshot `auto-lands-slide-mid`.
+- 03_levelup_plain (3→4: land 1, moved 1.2, no slide).
+- 04_lawn (land 2, max 66, hole DIR·12.8), 04_robot (station out of the hole in 2 s, never fell in over 20 s), 04_forest (land 3, max 94, DIR·20.4, achievement `land`), 04_chain (4→5→6 in one XP gain during the slide, no exception, hole at its spot).
+- 05_bounds (placement rule, gnome target inside, crate behind the back fence back by the desk, robot in the new strip feeds the hole, tornado inside for 60 frames).
+- 06_old_saves a-e (iframe boots: derived land, no money change, 2 tools back with the note; Forest refund 49 500 once, saved as version 2, second boot same money; version 2 no refund; boot at a land boundary without a slide; robot station behind the house not built, note).
+- 07_fresh_daily (land 0, max 22, hole (0,0)).
+- 08_shop (no LAND tab, AVAILABLE = sum of tab counts), 08_legend (3 columns, new text), 08_goal (`garden` text, where `hole`, done at 5, pays 300).
+- 09_blueprint_tramp (Garden layout reloads 3 tools; a Lawn fan 30 m past the hole is skipped on the Garden; trampoline 9.75 m/s = 0.75; combo cap 2.5).
+- 10_scenery_grass / _fireflies / _ufo / _far_gnome.
+- 11_letters_reach (G only at start; GN after 2→3, nothing moved; GNO after 4→5; all five after 7→8, home error < 1.5, spots as in `letters.ts`).
+- `scenario-letters.js` L0 (rectangle maths, one hole line), L2/L3 (level-ups instead of `buyLand`, `max.x`, M (86,·), E (·,88)), L7 (`maxOf(2)`), L21 (`max.x`), L22/L22held (see deviation 6).
+- `scenario-tree-expansion.js` P5b and F3, `scenario-endgame-boost.js` E12/E13/E20: `g.env.half` → `g.env.max.x`; F3 sets hole level 10 before land 3.
+- Syntax of all four scenario files: `node -e "new Function(...)"` → ok.
+
+### Gotowe, gdy (final list 1-26 + refresh 27-30)
+- [PASS] 15 `npx tsc --noEmit -p .` → no output; `grep -rn "env\.half" src` → 0 lines.
+- [PASS] 8 (second half) `grep -c "LAND\[0\]\.half" src/systems/hole.ts` → 1.
+- [PASS] 16 (second half) `grep -c "LAND_STEP = 4" src/data/land.ts` → 1.
+- [PASS] 30 (second half) `grep -rnE "g\.shop\.buyLand|env\.half" tools/smoke src | wc -l` → 0.
+- [NOT RUN] every scenario line (1-7, 9-14, 15 `05_bounds`, 17-29): written above, not run by order of the orchestrator.
+
+### Rejected
+- Renaming `inFactory` to `skipped` in `machines.restore`: the other agent edits that file; the name is local, the behaviour is the same.
+- (Fixed, no longer rejected) Fireflies frustum culling: their bounding sphere was computed once from zero positions, so they could be culled when the origin was off screen; now `frustumCulled = false` (check `10_scenery_fireflies`).
+- Roaster minors already rejected by plan-senior (salvo on grass at 2→3, player on the slide path, double refund with two tabs).
+
+### Review round (2026-10-21)
+- A crate's new home is tested against every placed tool (at the spot it glides to; a tool the hole swallows does not count, one hanging more than 2.5 m above does not count), the factory and the fence (1 m inside). Order: the home's side of the path, the other side, then 2 m and 3 m past the rim; with no move, four directions around the rim. Footprints are circles (crate 1.13 m + the tool's half-diagonal). Code: `Hole.moveCrateHomes`, run at the end of `carry`. Check: `12_crate_home_tool` (a fan where the old rule put the home).
+
+### Uncertain
+- 02/04/05 depend on game time at ~5 fps headless; 05's robot step may need up to 40 s of game time.

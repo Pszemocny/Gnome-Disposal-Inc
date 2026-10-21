@@ -11,6 +11,11 @@ const checks = [];
 const ok = (line, cond, info = '') => checks.push(`${cond ? 'PASS' : 'FAIL'} ${line} ${info}`);
 const near = (a, b, eps = 1e-6) => typeof a === 'number' && Math.abs(a - b) <= eps;
 const inR = (v, a, b) => typeof v === 'number' && v >= a && v <= b;
+// the fence spawn line (env.edgePoint): 1.5 m inside any side of the yard rectangle, which runs from the fixed corner (-22, -22)
+const onFenceLine = (p) => {
+  const { min, max } = window.gnome.env;
+  return near(p.x, min.x + 1.5, 1e-3) || near(p.x, max.x - 1.5, 1e-3) || near(p.z, min.z + 1.5, 1e-3) || near(p.z, max.z - 1.5, 1e-3);
+};
 const errors = [];
 window.addEventListener('error', (e) => errors.push(String(e.message)));
 
@@ -224,7 +229,6 @@ setTimeout(() => { if (!window.__done) window.__done = JSON.stringify({ ...R, ch
     // E12: 20 spawns 7-10 m behind the player, inside the fence, clear of the hole; pop, cue, screenshot
     {
       g.events.spawnVisitor = visitor0;
-      const h = g.env.half - 1.5;
       const pts = [];
       speech.length = 0;
       let popSeen = false;
@@ -238,7 +242,7 @@ setTimeout(() => { if (!window.__done) window.__done = JSON.stringify({ ...R, ch
         if (!sh) { pts.push(null); continue; }
         const p = sh.body.translation();
         const dx = p.x - 0, dz = p.z - PZ, d = Math.hypot(dx, dz);
-        pts.push({ d: +d.toFixed(2), dot: +(dz / d).toFixed(3), inside: Math.abs(p.x) <= h + 1e-6 && Math.abs(p.z) <= h + 1e-6, holeGap: g.env.holeDist(p.x, p.z) >= g.env.holeRadius + 2 - 1e-6 });
+        pts.push({ d: +d.toFixed(2), dot: +(dz / d).toFixed(3), inside: g.env.inside(p.x, p.z, 1.5 - 1e-6), holeGap: g.env.holeDist(p.x, p.z) >= g.env.holeRadius + 2 - 1e-6 });
         if (i === 0) {
           const M4 = new g.camera.matrix.constructor();
           const mesh = g.gnomes.meshes.get('shadow');
@@ -259,7 +263,7 @@ setTimeout(() => { if (!window.__done) window.__done = JSON.stringify({ ...R, ch
     // E13: nothing fits behind the player at the fence corner with the hole behind → fence spawn
     {
       clearGnomes();
-      const h = g.env.half - 1.5;
+      const h = g.env.max.x - 1.5; // the +x +z corner of the yard rectangle
       const hole0 = g.env.hole.clone(), r0 = g.env.holeRadius;
       const hd0 = g.env.holeDist;
       // behind the player (corner +x +z, looking at the corner) is the yard interior; make every behind spot fail the hole gap
@@ -269,19 +273,19 @@ setTimeout(() => { if (!window.__done) window.__done = JSON.stringify({ ...R, ch
       const sh = g.gnomes.list.find((x) => x.type.id === 'shadow');
       const p = sh?.body.translation();
       g.env.holeDist = hd0; g.env.hole.copy(hole0); g.env.holeRadius = r0;
-      const onFence = !!p && (near(Math.abs(p.x), h, 1e-3) || near(Math.abs(p.z), h, 1e-3));
+      const onFence = !!p && onFenceLine(p);
       R.E13 = { p: p && { x: p.x, z: p.z }, onFence };
       ok('E13', onFence, JSON.stringify(R.E13));
     }
     // E20: the shadow never appears in front of the player or inside the factory (plan row 13: within 60° of straight behind)
     {
-      const h = g.env.half - 1.5;
+      const h = g.env.max.x - 1.5; // the +z fence line (max.z === max.x)
       const spawnOnce = (x, z) => {
         clearGnomes(); placePlayer(x, z, 0, 0); g.events.spawnVisitor();
         const p = g.gnomes.list.find((q) => q.type.id === 'shadow')?.body.translation();
         if (!p) return null;
         const d = Math.hypot(p.x - x, p.z - z);
-        const onFence = near(Math.abs(p.x), h, 1e-3) || near(Math.abs(p.z), h, 1e-3);
+        const onFence = onFenceLine(p);
         return { x: +p.x.toFixed(2), z: +p.z.toFixed(2), behind: (p.z - z) / d >= 0.5 - 1e-6, onFence, inFactory: g.factory.inside(p.x, p.z) };
       };
       // back to the +z fence (looking -z): no spot behind fits, so the shadow must come from the fence, never from the front

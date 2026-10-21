@@ -5,10 +5,10 @@ import { blockSaves, freshState, saveState } from '../core/state';
 import { money } from '../core/format';
 import { HOLE_LEVELS, MAX_HOLE_LEVEL, holeLevel } from '../data/holeLevels';
 import { KEEP_TOOL_IDS } from '../data/upgrades';
-import { LAND } from '../data/land';
+import { LAND, landFor } from '../data/land';
 import { WORD } from '../data/letters';
 import type { Gnome } from '../entities/gnomes';
-import { machineBox, type Machine } from '../entities/machines';
+import { boxBottom, machineBox, type Machine } from '../entities/machines';
 import { glowTexture } from '../entities/mushrooms';
 import { inOutSine, inQuad } from '../core/ease';
 
@@ -42,6 +42,7 @@ const MACHINE_GONE = 0.2; // seconds a swallowed tool shrinks before it goes bac
 const DEFAULT_BOX = { half: [1, 1, 1], center: [0, 1, 0] };
 // flat $ per trick on top of the multiplier (the armchair pays $250 once)
 const TRICK_BONUS = { air: 10, long: 20, trick: 25, sniper: 40, bullseye: 60 };
+const UP = new THREE.Vector3(0, 1, 0);
 
 export class Hole {
   combo = 0;
@@ -170,7 +171,8 @@ export class Hole {
     // whole early shop (PP 2026-10-21 "b", docs/ai-work/2026-10-21-bullseye-early-money.md)
     bonus *= Math.min(1, ctx.state.holeLevel / 4);
     const value = g.type.value * g.tier.value * trick * rush * this.valueScale * this.comboMult * ctx.buffs.valueMult() * g.valueMult * (g.parade >= 0 ? 3 : 1) + bonus * this.valueScale;
-    const feed = g.type.id === 'king' || machine === 'crate' ? 1 : machine || g.thrownBy !== 'player' ? FEED_XP : 1 / Math.sqrt(g.xpGroup?.n ?? 1);
+    // fullXp: a machine shot of a gnome the player fed in pays the player's XP; it carries no throw, so no trick above
+    const feed = g.type.id === 'king' || machine === 'crate' ? 1 : machine || (g.thrownBy !== 'player' && !g.fullXp) ? FEED_XP : 1 / Math.sqrt(g.xpGroup?.n ?? 1);
     // the weight Feeding Frenzy adds pays money, not XP: levels are not forced (2026-10-25, Q1 a)
     const xp = g.type.xp * g.xpTier.value * feed * this.xpMult;
     const origin = at ?? this.holeOrigin;
@@ -286,12 +288,18 @@ export class Hole {
     const oldR = ctx.env.holeRadius;
     s.holeLevel++;
     const L = holeLevel(s.holeLevel);
-    ctx.env.rebuildHole();
+    // the yard grows by itself at hole levels 3 / 5 / 8: new fence, and the hole slides LAND_STEP m further (carry inside)
+    const land = landFor(s.holeLevel);
+    const newLand = land !== s.land;
+    if (newLand) {
+      s.land = land;
+      ctx.env.rebuildLand();
+    } else ctx.env.rebuildHole();
     ctx.audio.levelUp();
     ctx.fx.shake(0.8);
     ctx.fx.burst(ctx.env.hole.clone().setY(0.5), 0x5fd0ff, 80);
     this.shockwave();
-    if (this.carry(oldC, oldR, ctx.env.hole, ctx.env.holeRadius, MACHINE_GLIDE)) {
+    if (!newLand && this.carry(oldC, oldR, ctx.env.hole, ctx.env.holeRadius, MACHINE_GLIDE)) {
       ctx.hud.toast('The hole moved under one of your machines. It is back in your inventory.', 'info');
     }
     ctx.hud.levelUp(s.holeLevel, L.mult, L.unlock, L.whisper);
@@ -310,6 +318,9 @@ export class Hole {
   carry(oldC: THREE.Vector3, oldR: number, newC: THREE.Vector3, newR: number, T: number): number {
     // the cleaning robot drives itself and moves its own station out of the hole (stepOutPost); a crate is a loose object
     // that dumps itself and goes home when it falls in (it may be the very crate whose dump caused this level-up)
+    // a crate whose home the moving hole will cover gets a home 1 m past the new rim, beside the hole's path, or it
+    // would respawn into the hole again and again; beside, not behind, because the hole sweeps the ground behind it
+    // (crate homes are set at the end, against the spots the tools glide to)
     const list = ctx.machines.list.filter((m) => m.type !== 'robot' && m.type !== 'box');
     // stacks: a tool resting on top of another's footprint belongs to the same group
     const group = list.map((_, i) => i);
@@ -341,7 +352,40 @@ export class Hole {
         gone += members.length;
       }
     }
+    this.moveCrateHomes(oldC, newC, newR);
     return gone;
+  }
+
+  // A crate home the moving hole sweeps goes 1 m past the new rim beside the path, on the home's side first. It must not
+  // land inside a tool (where that tool stands after its glide), the factory or beyond the fence: then the other side,
+  // then 2 m and 3 m past the rim (the crate would respawn into the tool again and again)
+  private moveCrateHomes(oldC: THREE.Vector3, newC: THREE.Vector3, newR: number): void {
+    const move = new THREE.Vector3(newC.x - oldC.x, 0, newC.z - oldC.z);
+    const len = move.length();
+    const side = len > 0.01 ? new THREE.Vector3(-move.z / len, 0, move.x / len) : null;
+    const to = new Map<Machine, THREE.Vector3 | null>();
+    for (const gl of this.glides) to.set(gl.m, gl.gone ? null : gl.to);
+    const crateR = Math.hypot(machineBox('box').half[0], machineBox('box').half[2]);
+    const free = (x: number, z: number, y: number) => ctx.env.inside(x, z, 1) && !ctx.factory.inside(x, z) && ctx.machines.list.every((m) => {
+      if (m.type === 'box' || to.get(m) === null) return true;
+      const p = to.get(m) ?? m.pos;
+      const b = machineBox(m.type) ?? DEFAULT_BOX;
+      // a tool hanging above the respawning crate is no obstacle
+      return boxBottom(m.type, p, m.quat) > y + 2.5 || Math.hypot(p.x - x, p.z - z) >= crateR + Math.hypot(b.half[0], b.half[2]);
+    });
+    for (const c of ctx.machines.list) {
+      if (c.type !== 'box') continue;
+      const rel = new THREE.Vector3(c.home.x - newC.x, 0, c.home.z - newC.z);
+      // distance from the home to the path oldC -> newC
+      const t = len > 0.01 ? THREE.MathUtils.clamp(-rel.dot(move) / (len * len), 0, 1) : 0;
+      const onPath = rel.clone().addScaledVector(move, t).length();
+      if (onPath >= newR + 1.0) continue;
+      const first = side ? side.clone().multiplyScalar(rel.dot(side) < 0 ? -1 : 1) : rel.length() > 1e-3 ? rel.clone().normalize() : new THREE.Vector3(1, 0, 0);
+      // beside the path: the two sides; no move: around the rim
+      const dirs = side ? [first, first.clone().negate()] : [0, Math.PI / 2, -Math.PI / 2, Math.PI].map((a) => first.clone().applyAxisAngle(UP, a));
+      const spots = [1, 2, 3].flatMap((off) => dirs.map((d) => new THREE.Vector3(newC.x + d.x * (newR + off), c.home.y, newC.z + d.z * (newR + off))));
+      c.home.copy(spots.find((s) => free(s.x, s.z, s.y)) ?? spots[0]);
+    }
   }
 
   // true while the hole is about to swallow this tool (it goes back to the inventory when the glide ends)

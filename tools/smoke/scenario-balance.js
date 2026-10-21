@@ -563,7 +563,8 @@ setTimeout(() => { if (!window.__done) window.__done = JSON.stringify({ ...R, ch
   // upgradeCost rounds up (Math.ceil): 200 x 1.4^4 = 768.3 costs $769; 20 fans since 2026-10-21, the 11th exists, Tools have no late surcharge
   ok('D1', JSON.stringify(R.shop.fanPrices) === '[769,1076,1506,2109,2952,4133]' && R.hotbar.fan === '11/11' && R.placed.fan === 10 && R.placed.fanFree === 1 && R.shop.fanExtra === 5786, `${R.shop.fanPrices} ${R.hotbar.fan} ${R.placed.fan} free ${R.placed.fanFree} extra ${R.shop.fanExtra}`);
   ok('D2', JSON.stringify(R.shop.conveyorPrices) === '[2848,4272,6408,9611]' && R.placed.conveyor === 10, `${R.shop.conveyorPrices} ${R.placed.conveyor}`);
-  ok('D3', R.fuses.count === 270 && R.fuses.boxes === 54 && R.fuses.skipped === 0, `${R.fuses.count} ${R.fuses.boxes} ${R.fuses.skipped}`);
+  // 10 fuse tools since the Gnome Funnel (max 3, 5 fuses each): +15 fuses, +3 boxes
+  ok('D3', R.fuses.count === 285 && R.fuses.boxes === 57 && R.fuses.skipped === 0, `${R.fuses.count} ${R.fuses.boxes} ${R.fuses.skipped}`);
   ok('D4', R.perf.machinesP95 <= 1.5 && R.perf.drawCalls0 > 0 && R.perf.drawCalls20 > 0, JSON.stringify(R.perf));
   ok('D5', R.oldSave.fan === 4 && R.blueprint.placedFans === 4, `${R.oldSave.fan} ${R.blueprint.placedFans}`);
   ok('E1', R.fuses.fanA === 2 && R.fuses.fanB === 0, `${R.fuses.fanA} ${R.fuses.fanB}`);

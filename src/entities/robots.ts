@@ -216,14 +216,13 @@ export function updateRobot(m: Machine, dt: number): void {
   const t = body.translation();
   const p = tmpP.set(t.x, t.y, t.z);
   const env = ctx.env;
-  const half = env.half;
   const cap = robotCap();
   const area = robotArea();
   // m.pos is the station centre, where the truck parks (saved; stepOutPost moves it out of the hole)
   const home = m.pos;
 
   // fell into the hole or left the yard: back at the station with its cargo
-  if (t.y < -1 || Math.abs(t.x) > half + 0.5 || Math.abs(t.z) > half + 0.5) return toPost(m);
+  if (t.y < -1 || !env.inside(t.x, t.z, -0.5)) return toPost(m);
 
   // the target is gone (eaten, held, stashed elsewhere), walked out of the area or left the ground (it is picked
   // again by a scan once it lies on the ground; chasing it in the air makes the truck circle under it)
@@ -329,9 +328,7 @@ export function updateRobot(m: Machine, dt: number): void {
   let waiting = false;
   if (wp) {
     // waypoints stay inside the fence
-    const lim = half - 1.3;
-    wp.x = THREE.MathUtils.clamp(wp.x, -lim, lim);
-    wp.z = THREE.MathUtils.clamp(wp.z, -lim, lim);
+    env.clampTo(wp, 1.3);
     const diff = wrap(Math.atan2(wp.x - p.x, wp.z - p.z) - r.yaw);
     r.yaw = THREE.MathUtils.damp(r.yaw, r.yaw + diff, 6, dt);
     speed = Math.abs(diff) > TURN_LIMIT ? 0 : robotSpeed();
@@ -447,10 +444,8 @@ function findGnome(m: Machine, p: THREE.Vector3, area: number): Gnome | null {
 
 function detour(r: Robot, p: THREE.Vector3, fwd: THREE.Vector3, tg: Gnome | null): void {
   const env = ctx.env;
-  const lim = env.half - 1.3;
   const side = Math.random() < 0.5 ? 1 : -1;
-  const at = (s: number) => new THREE.Vector3(
-    THREE.MathUtils.clamp(p.x + fwd.z * s * 3, -lim, lim), 0, THREE.MathUtils.clamp(p.z - fwd.x * s * 3, -lim, lim));
+  const at = (s: number) => env.clampTo(new THREE.Vector3(p.x + fwd.z * s * 3, 0, p.z - fwd.x * s * 3), 1.3);
   // a side is usable when the way there is clear of tools and of the hole
   const ok = (d: THREE.Vector3) => env.holeDist(d.x, d.z) >= env.holeRadius + HOLE_GAP + 0.5 && (!r.grid || clear(r.grid, p, d, 0));
   let d = at(side);
@@ -546,7 +541,8 @@ function yardSig(): number {
   const env = ctx.env;
   let h = 0;
   const add = (v: number) => (h = (Math.imul(h, 31) + Math.round(v * 20)) | 0);
-  add(env.half);
+  add(env.max.x); // the corner env.min never moves
+  add(env.max.z);
   add(env.hole.x);
   add(env.hole.z);
   add(env.holeRadius);
@@ -776,11 +772,10 @@ function descend(r: Robot, map: YardMap, f: Float32Array, p: THREE.Vector3, goal
 // the hole and the fence, over the whole yard.
 function buildYard(y: number): Grid {
   const env = ctx.env;
-  const lim = env.half - 1.3;
-  const x0 = -env.half;
-  const z0 = -env.half;
-  const nx = Math.ceil((2 * env.half) / CELL) + 1;
-  const nz = nx;
+  const x0 = env.min.x;
+  const z0 = env.min.z;
+  const nx = Math.ceil((env.max.x - env.min.x) / CELL) + 1;
+  const nz = Math.ceil((env.max.z - env.min.z) / CELL) + 1;
   const p = { y };
   const cells = new Uint8Array(nx * nz);
   const holeR = env.holeRadius + HOLE_GAP + 0.1;
@@ -788,7 +783,7 @@ function buildYard(y: number): Grid {
     for (let ix = 0; ix < nx; ix++) {
       const x = x0 + ix * CELL;
       const z = z0 + iz * CELL;
-      if (Math.abs(x) > lim || Math.abs(z) > lim || env.holeDist(x, z) < holeR) cells[iz * nx + ix] = 1;
+      if (!env.inside(x, z, 1.3) || env.holeDist(x, z) < holeR) cells[iz * nx + ix] = 1;
     }
   }
   // marks every cell inside the rectangle (centre, yaw, half sizes)

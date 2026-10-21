@@ -1,5 +1,7 @@
 import { adoptSaveShadows, adoptSaveVolume, prefs } from './settings';
 import { FUSE_TOOLS } from '../data/upgrades';
+import { LAND, landFor } from '../data/land';
+import { money } from './format';
 
 export interface PlacedMachine {
   type: string;
@@ -13,6 +15,7 @@ export interface PlacedMachine {
   qy?: number;
   qz?: number;
   qw?: number;
+  power?: number; // fan push 0.25-1 (PP 2026-10-25); missing in saves from before: 1
 }
 
 export interface GameState {
@@ -71,7 +74,7 @@ export const loadNotes: string[] = [];
 
 export function freshState(keep?: GameState): GameState {
   return {
-    version: 1,
+    version: 2,
     money: 0,
     totalEarned: 0,
     lifetimeEarned: keep?.lifetimeEarned ?? 0,
@@ -153,6 +156,12 @@ export function loadState(): GameState {
       parsed.money = (parsed.money ?? 0) + 800;
       loadNotes.push('The Piggy Bank was removed: $800 refunded. Coin Magnet level 10 now collects coins by itself.');
     }
+    // lands come with the hole level now (PP 2026-10-20): a version 1 save that bought lands gets their price back once
+    if ((parsed.version ?? 1) < 2 && (parsed.land ?? 0) > 0) {
+      const refund = LAND.slice(1, parsed.land! + 1).reduce((a, t) => a + t.cost, 0);
+      parsed.money = (parsed.money ?? 0) + refund;
+      loadNotes.push(`Lands now come with the hole level: ${money(refund)} refunded.`);
+    }
     adoptSaveVolume(parsed.settings?.volume);
     // older saves keep the Shadows checkbox here; the next save drops it
     adoptSaveShadows((parsed.settings as { shadows?: unknown } | undefined)?.shadows);
@@ -162,6 +171,9 @@ export function loadState(): GameState {
       ...parsed,
       stats: { ...base.stats, ...(parsed.stats ?? {}) },
       settings: base.settings,
+      // the land follows the hole level; a saved land is only a cache of it
+      land: landFor(parsed.holeLevel ?? 1),
+      version: 2,
       // a save from before the run clock: its total play time, exact on the first run only; after a rebirth it spans
       // all runs, so this run's time is marked unknown and never posted
       runTime: parsed.runTime ?? parsed.stats?.playTime ?? 0,

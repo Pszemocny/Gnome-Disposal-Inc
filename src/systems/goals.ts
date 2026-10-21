@@ -51,8 +51,8 @@ const MILESTONES: Goal[] = [
   rel('buy', 'Buy an upgrade at the SHOP computer (E)', 1, () => st().bought, 20, 'shop'),
   abs('lvl2', 'Reach hole level 2: every level grows the hole and its multiplier', 2, () => ctx.state.holeLevel, 30, 'hole'),
   level(4, 150),
-  // the Land goal
-  abs('garden', 'Buy the Garden (Shop → Land)', 1, () => ctx.state.land, 300, 'shop'),
+  // the Land goal: lands come with the hole level, so it asks for the level of the second one (id kept for old saves)
+  abs('garden', 'Reach hole level 5: the yard grows into the Neighbour\'s Lawn', 5, () => ctx.state.holeLevel, 300, 'hole'),
   level(6, 800),
   level(8, 2000),
   level(10, 5000),

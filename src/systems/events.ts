@@ -74,8 +74,7 @@ export class Events {
     if (this.rain > 0) {
       this.rain -= dt;
       if (Math.random() < dt * 12) {
-        const h = ctx.env.half - 2;
-        const p = new THREE.Vector3(rand(-h, h), rand(14, 24), rand(-h, h));
+        const p = ctx.env.randomPoint(2, rand(14, 24));
         // ordinary gnomes only come from the factory (PP 2026-10-19): the sky rains the special ones
         const g = ctx.gnomes.spawn(ctx.gnomes.pickSpecialType(), p, { awake: false });
         if (g) ctx.gnomes.ragdoll(g, 4);
@@ -182,8 +181,7 @@ export class Events {
         ctx.audio.rumble(1);
         break;
       case 'bloom': {
-        const h = ctx.env.half - 3;
-        for (let i = 0; i < 8; i++) ctx.mushrooms.spawn(ctx.mushrooms.pickDef(), new THREE.Vector3(rand(-h, h), 0, rand(-h, h)), false);
+        for (let i = 0; i < 8; i++) ctx.mushrooms.spawn(ctx.mushrooms.pickDef(), ctx.env.randomPoint(3), false);
         break;
       }
       case 'quake':
@@ -255,7 +253,6 @@ export class Events {
 
   private spawnVisitor(): void {
     if (ctx.gnomes.list.filter((g) => g.type.id === 'shadow').length >= 2) return;
-    const h = ctx.env.half - 1.5;
     // comes out of the dark behind the player, not from the fence (PP 2026-10-21 "zaden sie we mnie nie patrzyl")
     const pp = ctx.player.position;
     const back = ctx.player.yaw + Math.PI;
@@ -266,13 +263,9 @@ export class Events {
       const d = rand(7, 10);
       const x = pp.x - Math.sin(a) * d;
       const z = pp.z - Math.cos(a) * d;
-      if (Math.abs(x) <= h && Math.abs(z) <= h && ctx.env.holeDist(x, z) >= ctx.env.holeRadius + 2 && !ctx.mushrooms.inTool(x, z) && !ctx.factory.inside(x, z)) p = new THREE.Vector3(x, 0.7, z);
+      if (ctx.env.inside(x, z, 1.5) && ctx.env.holeDist(x, z) >= ctx.env.holeRadius + 2 && !ctx.mushrooms.inTool(x, z) && !ctx.factory.inside(x, z)) p = new THREE.Vector3(x, 0.7, z);
     }
-    if (!p) {
-      const side = Math.floor(Math.random() * 4);
-      const t = rand(-h, h);
-      p = side === 0 ? new THREE.Vector3(t, 0.7, -h) : side === 1 ? new THREE.Vector3(t, 0.7, h) : side === 2 ? new THREE.Vector3(-h, 0.7, t) : new THREE.Vector3(h, 0.7, t);
-    }
+    if (!p) p = ctx.env.edgePoint();
     const g = ctx.gnomes.spawn('shadow', p, { awake: true, yaw: Math.atan2(pp.x - p.x, pp.z - p.z) });
     if (g) {
       g.pop = POP_TIME;
@@ -295,15 +288,15 @@ export class Events {
     );
     beam.position.y = -6;
     mesh.add(beam);
-    mesh.position.set(80, 30, 0);
+    // flies in from outside the fence on every land
+    mesh.position.set(ctx.env.max.x + 22, 30, 0);
     ctx.scene.add(mesh);
     this.ufo = { mesh, beam, target: this.ufoSpot(), hits: 0, t: 0, crashing: false, vy: 0, spin: 0, roll: 0 };
   }
 
   private ufoSpot(): THREE.Vector3 {
-    const h = ctx.env.half - 5;
     for (let i = 0; i < 10; i++) {
-      const v = new THREE.Vector3(rand(-h, h), 12, rand(-h, h));
+      const v = ctx.env.randomPoint(5, 12);
       if (ctx.env.holeDist(v.x, v.z) > ctx.env.holeRadius + 4) return v;
     }
     return new THREE.Vector3(10, 12, 10);

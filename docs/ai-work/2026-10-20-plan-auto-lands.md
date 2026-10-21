@@ -339,3 +339,86 @@ Tests (headless, `npx vite --port 5199 --host 127.0.0.1`, `CDP_PORT=9373 node to
 - added: crate home step-out in `carry` (roaster Major), scenery over the Forest rectangle (tufts, mushrooms, fireflies, UFO entry), despawn rule, legend paragraph, `garden` edited by id on the tutorial-goals shape, tests 10 and the crate/robot/old-Forest/reload cases, 7 Done-when lines (19 → 26).
 - dropped: v0 step 5 filter in `main.ts` (now inside `machines.restore` with one toast), the `environment.ts` wait, the LAND-tab question (decided: remove).
 - moved to PP: hole distance as "nadal aktualne?" with the forced 35 m number; the five `[spec silent]` assumptions stay with defaults the implementer builds now.
+
+## Refresh 2026-10-21 (plan-author)
+
+Status: needs-decision (3 new questions L1-L3 below; final-plan questions 1-2 still open). Base: `main` at b6a6f82, tree clean. The `## Plan (plan-senior, final)` section stays the plan; this section lists what the code changed since, the corrected edit list, and the tests that must change.
+
+### What in the final plan no longer matches the code
+1. Letters (shipped 2026-10-21, `src/data/letters.ts`, `props.ts:41, 153`, `environment.ts:402`): `LETTER_SPOTS` N (−27, 24), M (−50, −20), E (30, −52) have x or z < −22, so with the fixed-corner rectangle they lie outside every fence for ever; O (38, 30) is already inside the Garden rectangle [−22, 42] although it is the Lawn's letter. The fence rule `props.ts:153` (`Math.max(|x|, |z|) > env.half + 1`) and `scenario-letters.js` L0, L2, L3, L7, L21 (`g.shop.buyLand`, `g.env.half`, `LAND[i].half`) break.
+2. Goals use ids (tutorial-goals shipped): `goals.ts:55` `abs('garden', 'Buy the Garden (Shop → Land)', 1, () => ctx.state.land, 300, 'shop')`. R3's "if the old array is still there" branch is dead. Untouched, this goal completes by itself at level 3, pays $300 and points the arrow at the shop.
+3. Robot stations (shipped 2026-10-24/25): `robots.ts:177` `stepOutPost` runs every frame, also broken (`machines.ts:807-813`), and sends the robot to the inventory when no spot has room (`poleBlocked`). The yard map cache `yardSig` (`robots.ts:545-561`) hashes `env.half`, the hole centre and radius; `buildYard` (`:777-791`) builds a square grid from `−half`; waypoint clamp `:332-334`, detour `:450-453`, out-of-yard `:230`. The final plan's robot line numbers (272-274, 387-389, 436, 457-461) are stale.
+4. `machines.restore` (`:533-561`) already returns a count (factory footprint, narrow belt, robot pole) and `main.ts:106-107` pushes a load note "N tools are back in your inventory: no room there." R2's toast text and the "factory-bugs R4 overlap" are moot: step 5 adds two `continue` reasons and keeps that note.
+5. `loadState` (`state.ts:128-155`) has four refund blocks now (Wind-up, Broom, per-tool Fuses, Piggy Bank); `version` is still 1 (`state.ts:74`). The Land refund block goes after the Piggy block, same shape.
+6. Shop line numbers: `TABS` `shop.ts:9`, click `:153-154`, hover `:159`, `unlockedIds` `:204`, `buyLand` `:266-277`, `affordCount` `:324`, `landItems` `:329-355`, list branch `:366`; `legend.ts:219, 237-238`; `icons.ts:22-23`; `upgrades.ts:1`.
+7. Scenery line numbers: tufts/mushrooms `environment.ts:152-176`, fog `:349-351`, walls `:355-362`, posts/rails `:364-383`, forest ring `:386-404` (house gap `:400`, letter keep-out `:402`), slide `:418-428`, `edgePoint` `:437-441`, fireflies `:499`.
+8. Other yard readers moved: `gnomes.ts:443, 496, 534, 586, 658, 701, 709, 789, 801, 820-825, 836-838`; `machines.ts:847, 868`; `player.ts:1002`; `props.ts:58, 153`; `tornado.ts:86, 139-141`; `events.ts:77, 185, 258-274, 300, 304`. The visitor (`events.ts:256-274`) now spawns 7-10 m behind the player with a fence fallback that duplicates `edgePoint`.
+9. Level-ups in tests: `scenario-balance.js:501` forces one with `s.holeXp = g.hole.xpNeeded − 0.5` + consume, `scenario-robot-stations.js:245` calls `g.hole.levelUp()` directly. Both still work (`hole.ts:86-93`). A crate dump pays full XP per gnome (`machines.ts:861`), so a multi-level chain inside one dump (row 5) is now common, not rare.
+10. `hole.ts:280-304` `levelUp` also sets `maxLevelAt` at level 12 (FASTEST LVL 12 board) and starts the King at level 10: both stay on both branches of step 3. The rebirth filter moved to `hole.ts:577`.
+11. Scenarios that set the land by hand: `scenario-perf.js:144` and `scenario-tree-expansion.js:526` (`g.state.land = 3; g.env.rebuildLand()`), `scenario-tree-expansion.js:158`, `scenario-endgame-boost.js:227, 262, 278` read `g.env.half`.
+12. FASTEST LLV 12 board is live (`leaderboard.ts:12-14`, since 2026-10-25): auto-lands change the time to level 12 for everyone (question L3).
+13. Texts: `docs/SPEC.md:29, 43, 193, 201, 217-227, 238, 240, 245`; `docs/PLAN.md:47, 49, 52, 79, 90`; `holeLevels.ts:13, 15, 18`; `data/achievements.ts:25`; `environment.ts:283` comment.
+14. In-flight overlaps named in Reach and R9 (factory-bugs on `robots.ts`/`machines.ts`, dirty `environment.ts`) are gone: everything is committed.
+
+### Letters: how the word stays completable
+- The rule (PP 2026-10-21, `SPEC.md:245`): every letter lies at its spot from the first second; a letter of a land not reached yet lies beyond the fence; a switch never moves or removes a letter. With auto-lands the lands come in order at levels 3 / 5 / 8, so by level 8 all five are inside the fence and the word can always be finished; the player never has to buy anything.
+- New spots for the fixed-corner rectangle (each ≥ 6.8 m from the one hole segment (0, 0) → (12.6, 21.8), ≥ 2 m inside its land, ≥ 5 m beyond the previous land's +x or +z fence, clear of the desk (7.5, −13), house (0, −27.5), factory (−7.5, −13) and shovel (−20.4, 20.6)):
+  G (15, −15) land 0 unchanged (21 m from the hole line); N (36, −10) land 1 (14 m past the Backyard's +x fence, 36 m from the hole line); O (−8, 58) land 2 (16 m past the Garden's +z fence, 42 m from the segment end); M (86, 10) land 3 (20 m past the Lawn's +x fence); E (10, 88) land 3 (22 m past the Lawn's +z fence). `L0` in `scenario-letters.js` proves them with rectangle maths (below).
+- `props.ts:153` → `const outside = !ctx.env.inside(t.x, t.z, −1) && Math.hypot(t.x − p.home.x, t.z − p.home.z) > 2;` (same meaning on a rectangle: 1 m past any side).
+- `environment.ts:402` tree keep-out stays (it reads the spots). The forest ring (≥ 3 m outside the rectangle, within 40 m) covers N and O on the Backyard and M and E on the Lawn; on the Backyard M and E lie past the ring (62 m) on open tufted grass (row 21), in fog (near 37 m, far 202 m) but visible.
+- Comment in `letters.ts:5-8` rewritten: "≥ 5 m beyond the previous land's +x or +z fence, so it lies in sight until the hole reaches that land's level".
+
+### Robot stations when the land changes
+- No new mechanism: `stepOutPost` already chases the hole every frame. On a 2→3 switch the hole travels 5.2 m in 1 s; a station on the path is pushed each frame to `keep = r + HOLE_GAP + ARRIVE_HOME + STATION_REACH` from the current centre and settles at `keep` from the final centre; when all 25 angles are blocked (`poleBlocked`), the robot goes to the inventory with the existing toast (`machines.ts:809-813`). Row 25 (new) and Review focus 3 cover it.
+- `yardSig`: `add(env.half)` → `add(env.max.x); add(env.max.z)` (`min` is constant). During the slide the hole hash changes every frame, so the yard maps are rebuilt per frame for ≤ 1 s, 3 times per run; today's purchase slide does the same (Forest grid 53,824 cells, performance table).
+- `buildYard`: `x0 = env.min.x`, `z0 = env.min.z`, `nx = Math.ceil((env.max.x − env.min.x) / CELL) + 1`, `nz` likewise, blocked where `!env.inside(x, z, 1.3)`. `updateRobot:230` → `!env.inside(t.x, t.z, −0.5)`; `:332-334` → `env.clampTo(wp, 1.3)`; `:450-453` → `env.clampTo(d, 1.3)` on the detour point.
+- The yard only grows at a switch, so no station ends up outside. Old saves: step 5's rectangle check runs before `place`, so a station at x < −22 is never built and counts in the load note (row 28).
+
+### Updated edit list and order
+1. `src/data/land.ts` (final step 1) + `src/data/letters.ts` spots and comment.
+2. `src/world/environment.ts` (final step 2, line numbers from item 7) + `src/entities/props.ts:153` (letter fence rule) + `:58` (`randomPoint(3, 0.5)`).
+3. `src/systems/hole.ts` (final step 3; keep `maxLevelAt`, King timer, Deep toast).
+4. `src/core/state.ts` (final step 4; refund block after the Piggy block at `:155`; `freshState` `version: 2`).
+5. `src/entities/machines.ts` `restore` (`:536-541`): before the factory check add `if (!ctx.env.inside(p.x, p.z, 0.5) || (ctx.env.holeDist(p.x, p.z) < ctx.env.holeRadius + 0.6 && p.y < 1.5)) { inFactory++; continue; }` (rename the counter `skipped`); `main.ts:106-107` and its text unchanged; `blueprints.ts:154-159` unchanged (its own hole filter + `restore`). R2's toast text is dropped.
+6. Yard readers (item 8 + robots per the section above): `gnomes.ts` (`decide`/`fleeFrom` lose the `half` parameter; `:443` parade `clampTo(…, 2)`; `:534` `p.y < −8 || !env.inside(p.x, p.z, −30)`; `:701, 838` `clampTo(…, 1.5)`; `:709-711` greedy escape = nearest of the four sides of `[min + 0.5, max − 0.5]`; `:789` `randomPoint(3, 0.6)`; `:825` `clampTo(…, 2)`); `machines.ts:868` `!env.inside(p.x, p.z, −0.5)`; `player.ts:1002` `!env.inside(centre.x, centre.z, 0.5)`; `tornado.ts:86` `L = Math.min(max.x − min.x, max.z − min.z) / 2 − 2`, `:139-141` `clampTo(pos, 1)`; `events.ts:77` `randomPoint(2, rand(14, 24))`, `:185` `randomPoint(3)`, `:258-274` `env.inside(x, z, 1.5)` and fallback `p = env.edgePoint()`, `:300` `mesh.position.set(env.max.x + 22, 30, 0)`, `:304` `randomPoint(5, 12)`; `robots.ts:230, 332, 450, 549, 777-791`.
+7. Shop removal (item 6 line numbers) + `icons.ts:22-23` + `upgrades.ts:1`.
+8. Texts: `goals.ts:55` → `abs('garden', 'Reach hole level 5: the yard grows into the Neighbour\'s Lawn', 5, () => ctx.state.holeLevel, 300, 'hole')` (id kept; `scenario-tutorial-goals.js:271` stays valid); `data/achievements.ts:25` "Reach the Dark Forest."; `holeLevels.ts:13, 15, 18` "the yard grows: …"; `legend.ts:219` (drop the price cell), `:237-238` (header without Price, paragraph from R8); `environment.ts:283` comment.
+9. Tests (next section).
+10. Docs: `SPEC.md` lines from item 13 (Dziura kotwice → one line from the factory 15/19/23/27 m; Sklep tabs without LAND; Ziemie automatic at 3/5/8, rectangle growth toward the hole, tools 2-6 m from the rim stay, old Forest layouts go back; Cele "Reach hole level 5"; Litery "ziemia przychodzi sama" instead of "po kupnie"), `PLAN.md` lines, `CHANGELOG.md` top section (one bullet, two sentences), `BOARD.md` status line, work note `docs/ai-work/2026-10-21-auto-lands.md`.
+
+### Tests that must change
+- `tools/smoke/scenario-letters.js`: `outside()` (`:65`) → `!g.env.inside(t.x, t.z, −1)` (optional second argument `maxOf(L) = 2 · LAND[L].half − 22` for L7); L0 (`:88-96`): hole-path distance over the one segment `holeAt(1, 0) → holeAt(12, 3)`; `inside = s.x >= −20 && s.z >= −20 && s.x <= maxOf(s.land) − 2 && s.z <= maxOf(s.land) − 2`; `beyond = s.land === 0 || s.x >= maxOf(s.land − 1) + 5 || s.z >= maxOf(s.land − 1) + 5`; L2/L3 (`:173-182`): replace `g.shop.buyLand(i)` with `g.state.holeLevel = LAND[i].hole − 1; g.hole.levelUp();` and `g.env.half === LAND[i].half` with `g.env.max.x === maxOf(i)`; L3 home asserts → `L('M').home.x === 86 && L('E').home.z === 88`; L7 (`:366`) `outside(p, maxOf(2))`; L21 (`:257`) `h = g.env.max.x`.
+- `tools/smoke/scenario-tree-expansion.js:158`, `scenario-endgame-boost.js:227, 262, 278`: `g.env.half` → `g.env.max.x` (the tests place things near the +x fence, which still exists). `scenario-tree-expansion.js:526` and `scenario-perf.js:144`: set `s.holeLevel = 10` before `s.land = 3` (perf already does) so `landFor` and the cache agree.
+- `tools/smoke/scenario-robot-stations.js`: no change (`Env.holeCenterFor(lv + 1)` keeps its signature; the load-note text stays).
+- `tools/smoke/scenario-errors.js:56`, `scenario-tutorial-goals.js:271`: unchanged.
+- New `tools/smoke/scenario-auto-lands.js` as in the final plan (steps 01-10, harness of `scenario-esc.js`, run with `FAKELOCK=1 URL_QUERY='' DEV_PORT=5199 CDP_PORT=9373 node tools/smoke/smoke.mjs <scratchpad>/auto-lands tools/smoke/scenario-auto-lands.js`), plus `11_letters_reach`: fresh state at level 1 → N, O, M, E `outside`, G inside; force 2→3 (`holeLevel = 2; holeXp = xpNeeded − 0.01; consume`) → N inside, `xzHome(N) < 1.5`, nothing moved; 4→5 → O inside; 7→8 → all five inside, every `xzHome < 1.5`; and `06_old_saves` (e): `{version: 1, holeLevel: 8, land: 3, upgrades: {robot: 1}, placed: [robot at (−30, 0, −30)]}` → `placedCount('robot') === 0`, load note "1 tool is back in your inventory: no room there.".
+
+### Behaviour matrix (rows added to the final matrix)
+| # | state / input | action | expected outcome | decided by |
+|---|---|---|---|---|
+| 25 | `spec silent` robot station standing on the slide path at a land switch | `stepOutPost` each frame | station ends at `keep` from the final centre; robot never in `rescue`; no spot with room → robot to the inventory, existing toast | refresh |
+| 26 | land switch with letters on the new land | `rebuildLand` | no letter moves; the new land's letter is inside the fence at its home (`xzHome < 1.5`); letters of later lands still beyond | PP 2026-10-21, refresh |
+| 27 | letter thrown past any side of the rectangle and > 2 m from home | `props.update` | goes home with the gold burst (as today, rectangle sides) | refresh |
+| 28 | old save with a robot station at x < −22 or z < −22 | `machines.restore` | never placed, counted in the load note "N tools are back in your inventory: no room there." | refresh, item 4 |
+
+### Done when (added to the final list)
+27. `scenario-auto-lands 11_letters_reach → L1 outside=N,O,M,E; after 2→3 inside=G,N moved=0; after 4→5 inside=G,N,O; after 7→8 inside=all homeErr<1.5`
+28. `FAKELOCK=1 URL_QUERY='' node tools/smoke/smoke.mjs <out> tools/smoke/scenario-letters.js → L0, L2, L3, L7, L21 PASS` (rectangle maths, level-up instead of buyLand)
+29. `scenario-auto-lands 06_old_saves e → robots=0 note="1 tool is back in your inventory: no room there."`
+30. `scenario-auto-lands 04_lawn_forest → robotPostOut=true rescue=0` and `rg -n "g\.shop\.buyLand|env\.half" tools/smoke src → (no output)`
+Line 11 of the final list changes to: `06_old_saves a → placed=0 restored=2 note="2 tools are back in your inventory: no room there."` (R2's toast text dropped, item 4).
+
+### Open decisions (new; final-plan questions 1 and 2 stay as written)
+[L1] Letter spots. Kiedy ziemie rosną z jednego rogu, wtedy litery N, M, E leżą na zawsze poza płotem, a O leży już w Garden, choć należy do Neighbour's Lawn; słowa nie da się złożyć. a) nowe miejsca: G (15, −15), N (36, −10), O (−8, 58), M (86, 10), E (10, 88); każda litera widać za płotem 14-22 m od niego, aż dziura dojdzie do poziomu 3 / 5 / 8 b) PP podaje inne miejsca (ten sam test L0 je sprawdza). (rekomendacja: a, bo spełnia zapisane reguły liter i nic więcej nie zmienia)
+[L2] Cel „Buy the Garden (Shop → Land)" ($300, strzałka do sklepu). Kiedy ziemia przyjdzie sama na poziomie 3, wtedy ten cel zaliczy się sam, zapłaci $300 i pokaże strzałkę do sklepu, gdzie nic nie ma. a) tekst „Reach hole level 5: the yard grows into the Neighbour's Lawn", $300, strzałka do dziury, to samo id (stare zapisy nic nie tracą) b) cel znika z listy (gracz traci $300, cele poziomów 4 i 6 zostają). (rekomendacja: a, jak w planie finalnym R3)
+[L3] Tablica FASTEST LVL 12. Kiedy ziemie przychodzą same, wtedy dziura na poziomie 8 stoi 35 m od fabryki zamiast 23 m, więc czasy do poziomu 12 po zmianie nie są porównywalne z wpisami sprzed niej. a) wpisy zostają (dziś tylko testowe) b) PP czyści tablicę `speed` przy wdrożeniu (zapis na produkcji, robi PP). (rekomendacja: a)
+[decision age] none: every decision this refresh rests on is from 2026-10-19..25.
+
+PP (2026-10-21): recommendations taken, may override. [L1] a (new letter spots), [L2] a (goal "Reach hole level 5…", $300, arrow to the hole, same id), [L3] a (FASTEST entries stay), [L4] = final question 1 a (one-time refund, max $49 500), [L5] = final question 2 a (`LAND_STEP = 4`), v0 question 1 (Land tab) a (tab removed, legend keeps the table). Final questions 3-6 taken as their defaults (a).
+
+### Self-check (refresh)
+- Every item in "no longer matches" has a step in the updated list (1→1-2, 2→8, 3→6, 4→5, 5→4, 6→7, 7-8→2/6, 9→tests, 10→3, 11→tests, 12→L3, 13→10, 14→none needed).
+- New rows 25-28 each have a Done-when line (27-30); row 25 marked `spec silent`.
+- Writers of `state.land` unchanged from the final plan; `env.half` readers re-grepped on b6a6f82: 25 sites in 9 src files + 7 in 4 scenarios, all listed.
+- Lists compared with code: 5 letters = 5 spots (`letters.ts`), 4 land tiers, 4 refund precedents, 3 scenarios that set `land` by hand.
+- This section is shorter than the diff it corrects (letters, goals, robots, restore, tests).

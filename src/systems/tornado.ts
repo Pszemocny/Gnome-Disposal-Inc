@@ -83,7 +83,8 @@ export class Tornado {
     }
     // quadratic curve whose midpoint is next to the hole: p0 and p2 bent to one side, p1 to the other
     const hole = ctx.env.hole;
-    const L = ctx.env.half - 2;
+    const { min, max } = ctx.env;
+    const L = Math.min(max.x - min.x, max.z - min.z) / 2 - 2;
     const a = rand(0, Math.PI * 2);
     const dir = this.tmp.set(Math.cos(a), 0, Math.sin(a));
     const perp = new THREE.Vector3(-dir.z, 0, dir.x);
@@ -136,10 +137,8 @@ export class Tornado {
   private place(): void {
     const s = Math.min(1, this.age / LIFE);
     const u = 1 - s;
-    const h = ctx.env.half - 1;
     this.pos.set(0, 0, 0).addScaledVector(this.p0, u * u).addScaledVector(this.p1, 2 * u * s).addScaledVector(this.p2, s * s);
-    this.pos.x = THREE.MathUtils.clamp(this.pos.x, -h, h);
-    this.pos.z = THREE.MathUtils.clamp(this.pos.z, -h, h);
+    ctx.env.clampTo(this.pos, 1);
     this.pos.y = 0;
     this.group!.position.copy(this.pos);
   }

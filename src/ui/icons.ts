@@ -19,8 +19,7 @@ export const ICONS: Record<string, string> = {
 };
 for (const id of FUSE_TOOLS) ICONS[`${id}Fuses`] = '🔌';
 export const FALLBACK_ICON = '🔧';
-export const TAB_ICONS: Record<Tab, string> = { Plow: '🚜', Magnet: '🧲', Factory: '🏭', Movement: '👟', Tools: '🧰', Combos: '🔥', Bonuses: '🍀', Land: '🌳', Deep: '💎' };
-export const LAND_ICONS = ['🏡', '🌷', '🌳', '🌲'];
+export const TAB_ICONS: Record<Tab, string> = { Plow: '🚜', Magnet: '🧲', Factory: '🏭', Movement: '👟', Tools: '🧰', Combos: '🔥', Bonuses: '🍀', Deep: '💎' };
 
 // the same assembly as the player's tractor (sweeper.ts) and the Magnet Gun view model (player.ts)
 function tractor(): THREE.Object3D {

@@ -2,6 +2,14 @@
 
 Newest build first. Each build lists what changed and what to test. Shown in the start menu (button "What's new").
 
+## 2026-10-27 10:00
+
+- Press N on a placed fan to turn its power down to 75, 50 or 25 %.
+- New tool: the Gnome Funnel. Hang it in the air; gnomes that fall into it shoot out towards the hole.
+- A gnome you throw or drop into the funnel yourself gives full XP. The funnel shot itself earns no trick bonuses.
+- Lands are no longer bought: the yard grows by itself at hole levels 3, 5 and 8, always toward the hole. Lands you already paid for are refunded.
+- The GNOME letters moved to new spots in the growing yard.
+
 ## 2026-10-26 18:00
 
 - The golden shovel and the GNOME letters stay gold but no longer glow.

@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import type RAPIER from '@dimforge/rapier3d-compat';
-import { ctx, drawPose, G, groups, rand, savePose } from '../core/context';
+import { ctx, drawPose, G, groups, savePose } from '../core/context';
 import * as M from '../world/models';
 import { tex } from '../world/textures';
 import { outBack } from '../core/ease';
@@ -55,10 +55,9 @@ export class Props {
 
   // Somewhere in the yard, away from the hole, the factory and the shop PC.
   private randomSpot(): THREE.Vector3 {
-    const h = ctx.env.half - 3;
     const factory = new THREE.Vector3(-7.5, 0, -13);
     for (let i = 0; i < 50; i++) {
-      const p = new THREE.Vector3(rand(-h, h), 0.5, rand(-h, h));
+      const p = ctx.env.randomPoint(3, 0.5);
       if (ctx.env.holeDist(p.x, p.z) < ctx.env.holeRadius + 4) continue;
       if (Math.hypot(p.x - factory.x, p.z - factory.z) < 8) continue;
       if (Math.hypot(p.x - ctx.env.deskPos.x, p.z - ctx.env.deskPos.z) < 4) continue;
@@ -141,7 +140,8 @@ export class Props {
         continue;
       }
       // a letter must stay reachable (the word must always be completable, PP): thrown over the fence, or resting
-      // on the house or factory top for 3 s, it goes home. A letter of a land not bought lies beyond the fence at home.
+      // on the factory top for 3 s, it goes home (the house stands beyond the back fence). A letter of a land not
+      // reached yet lies beyond the fence at home.
       let lost = false;
       if (p.kind === 'letter') {
         p.pop += dt;
@@ -150,7 +150,7 @@ export class Props {
         // nothing in the hands: a held crate can carry the letter, and a held letter is not resting
         const high = !p.falling && !ctx.player.held && t.y > 2.5 && Math.hypot(v.x, v.y, v.z) < 0.2;
         p.stuck = high ? p.stuck + dt : 0;
-        const outside = Math.max(Math.abs(t.x), Math.abs(t.z)) > ctx.env.half + 1 && Math.hypot(t.x - p.home.x, t.z - p.home.z) > 2;
+        const outside = !ctx.env.inside(t.x, t.z, -1) && Math.hypot(t.x - p.home.x, t.z - p.home.z) > 2;
         lost = outside || p.stuck > 3;
       }
       if (t.y < -10 || Math.abs(t.x) > 300 || lost) {

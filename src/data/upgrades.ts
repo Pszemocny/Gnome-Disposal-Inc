@@ -1,4 +1,4 @@
-export type Tab = 'Plow' | 'Magnet' | 'Factory' | 'Movement' | 'Tools' | 'Combos' | 'Bonuses' | 'Land' | 'Deep';
+export type Tab = 'Plow' | 'Magnet' | 'Factory' | 'Movement' | 'Tools' | 'Combos' | 'Bonuses' | 'Deep';
 // every shop tab is drawn as a tree: one row per root, in data order; see src/ui/shop.ts
 
 export interface Upgrade {
@@ -82,11 +82,13 @@ const TOOLS: Upgrade[] = [
   U('robotBed', 'Tools', 'Bigger Bed', '+3 gnomes per robot load (5 at start).', 4, 150, 1.6, 2, 'robot'),
   U('robotSpeed', 'Tools', 'Faster Motor', '+0.6 m/s robot speed (2.5 m/s at start).', 4, 120, 1.6, 2, 'robot'),
   U('robotArea', 'Tools', 'Wider Area', '+2 m robot work radius (6 m at start).', 4, 150, 1.6, 2, 'robot'),
+  // a catcher for what the fans blow (PP 2026-10-25 "rure do lapania taki lejek"): cheap, right after the Kicking Wheel (F1 a)
+  U('funnel', 'Tools', 'Gnome Funnel', '+1 funnel. Hang it in the air where you look: gnomes that fall or fly into its mouth shoot out of the elbow towards the hole.', 3, 1500, 1.8, 4),
 ];
 
 // saboteur armour, one upgrade per tool (PP 2026-10-21 "kazde narzedzie ma osobne fuzes jako ulepszenie"):
 // L fuses, the tool breaks on hit L + 1. Short node names so they fit the 136 px shop label.
-export const FUSE_NAMES: Record<string, string> = { trampoline: 'Trampoline', fan: 'Fan', conveyor: 'Belt', wheel: 'Wheel', magnet: 'Magnet', cannon: 'Cannon', vacuum: 'Vacuum', blackhole: 'Black Hole', robot: 'Robot' };
+export const FUSE_NAMES: Record<string, string> = { trampoline: 'Trampoline', fan: 'Fan', conveyor: 'Belt', wheel: 'Wheel', magnet: 'Magnet', cannon: 'Cannon', vacuum: 'Vacuum', blackhole: 'Black Hole', robot: 'Robot', funnel: 'Funnel' };
 export const FUSE_TOOLS = Object.keys(FUSE_NAMES);
 const FUSE_ROWS = FUSE_TOOLS.map((id) => {
   const t = TOOLS.find((u) => u.id === id)!;
