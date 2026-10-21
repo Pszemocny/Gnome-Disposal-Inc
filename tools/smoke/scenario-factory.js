@@ -1,5 +1,5 @@
 // Solid factory (chute, pedestal, gear), robots plan around it, raw mouse input and the mouse-jump / slow-frame lines.
-// Run: FULL=1 DPR=1 CDP_PORT=9374 MAXPOLL=2400 node tools/smoke/smoke.mjs <outDir> tools/smoke/scenario-factory.js
+// Run: FAKELOCK=1 DPR=1 CDP_PORT=9374 MAXPOLL=2400 node tools/smoke/smoke.mjs <outDir> tools/smoke/scenario-factory.js
 // Local factory frame: +x = the factory's right, +z = out of the chute (towards the landing ring), metres from its centre.
 const frames = async (n) => { for (let i = 0; i < n; i++) await new Promise((r) => requestAnimationFrame(() => r())); };
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
@@ -87,6 +87,7 @@ const step = async (name, fn) => { refuseN = 0; rejectRaw = false; rejectRawMs =
 const sens = () => { const c = document.cookie.match(/gnome_settings=([^;]*)/); return c ? JSON.parse(decodeURIComponent(c[1])).sensitivity : 1; };
 
 (async () => {
+  g.state.seenIntro = true; // fresh profile: skip the new-game intro cards
   await step('15_lock_option', async () => {
     await clickEl('.menu [data-a="play"]'); await settle(600);
     return `first=${JSON.stringify(calls[0])} locked=${locked()} raw=${g.input.rawOk}`;
@@ -389,7 +390,7 @@ const sens = () => { const c = document.cookie.match(/gnome_settings=([^;]*)/); 
     await gap(); await esc(); await settle(); // locked → pause menu
     g.input.raw = true; rejectRaw = true; const c0 = calls.length;
     await gap(); await clickEl('.menu [data-a="play"]'); await settle(600);
-    const first = `locked=${locked()} hintHidden=${!vis('.click-to-play')} rawAfter=${g.input.raw}`;
+    const first = `locked=${locked()} rawAfter=${g.input.raw}`;
     await gap(); await esc(); await settle();
     await gap(); await clickEl('.menu [data-a="play"]'); await settle(600);
     return `calls=[${calls.slice(c0).map((a) => JSON.stringify(a) ?? 'undefined').join(',')}] ${first} lockedAgain=${locked()}`;
@@ -419,17 +420,15 @@ const sens = () => { const c = document.cookie.match(/gnome_settings=([^;]*)/); 
     const real = js.filter((j) => j.locked && !j.skip).length;
     return `beacons=${notes('slow-frame').length} maxSlow<=5:${notes('slow-frame').length <= 5} maxJump<=5:${real <= 5} lockedJumps=${real} otherJumps=${js.length - real} line=${notes('slow-frame')[0]}`;
   });
-  // raw lock refused 300 ms after the request: A without Esc (hint per frame), B with Esc before the refusal
+  // raw lock refused 300 ms after the request: A without Esc, B with Esc before the refusal
   await step('31_esc_during_raw_reject', async () => {
     await gap(); await esc(); await settle(); // free cursor → pause
-    let hint = 0; let sampling = true;
-    const sample = () => { if (!sampling) return; if (vis('.click-to-play')) hint++; requestAnimationFrame(sample); };
     g.input.raw = true; rejectRawMs = 300;
-    await gap(); requestAnimationFrame(sample);
+    await gap();
     await clickEl('.menu [data-a="play"]'); await settle(900);
-    const a = { locked: locked(), hint };
+    const a = { locked: locked() };
     await gap(); await esc(); await settle(); // locked → pause
-    g.input.raw = true; hint = 0; rejectRawMs = 600;
+    g.input.raw = true; rejectRawMs = 600;
     await gap();
     let escAt = null;
     const onEsc = (e) => { if (e.code === 'Escape' && escAt === null) escAt = performance.now() - rawAskAt; };
@@ -437,10 +436,9 @@ const sens = () => { const c = document.cookie.match(/gnome_settings=([^;]*)/); 
     await clickEl('.menu [data-a="play"]'); await esc();
     window.removeEventListener('keydown', onEsc, true);
     await settle(1200);
-    sampling = false;
-    const b = { paused: g.paused, locked: locked(), hint };
-    const ok = a.locked && a.hint === 0 && b.paused && !b.locked && b.hint === 0 && escAt !== null && escAt < 600;
-    return `${ok ? 'PASS' : 'FAIL'} A.locked=${a.locked} A.hintFrames=${a.hint} B.escAfterRequestMs=${escAt?.toFixed(0)} B.paused=${b.paused} B.locked=${b.locked} B.hintFrames=${b.hint}`;
+    const b = { paused: g.paused, locked: locked() };
+    const ok = a.locked && b.paused && !b.locked && escAt !== null && escAt < 600;
+    return `${ok ? 'PASS' : 'FAIL'} A.locked=${a.locked} B.escAfterRequestMs=${escAt?.toFixed(0)} B.paused=${b.paused} B.locked=${b.locked}`;
   });
   // fresh jump counts: 5 skip jumps while locked use their own budget, so the real locked jump after them is logged
   await step('32_jump_cap_locked', async () => {

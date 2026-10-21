@@ -101,18 +101,8 @@ export class Menu {
     const news = `<button class="btn" data-a="news">What's new${latestBuild ? ` (${latestBuild})` : ''}</button>`;
     const how = `
       <div class="how">
-        <p>You run an <b>illegal gnome disposal business</b>. The <b>gnome factory</b> makes gnomes, the <b>hole</b> in your backyard eats them and spits out money.</p>
-        <ul>
-          <li>Stand at the <b>GNOME FACTORY</b> and <b>hold E</b> to make gnomes.</li>
-          <li><b>Hold LMB</b>: your magnet grabs one gnome (the <b>Magnet Gun</b> from the shop grabs lots; <b>C</b> switches between hands and your tool, <b>hold Tab</b> picks the tool). <b>Release</b> to drop, <b>RMB</b> to throw. Heavy gnomes fly shorter.</li>
-          <li>Trick shots pay more and stack (up to x20): AIR x2 (no bounce), LONG SHOT x2.5 (8 m), TRICK x3 (trampoline), SNIPER x4 (14 m), BULLSEYE x5 (through the golden hoop next to the hole).</li>
-          <li><b>F</b> kick · <b>WASD</b> move · <b>Shift</b> sprint · <b>Space</b> jump · <b>H</b> all controls</li>
-          <li>Walk over coins to collect them. Feed gnomes fast for <b>combos</b>.</li>
-          <li>Spend money at the <b>SHOP</b> computer (<b>E</b>). Place tools with <b>1-0</b>. Fill a <b>crate</b> and dump it into the hole.</li>
-          <li><b>E</b> on the <b>lever</b> beside the factory switches Auto Crank; <b>E</b> on a tool fixes it and swaps a blown <b>fuse</b>.</li>
-          <li>Eat magic mushrooms. Watch out for greedy, angry and saboteur gnomes.</li>
-          <li>Feed the hole. It grows. It hungers. Something waits at the bottom.</li>
-        </ul>
+        <p>You run an <b>illegal gnome disposal business</b>. Nobody wants garden gnomes any more, and the factory behind your house keeps making them.</p>
+        <p>Luckily there is a <b>hole</b> in your backyard. It eats gnomes and pays for them. Feed it. It grows. It hungers. Something waits at the bottom.</p>
       </div>`;
     this.el.innerHTML =
       mode === 'title'

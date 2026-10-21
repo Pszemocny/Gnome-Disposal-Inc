@@ -3,7 +3,7 @@ import { ctx, lvl, savePose } from '../core/context';
 import { inQuad, outBack, outCubic } from '../core/ease';
 import { build, robotBedGeometry, robotGeometry, vcMat } from '../world/models';
 import { isFree, type Gnome } from './gnomes';
-import { MACHINE_BOX, type Machine } from './machines';
+import { machineBox, type Machine } from './machines';
 
 // Cleaning robot: a little truck that drives to free gnomes around its home post, scoops them onto its bed
 // (stashed, shown as hats), drives to the hole, tips the load in and drives back. It plans a way round placed
@@ -485,7 +485,7 @@ function buildGrid(p: THREE.Vector3, goal: THREE.Vector3, margin: number): Grid 
     }
   };
   for (const o of ctx.machines.list) {
-    const b = MACHINE_BOX[o.type];
+    const b = machineBox(o.type);
     if (o.type === 'robot' || !b) continue;
     const t = o.body.translation();
     const q = o.body.rotation();

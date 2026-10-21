@@ -45,7 +45,7 @@ const TEXT: Record<string, string> = {
   boom: 'Looks normal but has a burning fuse. Explodes when the hole eats it and throws nearby gnomes off the rim.',
   angry: 'Charges you and knocks you back. When bored it kicks other gnomes around.',
   dwarf: 'Small, light and fast. Runs away from you.',
-  saboteur: 'Walks to your working tools and blows a fuse per hit; with no fuse left the tool breaks. Press E on the tool to fix it and swap fuses.',
+  saboteur: 'Walks to your working tools and blows a fuse per hit; with no fuse left the tool breaks. Press E on the tool to fix it and swap fuses (each tool has its own Fuses upgrade).',
   shadow: 'Appears at night. Stares at you and vanishes when you come close. Left alone too long, it takes some of your money.',
   wizard: 'Casts a spell that throws gnomes away from the hole and teleports around the yard.',
   fat: 'Big and heavy, slow. Hard to throw far.',

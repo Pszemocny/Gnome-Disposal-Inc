@@ -3,7 +3,7 @@ import type RAPIER from '@dimforge/rapier3d-compat';
 import { ctx, drawPose, G, groups, lvl, rand, savePose } from '../core/context';
 import type { PlacedMachine } from '../core/state';
 import { money } from '../core/format';
-import { TOOL_IDS, UPGRADES, UPGRADE_BY_ID } from '../data/upgrades';
+import { FUSE_TOOLS, UPGRADE_BY_ID } from '../data/upgrades';
 import { build, crateGeometry, fuseBoxGeometry, fuseGeometry, vcMat } from '../world/models';
 import { tex } from '../world/textures';
 import { isFree, type Gnome } from './gnomes';
@@ -43,13 +43,14 @@ export interface Machine {
 // tools with a moving dynamic body (the rest are fixed where they were placed)
 const moving = (m: Machine) => m.type === 'box' || m.type === 'robot';
 
-// Fuses (PP 2026-10-20 "bezpieczniki"): every tool but the crate and the panel carries `fuses` level slots.
-export const fuseCount = (m: Machine): number => (m.type === 'box' || m.type === 'panel' ? 0 : lvl('fuses'));
+// Fuses (PP 2026-10-20 "bezpieczniki", per tool since 2026-10-21): every tool but the crate and the panel
+// carries the level of its own `<tool>Fuses` upgrade as slots.
+const FUSE_ID: Record<string, string> = Object.fromEntries(FUSE_TOOLS.map((id) => [id, `${id}Fuses`]));
+export const fuseCount = (m: Machine): number => (FUSE_ID[m.type] ? lvl(FUSE_ID[m.type]) : 0);
 export const needsRepair = (m: Machine): boolean => m.broken > 0 || m.blown > 0;
-// fuse-able tools at most: Tools max values without the crate and the panel, so a limit change keeps every fuse drawn
-const FUSE_ABLE = UPGRADES.filter((u) => TOOL_IDS.includes(u.id) && u.id !== 'box' && u.id !== 'panel').reduce((s, u) => s + u.max, 0);
-const FUSE_CAP = FUSE_ABLE * UPGRADE_BY_ID.fuses.max;
-const BOX_CAP = FUSE_ABLE;
+// every fuse-able tool at its max with its Fuses at max, so a limit change keeps every fuse drawn (270 / 54)
+const FUSE_CAP = FUSE_TOOLS.reduce((s, id) => s + UPGRADE_BY_ID[id].max * UPGRADE_BY_ID[FUSE_ID[id]].max, 0);
+const BOX_CAP = FUSE_TOOLS.reduce((s, id) => s + UPGRADE_BY_ID[id].max, 0);
 const FUSE_GAP = 0.07;
 const FUSE_Z = 0.05; // fuses stand out of the box's front face
 const FUSE_RED = new THREE.Color(0xff4040);
@@ -64,7 +65,10 @@ const FUSE_AT: Record<string, [number, number, number, number]> = {
   robot: [0, 0.45, -0.92, Math.PI], // behind the glass dome, on the rim of the body
 };
 const FUSE_LOCAL: Record<string, THREE.Matrix4> = {};
+const beltFuse = new THREE.Matrix4();
 function fuseLocal(type: string): THREE.Matrix4 {
+  // the belt's box sits on its side rail, which moves out with Wide Belt
+  if (type === 'conveyor') return beltFuse.makeRotationY(Math.PI / 2).setPosition(beltWidth() / 2 + 0.15, 0.6, 0);
   if (!FUSE_LOCAL[type]) {
     const [x, y, z, yaw] = FUSE_AT[type] ?? [0.8, 0.6, 0, Math.PI / 2];
     FUSE_LOCAL[type] = new THREE.Matrix4().makeRotationY(yaw).setPosition(x, y, z);
@@ -87,6 +91,7 @@ const cyl = (a: number, b: number, h: number, s = 12) => new THREE.CylinderGeome
 const UP = new THREE.Vector3(0, 1, 0);
 const tmpV = new THREE.Vector3();
 const tmpV2 = new THREE.Vector3();
+const tmpQ = new THREE.Quaternion();
 // the hanging magnet's head (mouth of the horseshoe) in the tool's own frame
 const MAGNET_HEAD = new THREE.Vector3(0, 2.45, 3.5);
 const MAGNET_RANGE = 13;
@@ -153,17 +158,20 @@ export function machineVisual(type: string): { root: THREE.Group; spin: THREE.Ob
     }
     case 'conveyor': {
       // frame, side rails that keep gnomes on the belt (open ends) and yellow arrows pointing along local +Z
+      // width grows with Wide Belt (1.3 m + 0.6 m per level); the rails stand 0.05 m outside the belt
+      const W = beltWidth();
+      const rx = W / 2 + 0.05;
       const arrow = (x: number, z: number) => ({ g: new THREE.ConeGeometry(0.08, 0.22, 3), c: 0xffcc22, p: [x, 0.78, z] as [number, number, number], r: [Math.PI / 2, 0, 0] as [number, number, number] });
       add(build([
-        { g: box(1.3, 0.22, 3.0), c: 0x5a5f66, p: [0, 0.11, 0] },
-        { g: box(0.1, 0.48, 3.2), c: 0x3a3f46, p: [-0.7, 0.46, 0] },
-        { g: box(0.1, 0.48, 3.2), c: 0x3a3f46, p: [0.7, 0.46, 0] },
-        ...[-0.8, 0.8].flatMap((z) => [arrow(-0.7, z), arrow(0.7, z)]),
+        { g: box(W, 0.22, 3.0), c: 0x5a5f66, p: [0, 0.11, 0] },
+        { g: box(0.1, 0.48, 3.2), c: 0x3a3f46, p: [-rx, 0.46, 0] },
+        { g: box(0.1, 0.48, 3.2), c: 0x3a3f46, p: [rx, 0.46, 0] },
+        ...[-0.8, 0.8].flatMap((z) => [arrow(-rx, z), arrow(rx, z)]),
       ]));
       // rollers spin with the belt; the yellow stripe makes the spin visible
       const rollerGeo = build([
-        { g: cyl(0.13, 0.13, 1.28, 10), c: 0x9aa0a8, r: [0, 0, Math.PI / 2] },
-        { g: box(1.29, 0.04, 0.05), c: 0xffcc22, p: [0, 0.115, 0] },
+        { g: cyl(0.13, 0.13, W - 0.02, 10), c: 0x9aa0a8, r: [0, 0, Math.PI / 2] },
+        { g: box(W - 0.01, 0.04, 0.05), c: 0xffcc22, p: [0, 0.115, 0] },
       ]);
       for (const z of [-1.47, 0, 1.47]) {
         const roller = add(rollerGeo);
@@ -171,7 +179,9 @@ export function machineVisual(type: string): { root: THREE.Group; spin: THREE.Ob
         roller.position.set(0, 0.22, z);
       }
       // own texture copy: every belt scrolls its own offset
-      const belt = new THREE.Mesh(new THREE.BoxGeometry(1.3, 0.03, BELT_LEN), new THREE.MeshStandardMaterial({ map: stripeTexture().clone(), roughness: 0.9 }));
+      const map = stripeTexture().clone();
+      map.repeat.x = Math.max(1, Math.round(W / 1.3)); // chevrons tile across a wide belt instead of stretching
+      const belt = new THREE.Mesh(new THREE.BoxGeometry(W, 0.03, BELT_LEN), new THREE.MeshStandardMaterial({ map, roughness: 0.9 }));
       belt.position.y = 0.335;
       belt.receiveShadow = true;
       root.add(belt);
@@ -314,6 +324,8 @@ function stripeTexture(): THREE.CanvasTexture {
 }
 
 const BELT_LEN = 2.94;
+// Wide Belt (PP 2026-10-21 "pasy transportowe moga miec szerokosc"): 1.3 m + 0.6 m per level, every belt at once
+export const beltWidth = (): number => 1.3 + 0.6 * lvl('beltWidth');
 const BELT_REPEAT = 4;
 const BELT_SPEED = 4.5;
 // Spinning parts wind up and down instead of starting and stopping in one frame (animation rule 7).
@@ -323,6 +335,8 @@ const SPIN_AXIS: Record<string, 'x' | 'z'> = { fan: 'z', wheel: 'x', vacuum: 'z'
 const SPIN_LAMBDA = 4;
 const FAN_RANGE = 10; // metres in front of the fan
 const FAN_TRIP = 9; // walking and sleeping gnomes get knocked over only this close
+// Big Blades (PP 2026-10-21 "wiatraki moga miec sile nadmuchu"): +25% push along the fan axis per level
+export const fanPush = (): number => 1 + 0.25 * lvl('fanPower');
 
 // Local bounding box of each tool (half extents and the box centre relative to the model origin).
 // Placement rests this box on the surface you look at and refuses spots where it overlaps anything.
@@ -339,6 +353,93 @@ export const MACHINE_BOX: Record<string, { half: [number, number, number]; cente
   blackhole: { half: [1.3, 1.5, 1.3], center: [0, 1.4, 0] },
   robot: { half: [0.6, 0.45, 0.8], center: [0, 0.45, 0] },
 };
+
+// the box of a tool type now: the belt's grows with Wide Belt (rails 0.05 m outside, 0.05 m thick)
+export function machineBox(type: string): { half: [number, number, number]; center: [number, number, number] } {
+  return type === 'conveyor' ? { half: [beltWidth() / 2 + 0.1, 0.43, 1.6], center: [0, 0.43, 0] } : MACHINE_BOX[type];
+}
+
+// a tool base may overhang the hole edge by this much (the L-magnet stands right at the rim)
+const HOLE_EDGE = 0.15;
+
+// The tool's box seen from above, at any height: does it reach into the hole by more than HOLE_EDGE?
+// The footprint is centre ± the box's three half axes projected on the ground (a convex polygon).
+// Placement and the Wide Belt rebuild both use it.
+export function footprintOverHole(centre: THREE.Vector3, half: THREE.Vector3, q: THREE.Quaternion): boolean {
+  const hole = ctx.env.hole;
+  const r = ctx.env.holeRadius - HOLE_EDGE;
+  const gen = [new THREE.Vector3(half.x, 0, 0), new THREE.Vector3(0, half.y, 0), new THREE.Vector3(0, 0, half.z)].map((a) => a.applyQuaternion(q));
+  const px = hole.x - centre.x;
+  const pz = hole.z - centre.z;
+  // hole centre inside: within the footprint's reach across every edge direction
+  let inside = true;
+  for (const g of gen) {
+    const nx = -g.z;
+    const nz = g.x;
+    if (nx * nx + nz * nz < 1e-9) continue;
+    const reach = gen.reduce((s, a) => s + Math.abs(a.x * nx + a.z * nz), 0);
+    if (Math.abs(px * nx + pz * nz) > reach) inside = false;
+  }
+  if (inside) return true;
+  // otherwise the closest of the 12 projected box edges decides
+  const cx = (i: number) => gen.reduce((s, a, k) => s + ((i >> k) & 1 ? a.x : -a.x), 0);
+  const cz = (i: number) => gen.reduce((s, a, k) => s + ((i >> k) & 1 ? a.z : -a.z), 0);
+  for (let i = 0; i < 8; i++) {
+    for (let b = 1; b < 8; b <<= 1) {
+      if (i & b) continue;
+      const ax = cx(i);
+      const az = cz(i);
+      const dx = cx(i | b) - ax;
+      const dz = cz(i | b) - az;
+      const len = dx * dx + dz * dz;
+      const t = len ? THREE.MathUtils.clamp(((px - ax) * dx + (pz - az) * dz) / len, 0, 1) : 0;
+      if (Math.hypot(px - ax - t * dx, pz - az - t * dz) < r) return true;
+    }
+  }
+  return false;
+}
+
+// colliders of a tool in its own frame (place() and the Wide Belt rebuild)
+function colliderDescs(type: string): RAPIER.ColliderDesc[] {
+  const { R } = ctx;
+  const colliders: RAPIER.ColliderDesc[] = [];
+  switch (type) {
+    case 'box':
+      // open-top crate: floor + four walls, 1.5 kg in total so the base magnet (lift 2.25) can carry it
+      colliders.push(R.ColliderDesc.cuboid(0.8, 0.06, 0.8).setTranslation(0, -0.44, 0).setMass(0.7).setFriction(0.9));
+      colliders.push(R.ColliderDesc.cuboid(0.8, 0.5, 0.06).setTranslation(0, 0, 0.74).setMass(0.2));
+      colliders.push(R.ColliderDesc.cuboid(0.8, 0.5, 0.06).setTranslation(0, 0, -0.74).setMass(0.2));
+      colliders.push(R.ColliderDesc.cuboid(0.06, 0.5, 0.68).setTranslation(0.74, 0, 0).setMass(0.2));
+      colliders.push(R.ColliderDesc.cuboid(0.06, 0.5, 0.68).setTranslation(-0.74, 0, 0).setMass(0.2));
+      break;
+    case 'panel': colliders.push(R.ColliderDesc.cuboid(1.5, 1, 0.05).setFriction(0.2)); break;
+    case 'trampoline': colliders.push(R.ColliderDesc.cylinder(0.2, 1.05).setTranslation(0, 0.2, 0)); break;
+    case 'fan': colliders.push(R.ColliderDesc.cuboid(0.4, 0.8, 0.3).setTranslation(0, 0.8, -0.1)); break;
+    case 'conveyor': {
+      // low friction: the belt sets the gnome's speed itself, friction would only tumble it
+      const hw = beltWidth() / 2;
+      colliders.push(R.ColliderDesc.cuboid(hw + 0.1, 0.175, 1.6).setTranslation(0, 0.175, 0).setFriction(0.3));
+      colliders.push(R.ColliderDesc.cuboid(0.05, 0.24, 1.6).setTranslation(-(hw + 0.05), 0.46, 0));
+      colliders.push(R.ColliderDesc.cuboid(0.05, 0.24, 1.6).setTranslation(hw + 0.05, 0.46, 0));
+      break;
+    }
+    case 'wheel': colliders.push(R.ColliderDesc.cuboid(1.1, 0.1, 0.45).setTranslation(0, 0.1, 0)); break;
+    case 'magnet':
+      // base, post and a thin arm up high; nothing under the head, so gnomes fall through
+      colliders.push(R.ColliderDesc.cuboid(0.6, 0.15, 0.6).setTranslation(0, 0.15, 0));
+      colliders.push(R.ColliderDesc.cuboid(0.13, 1.6, 0.13).setTranslation(0, 1.75, 0));
+      colliders.push(R.ColliderDesc.cuboid(0.11, 0.11, 1.85).setTranslation(0, 3.3, MAGNET_HEAD.z / 2 - 0.05));
+      break;
+    case 'cannon': colliders.push(R.ColliderDesc.cuboid(0.7, 0.6, 0.9).setTranslation(0, 0.6, 0.2)); break;
+    case 'vacuum': colliders.push(R.ColliderDesc.cylinder(2.3, 0.8).setTranslation(0, 2.3, 0)); break;
+    case 'blackhole': colliders.push(R.ColliderDesc.cylinder(0.15, 1.1).setTranslation(0, 0.15, 0)); break;
+    // heavy, and no friction: the robot sets its own velocity every frame, the ground must not brake it
+    case 'robot':
+      colliders.push(R.ColliderDesc.cuboid(0.55, 0.3, 0.8).setTranslation(0, 0.3, 0).setMass(150).setFriction(0).setFrictionCombineRule(R.CoefficientCombineRule.Min));
+      break;
+  }
+  return colliders;
+}
 
 export function machineRotation(yaw: number, tilt: number): THREE.Quaternion {
   const q = new THREE.Quaternion().setFromAxisAngle(UP, yaw);
@@ -387,40 +488,7 @@ export class Machines {
       : type === 'robot' ? R.RigidBodyDesc.dynamic().setDominanceGroup(1).lockRotations()
       : R.RigidBodyDesc.fixed();
     const body = physics.createRigidBody(desc.setTranslation(pos.x, pos.y, pos.z).setRotation(rot));
-    const colliders: RAPIER.ColliderDesc[] = [];
-    switch (type) {
-      case 'box':
-        // open-top crate: floor + four walls, 1.5 kg in total so the base magnet (lift 2.25) can carry it
-        colliders.push(R.ColliderDesc.cuboid(0.8, 0.06, 0.8).setTranslation(0, -0.44, 0).setMass(0.7).setFriction(0.9));
-        colliders.push(R.ColliderDesc.cuboid(0.8, 0.5, 0.06).setTranslation(0, 0, 0.74).setMass(0.2));
-        colliders.push(R.ColliderDesc.cuboid(0.8, 0.5, 0.06).setTranslation(0, 0, -0.74).setMass(0.2));
-        colliders.push(R.ColliderDesc.cuboid(0.06, 0.5, 0.68).setTranslation(0.74, 0, 0).setMass(0.2));
-        colliders.push(R.ColliderDesc.cuboid(0.06, 0.5, 0.68).setTranslation(-0.74, 0, 0).setMass(0.2));
-        break;
-      case 'panel': colliders.push(R.ColliderDesc.cuboid(1.5, 1, 0.05).setFriction(0.2)); break;
-      case 'trampoline': colliders.push(R.ColliderDesc.cylinder(0.2, 1.05).setTranslation(0, 0.2, 0)); break;
-      case 'fan': colliders.push(R.ColliderDesc.cuboid(0.4, 0.8, 0.3).setTranslation(0, 0.8, -0.1)); break;
-      case 'conveyor':
-        // low friction: the belt sets the gnome's speed itself, friction would only tumble it
-        colliders.push(R.ColliderDesc.cuboid(0.75, 0.175, 1.6).setTranslation(0, 0.175, 0).setFriction(0.3));
-        colliders.push(R.ColliderDesc.cuboid(0.05, 0.24, 1.6).setTranslation(-0.7, 0.46, 0));
-        colliders.push(R.ColliderDesc.cuboid(0.05, 0.24, 1.6).setTranslation(0.7, 0.46, 0));
-        break;
-      case 'wheel': colliders.push(R.ColliderDesc.cuboid(1.1, 0.1, 0.45).setTranslation(0, 0.1, 0)); break;
-      case 'magnet':
-        // base, post and a thin arm up high; nothing under the head, so gnomes fall through
-        colliders.push(R.ColliderDesc.cuboid(0.6, 0.15, 0.6).setTranslation(0, 0.15, 0));
-        colliders.push(R.ColliderDesc.cuboid(0.13, 1.6, 0.13).setTranslation(0, 1.75, 0));
-        colliders.push(R.ColliderDesc.cuboid(0.11, 0.11, 1.85).setTranslation(0, 3.3, MAGNET_HEAD.z / 2 - 0.05));
-        break;
-      case 'cannon': colliders.push(R.ColliderDesc.cuboid(0.7, 0.6, 0.9).setTranslation(0, 0.6, 0.2)); break;
-      case 'vacuum': colliders.push(R.ColliderDesc.cylinder(2.3, 0.8).setTranslation(0, 2.3, 0)); break;
-      case 'blackhole': colliders.push(R.ColliderDesc.cylinder(0.15, 1.1).setTranslation(0, 0.15, 0)); break;
-      // heavy, and no friction: the robot sets its own velocity every frame, the ground must not brake it
-      case 'robot':
-        colliders.push(R.ColliderDesc.cuboid(0.55, 0.3, 0.8).setTranslation(0, 0.3, 0).setMass(150).setFriction(0).setFrictionCombineRule(R.CoefficientCombineRule.Min));
-        break;
-    }
+    const colliders = colliderDescs(type);
     // the robot's hats sit inside its bed
     const fill = root.getObjectsByProperty('name', 'fill');
     const m: Machine = { type, root, spin, body, pos: pos.clone(), quat: q, yaw, tilt, broken: 0, spinRate: 0, t: type === 'cannon' ? RECOIL_TIME : rand(0, 1), queue: [], smoke: 0, home: pos.clone(), fill, prevPos: pos.clone(), prevRot: q.clone(), blown: 0, fuseSlot: -1 };
@@ -468,9 +536,87 @@ export class Machines {
       }
       // saves from before free rotation only have yaw and tilt
       const q = p.qw !== undefined ? new THREE.Quaternion(p.qx, p.qy, p.qz, p.qw) : machineRotation(p.yaw, p.tilt);
-      this.place(p.type, new THREE.Vector3(p.x, p.y, p.z), q);
+      const n = this.place(p.type, new THREE.Vector3(p.x, p.y, p.z), q);
+      // a belt saved narrower may have no room at today's Wide Belt width: back to the inventory
+      // (0.75: the half width of a belt without Wide Belt, the one placement checked)
+      if (n.type === 'conveyor' && lvl('beltWidth') > 0 && this.overlaps(n, 0.75)) {
+        this.remove(n);
+        inFactory++;
+      }
     }
     return inFactory;
+  }
+
+  // A widened belt has no room when its footprint reaches into the hole, or when the strip it gains on each side
+  // (from oldHalfX out to the new box, slightly shrunk as the placement ghost) touches a fixed collider
+  // (tool, wall, house) below the rail top. Loose things (crates, robots, props, gnomes, the player) never block,
+  // and neither does anything lying on the rails.
+  private overlaps(m: Machine, oldHalfX: number): boolean {
+    const b = machineBox(m.type);
+    const r = m.body.rotation();
+    const q = tmpQ.set(r.x, r.y, r.z, r.w);
+    if (footprintOverHole(tmpV.set(...b.center).applyQuaternion(q).add(m.pos), new THREE.Vector3(...b.half), q)) return true;
+    const outX = b.half[0] * 0.92;
+    if (outX <= oldHalfX) return false;
+    // local y 0.02-0.68: from just above the belt's base to just under the rail top (0.70)
+    const shape = new ctx.R.Cuboid((outX - oldHalfX) / 2, 0.33, b.half[2] * 0.92);
+    // a pair test over every collider instead of the scene query: the query only knows colliders after the next
+    // physics step, and restore() checks tools placed in the same frame (once per load or purchase, not per frame)
+    let hit = false;
+    for (const side of [-1, 1]) {
+      const c = tmpV.set((side * (outX + oldHalfX)) / 2, 0.35, 0).applyQuaternion(q).add(m.pos);
+      const at = { x: c.x, y: c.y, z: c.z };
+      ctx.physics.colliders.forEach((col) => {
+        const parent = col.parent();
+        if (hit || parent?.handle === m.body.handle || (parent && !parent.isFixed()) || (col.collisionGroups() >>> 16) & (G.GNOME | G.COIN | G.PLAYER)) return;
+        if (col.intersectsShape(shape, at, r)) hit = true;
+      });
+    }
+    return hit;
+  }
+
+  // Wide Belt bought: every placed piece of `type` gets the new model and colliders on the same Machine and body
+  // (blueprint undo, hole glides and fuse animations keep pointing at it); the model grows from its old width.
+  // Pieces that now overlap something go back to the inventory; returns how many.
+  rebuild(type: string): number {
+    const { physics, scene } = ctx;
+    const oldHalf = new Map<Machine, number>();
+    // a piece the hole is swallowing keeps its old model: the shrink animation owns its scale and it leaves anyway
+    const pieces = this.list.filter((x) => x.type === type && !ctx.hole.goingAway(x));
+    for (const m of pieces) {
+      const oldW = ((m.spin as THREE.Mesh).geometry as THREE.BoxGeometry).parameters.width; // the belt surface
+      oldHalf.set(m, oldW / 2 + 0.1); // its box half width, rails included (machineBox)
+      scene.remove(m.root);
+      const { root, spin } = machineVisual(type);
+      root.getObjectByName('drop')?.removeFromParent();
+      root.position.copy(m.pos);
+      root.quaternion.copy(m.quat);
+      root.scale.x = oldW / beltWidth();
+      scene.add(root);
+      m.root = root;
+      m.spin = spin;
+      m.fill = root.getObjectsByProperty('name', 'fill');
+      const grp = moving(m) ? groups(G.PROP, 0xffff) : groups(G.STATIC, 0xffff);
+      for (let i = m.body.numColliders() - 1; i >= 0; i--) {
+        const col = m.body.collider(i);
+        this.byCollider.delete(col.handle);
+        physics.removeCollider(col, false);
+      }
+      for (const cd of colliderDescs(type)) this.byCollider.set(physics.createCollider(cd.setCollisionGroups(grp), m.body).handle, m);
+    }
+    // one piece at a time, so of two belts that overlap only one goes back; the query never changes bodies itself
+    let back = 0;
+    const b = machineBox(type);
+    for (const m of pieces) {
+      if (this.overlaps(m, oldHalf.get(m)!)) {
+        this.remove(m);
+        back++;
+        continue;
+      }
+      // the player was standing where the belt grew
+      ctx.player.pushOutOf(new THREE.Vector3(...b.center).applyQuaternion(m.quat).add(m.pos), new THREE.Vector3(...b.half), m.quat);
+    }
+    return back;
   }
 
   serialize(): PlacedMachine[] {
@@ -605,7 +751,11 @@ export class Machines {
         m.fuseAnim.t += dt;
         if (m.fuseAnim.t >= (m.fuseAnim.kind === 'blow' ? 0.3 : 0.35)) m.fuseAnim = undefined;
       }
-      const target = SPIN_RATE[m.type];
+      // a belt widened by Wide Belt grows to its new width in about 0.25 s (animation rule 3)
+      // (only x: a tool sinking into a new hole shrinks all three axes, hole.ts)
+      if (m.root.scale.x !== 1 && m.root.scale.y === 1) m.root.scale.x = Math.abs(1 - m.root.scale.x) < 1e-3 ? 1 : THREE.MathUtils.damp(m.root.scale.x, 1, 12, dt);
+      // Big Blades spin the blades faster, through the same damp (animation rule 7)
+      const target = m.type === 'fan' ? SPIN_RATE.fan * fanPush() : SPIN_RATE[m.type];
       if (target !== undefined) {
         m.spinRate = THREE.MathUtils.damp(m.spinRate, m.broken > 0 ? 0 : target, SPIN_LAMBDA, dt);
         const axis = SPIN_AXIS[m.type];
@@ -738,6 +888,9 @@ export class Machines {
       }
       case 'fan': {
         const origin = m.pos.clone().addScaledVector(this.up(m), 1.4);
+        // Big Blades scale only the push along the axis: the lift stays 0.35 x 55 (under gravity 20), so a level fan
+        // still tumbles gnomes instead of making them hover
+        const k = fanPush();
         // a gentle push along the fan's own axis (a fan aimed upwards lifts gnomes)
         gn.forEachNear(origin, FAN_RANGE, (g, d, p) => {
           tmpV.set(p.x - origin.x, p.y - origin.y, p.z - origin.z);
@@ -752,19 +905,21 @@ export class Machines {
             if (d > FAN_TRIP) return;
             gn.ragdoll(g, 2, 'machine');
           }
-          g.body.applyImpulse({ x: fwd.x * strength * dt, y: (fwd.y + 0.35) * strength * dt, z: fwd.z * strength * dt }, true);
+          g.body.applyImpulse({ x: fwd.x * k * strength * dt, y: (fwd.y * k + 0.35) * strength * dt, z: fwd.z * k * strength * dt }, true);
         });
-        if (Math.random() < dt * 8) ctx.fx.wind(origin.clone().addScaledVector(fwd, 0.5), fwd);
+        if (Math.random() < dt * 8) ctx.fx.wind(origin.clone().addScaledVector(fwd, 0.5), fwd, k);
         break;
       }
       case 'conveyor': {
         // works at any angle: a tilted belt is a ramp
         const right = new THREE.Vector3(1, 0, 0).applyQuaternion(m.quat);
         const up = this.up(m);
-        gn.forEachNear(m.pos, 2.4, (g, _d, p) => {
+        const hw = beltWidth() / 2;
+        // the scan covers the box between the rails (2.4 m at the 1.3 m belt)
+        gn.forEachNear(m.pos, Math.max(2.4, Math.hypot(1.6, hw + 0.05, 1.65)), (g, _d, p) => {
           const l = this.local(m, p);
           // between the rails, along the belt, up to ~1.3 m above its surface (0.35)
-          if (Math.abs(l.z) > 1.6 || Math.abs(l.x) > 0.7 || l.y < 0.1 || l.y > 1.65) return;
+          if (Math.abs(l.z) > 1.6 || Math.abs(l.x) > hw + 0.05 || l.y < 0.1 || l.y > 1.65) return;
           const lx = l.x;
           const toss = l.z > 1.3;
           if (g.state === 'walk' || g.state === 'statue') gn.ragdoll(g, 1.5, 'machine');
@@ -778,7 +933,7 @@ export class Machines {
           }
           // along the belt, gently back to the middle, keep falling onto the belt but never lift off it
           const vn = Math.min(0, v.x * up.x + v.y * up.y + v.z * up.z);
-          const c = -lx * 2;
+          const c = -lx * 2 * (0.65 / hw); // weaker on a wide belt, so gnomes ride side by side
           g.body.setLinvel({ x: fwd.x * BELT_SPEED + right.x * c + up.x * vn, y: fwd.y * BELT_SPEED + right.y * c + up.y * vn, z: fwd.z * BELT_SPEED + right.z * c + up.z * vn }, true);
           g.timer = Math.max(g.timer, 0.8);
         });

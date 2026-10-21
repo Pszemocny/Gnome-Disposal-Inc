@@ -25,6 +25,7 @@ import { Fx } from './systems/fx';
 import { Hud } from './ui/hud';
 import { Shop } from './ui/shop';
 import { Menu } from './ui/menu';
+import { Intro } from './ui/intro';
 import { Moods } from './systems/moods';
 import { Weather } from './systems/weather';
 import { Strike } from './systems/strike';
@@ -107,10 +108,14 @@ async function boot(): Promise<void> {
   if (lvl('magGun')) ctx.player.setGear('magGun');
 
   // RESUME in the pause menu works like Esc there: a refused lock still resumes with a free cursor
+  const intro = new Intro();
   const menu = new Menu(() => {
     ctx.audio.ensure();
     if (started) resume();
-    else ctx.input.lock();
+    else if (intro.wanted()) {
+      menu.hide();
+      intro.show(() => ctx.input.lock());
+    } else ctx.input.lock();
   });
   menu.show('title');
   ctx.leaderboard = new Leaderboard();
@@ -119,16 +124,13 @@ async function boot(): Promise<void> {
   const overlayOpen = () => ctx.shop.isOpen || ctx.blueprints.isOpen || ctx.legend.isOpen || ctx.leaderboard.isOpen;
 
   let lastExit = 0;
-  // the browser refuses pointer lock without a click after an Esc exit: the game runs with a free cursor and this hint
-  // until a press of any mouse button or a walk key captures it
-  const mouseHint = document.createElement('div');
-  mouseHint.className = 'click-to-play hidden';
-  mouseHint.textContent = 'Click or press W to capture the mouse';
-  document.body.appendChild(mouseHint);
-  const showMouseHint = () => mouseHint.classList.remove('hidden');
+  // the Esc press that closed an overlay, until its keyup: Chrome and Brave grant the overlay's re-lock while the key is
+  // still down, then drop the lock on its repeat without passing it to the page; that loss keeps the game running
+  let escClosed = false;
+  // the browser refuses pointer lock without a click after an Esc exit: the game runs with a free cursor until a press
+  // of any mouse button or a walk key captures it
   const resume = () => {
     menu.hide();
-    mouseHint.classList.add('hidden');
     ctx.paused = false;
     ctx.hud.root.classList.remove('dim');
     ctx.input.lock();
@@ -139,7 +141,6 @@ async function boot(): Promise<void> {
     if (locked) {
       if (overlayOpen() || !ctx.input.wanted || document.querySelector('.deep')) return ctx.input.unlock();
       menu.hide();
-      mouseHint.classList.add('hidden');
       ctx.paused = false;
       ctx.hud.root.classList.remove('dim');
       if (!started) {
@@ -151,7 +152,8 @@ async function boot(): Promise<void> {
       }
     } else {
       lastExit = performance.now();
-      if (!overlayOpen() && !document.querySelector('.deep')) showPause();
+      if (escClosed) escClosed = false;
+      else if (!overlayOpen() && !document.querySelector('.deep')) showPause();
     }
   };
 
@@ -159,13 +161,7 @@ async function boot(): Promise<void> {
     ctx.input.wanted = false;
     ctx.paused = true;
     ctx.hud.root.classList.add('dim');
-    mouseHint.classList.add('hidden');
     menu.show(started ? 'pause' : 'title');
-  };
-  // a refused lock outside the menus (Esc in the pause menu, closing an overlay) keeps the game running with a free
-  // cursor and shows the hint, never the pause menu
-  ctx.input.onLockError = () => {
-    if (!overlayOpen() && !ctx.input.locked && !menu.visible) showMouseHint();
   };
   const WALK_KEYS = new Set(['KeyW', 'KeyA', 'KeyS', 'KeyD', 'Space', 'ShiftLeft', 'ShiftRight']);
   // Esc: locked → unlock (pause via onLockChange); pause menu → resume at once; free cursor → pause. Repeats ignored
@@ -174,13 +170,18 @@ async function boot(): Promise<void> {
   window.addEventListener('keydown', (e) => {
     // repeats on purpose: a held W retries across the browser's short refusal window after an Esc exit
     if (!ctx.paused && !ctx.input.locked && !menu.visible && !overlayOpen() && WALK_KEYS.has(e.code)) ctx.input.lock();
+    if (e.code === 'Escape' && !e.repeat && e.defaultPrevented) escClosed = true;
     if (e.code !== 'Escape' || e.repeat || e.defaultPrevented || overlayOpen() || document.querySelector('.deep')) return;
     if (ctx.input.locked) ctx.input.unlock();
     else if (menu.visible && started && performance.now() - lastExit > 200) resume();
     else if (!ctx.paused) showPause();
   });
   // while locked the browser drops the lock itself on blur and onLockChange pauses
+  window.addEventListener('keyup', (e) => {
+    if (e.code === 'Escape') escClosed = false;
+  });
   window.addEventListener('blur', () => {
+    escClosed = false;
     if (started && !ctx.paused && !ctx.input.locked) showPause();
   });
   // any mouse button captures a free cursor; Input's own mousedown (registered first) ignores it while unlocked

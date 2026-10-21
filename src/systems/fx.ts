@@ -120,9 +120,10 @@ export class Fx {
     }
   }
 
-  wind(p: THREE.Vector3, dir: THREE.Vector3): void {
+  // k: a stronger blast (Big Blades) sends its puffs faster
+  wind(p: THREE.Vector3, dir: THREE.Vector3, k = 1): void {
     this.col.setHex(0xe8f6ff);
-    this.puffs.emit(p.clone().add(this.tmp.set(rand(-0.5, 0.5), rand(-0.5, 0.5), rand(-0.5, 0.5))), dir.clone().multiplyScalar(8), this.col, 0.6);
+    this.puffs.emit(p.clone().add(this.tmp.set(rand(-0.5, 0.5), rand(-0.5, 0.5), rand(-0.5, 0.5))), dir.clone().multiplyScalar(8 * k), this.col, 0.6);
   }
 
   floatText(p: THREE.Vector3, text: string, color = '#fff'): void {

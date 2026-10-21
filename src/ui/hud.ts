@@ -22,6 +22,7 @@ const CARD_OUT = 0.35;
 const TOAST_T = 4.2;
 const ACH_T = 5;
 const MAX_TOASTS = 4;
+export const LINKS = { coffee: '' }; // Buy Me a Coffee page (PP adds it); empty = no "Press F" line on The Deep
 
 // first-use hint: one line of what to do, keyed by tool / gear id; missing ids show the shop description
 const HINTS: Record<string, string> = {
@@ -356,14 +357,33 @@ export class Hud {
       `You gained ${shards} Hole Shard${shards === 1 ? '' : 's'}.`,
       'The garden begins again.',
     ];
+    const lineEl = h('div', 'deep-lines', el);
+    let f: HTMLDivElement | undefined;
+    let paid = false;
+    const onF = (e: KeyboardEvent) => {
+      if (e.code !== 'KeyF' || e.repeat || paid) return;
+      paid = true;
+      window.open(LINKS.coffee, '_blank', 'noopener');
+      f!.textContent = 'Respects paid. Thank you ♥';
+      ctx.audio.toast();
+    };
     let i = 0;
     const next = () => {
       if (i >= lines.length) {
-        el.innerHTML = '<div class="deep-line">THE DEEP</div><button class="btn">Be reborn</button>';
-        el.querySelector('button')!.addEventListener('click', done);
+        lineEl.innerHTML = '<div class="deep-line">THE DEEP</div><button class="btn">Be reborn</button>';
+        lineEl.querySelector('button')!.addEventListener('click', () => {
+          window.removeEventListener('keydown', onF);
+          done();
+        });
         return;
       }
-      el.innerHTML = `<div class="deep-line">${lines[i++]}</div>`;
+      // born with the second line: a kick-F tapped right after falling in cannot open the tab
+      if (i === 1 && LINKS.coffee && !f) {
+        f = h('div', 'deep-f', el);
+        f.textContent = 'Press F to pay respects';
+        window.addEventListener('keydown', onF);
+      }
+      lineEl.innerHTML = `<div class="deep-line">${lines[i++]}</div>`;
       ctx.audio.whisper();
       setTimeout(next, 2600);
     };

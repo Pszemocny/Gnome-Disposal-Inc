@@ -1,4 +1,5 @@
 import { adoptSaveShadows, adoptSaveVolume, prefs } from './settings';
+import { FUSE_TOOLS } from '../data/upgrades';
 
 export interface PlacedMachine {
   type: string;
@@ -130,6 +131,16 @@ export function loadState(): GameState {
       delete parsed.upgrades.broom;
       parsed.money = (parsed.money ?? 0) + 60;
       loadNotes.push('The Push Broom was removed: $60 refunded.');
+    }
+    // one global Fuses became one per tool (PP 2026-10-21): every tool gets the old level; a per-tool level
+    // bought since then (an old tab autosaved `fuses` over a new save) is kept when it is higher
+    const fuses = parsed.upgrades?.fuses;
+    if (fuses !== undefined) {
+      delete parsed.upgrades!.fuses;
+      if (fuses > 0) {
+        for (const id of FUSE_TOOLS) parsed.upgrades![`${id}Fuses`] = Math.max(parsed.upgrades![`${id}Fuses`] ?? 0, fuses);
+        loadNotes.push('Fuses are now per tool: every tool got your old level.');
+      }
     }
     adoptSaveVolume(parsed.settings?.volume);
     // older saves keep the Shadows checkbox here; the next save drops it

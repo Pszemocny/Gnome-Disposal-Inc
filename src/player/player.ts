@@ -5,7 +5,7 @@ import { MAX_HOLE_LEVEL } from '../data/holeLevels';
 import { TOOL_IDS, UPGRADE_BY_ID } from '../data/upgrades';
 import { isFree, type Gnome } from '../entities/gnomes';
 import type { Prop } from '../entities/props';
-import { MACHINE_BOX, machineVisual, needsRepair, type Machine } from '../entities/machines';
+import { footprintOverHole, machineBox, machineVisual, needsRepair, type Machine } from '../entities/machines';
 import { Sweeper, type Gear } from './sweeper';
 import { ToolWheel } from './wheel';
 import { Pound } from './pound';
@@ -25,8 +25,6 @@ const ARC_BALL = 0.25;
 const SCOPE_WHITE = 0xffffff;
 const SCOPE_GREEN = 0x3aff8a;
 const SCOPE_GOLD = 0xffd23f;
-// a tool base may overhang the hole edge by this much (the L-magnet stands right at the rim)
-const HOLE_EDGE = 0.15;
 // placement on a top face: the ghost may step up this much onto the highest part of the thing you aim at
 const STEP_UP = 1;
 const EYE = 0.75;
@@ -383,6 +381,23 @@ export class Player {
     return this.position.clone().setY(this.position.y + EYE + this.sweeper.lift);
   }
 
+
+  // A tool grew around the player (Wide Belt): move the capsule (radius 0.35, 0.9 tall each way) out of the
+  // tool's box along the shortest way, sideways or up, so the character controller does not start inside it.
+  // The camera reads `position` directly (no interpolated pose), so the move shows in the same frame.
+  pushOutOf(centre: THREE.Vector3, half: THREE.Vector3, q: THREE.Quaternion): void {
+    const l = this.body.translation();
+    const p = new THREE.Vector3(l.x, l.y, l.z).sub(centre).applyQuaternion(q.clone().invert());
+    const pen = [half.x + 0.35 - Math.abs(p.x), half.y + 0.9 - p.y, half.z + 0.35 - Math.abs(p.z)];
+    if (pen.some((v) => v <= 0) || Math.abs(p.y) > half.y + 0.9) return;
+    const i = pen.indexOf(Math.min(...pen));
+    if (i === 0) p.x += Math.sign(p.x || 1) * (pen[0] + 0.02);
+    else if (i === 1) p.y += pen[1] + 0.02;
+    else p.z += Math.sign(p.z || 1) * (pen[2] + 0.02);
+    p.applyQuaternion(q).add(centre);
+    this.body.setTranslation({ x: p.x, y: p.y, z: p.z }, true);
+    this.position.copy(p);
+  }
 
   hitBy(dir: THREE.Vector3, power: number): void {
     this.knock.addScaledVector(dir.clone().setY(0).normalize(), power);
@@ -913,7 +928,7 @@ export class Player {
   private updatePlacement(): void {
     const inp = ctx.input;
     const type = this.placing!;
-    const box = MACHINE_BOX[type];
+    const box = machineBox(type);
     const camRight = new THREE.Vector3(Math.cos(this.yaw), 0, -Math.sin(this.yaw));
     if (inp.mouse.right) {
       const k = 0.006;
@@ -970,7 +985,7 @@ export class Player {
         return !blocked;
       },
     );
-    if (this.footprintOverHole(centre, half, q)) blocked = true;
+    if (footprintOverHole(centre, half, q)) blocked = true;
     if (Math.abs(centre.x) > ctx.env.half - 0.5 || Math.abs(centre.z) > ctx.env.half - 0.5) blocked = true;
     this.ghostBlocked = blocked;
 
@@ -1000,42 +1015,6 @@ export class Player {
       if (this.lookAt.switch) ctx.factory.toggle();
       else if (m && needsRepair(m)) ctx.machines.repair(m);
     }
-  }
-
-  // The tool's box seen from above, at any height: does it reach into the hole by more than HOLE_EDGE?
-  // The footprint is centre ± the box's three half axes projected on the ground (a convex polygon).
-  private footprintOverHole(centre: THREE.Vector3, half: THREE.Vector3, q: THREE.Quaternion): boolean {
-    const hole = ctx.env.hole;
-    const r = ctx.env.holeRadius - HOLE_EDGE;
-    const gen = [new THREE.Vector3(half.x, 0, 0), new THREE.Vector3(0, half.y, 0), new THREE.Vector3(0, 0, half.z)].map((a) => a.applyQuaternion(q));
-    const px = hole.x - centre.x;
-    const pz = hole.z - centre.z;
-    // hole centre inside: within the footprint's reach across every edge direction
-    let inside = true;
-    for (const g of gen) {
-      const nx = -g.z;
-      const nz = g.x;
-      if (nx * nx + nz * nz < 1e-9) continue;
-      const reach = gen.reduce((s, a) => s + Math.abs(a.x * nx + a.z * nz), 0);
-      if (Math.abs(px * nx + pz * nz) > reach) inside = false;
-    }
-    if (inside) return true;
-    // otherwise the closest of the 12 projected box edges decides
-    const cx = (i: number) => gen.reduce((s, a, k) => s + ((i >> k) & 1 ? a.x : -a.x), 0);
-    const cz = (i: number) => gen.reduce((s, a, k) => s + ((i >> k) & 1 ? a.z : -a.z), 0);
-    for (let i = 0; i < 8; i++) {
-      for (let b = 1; b < 8; b <<= 1) {
-        if (i & b) continue;
-        const ax = cx(i);
-        const az = cz(i);
-        const dx = cx(i | b) - ax;
-        const dz = cz(i | b) - az;
-        const len = dx * dx + dz * dz;
-        const t = len ? THREE.MathUtils.clamp(((px - ax) * dx + (pz - az) * dz) / len, 0, 1) : 0;
-        if (Math.hypot(px - ax - t * dx, pz - az - t * dz) < r) return true;
-      }
-    }
-    return false;
   }
 
   private updateCamera(dt: number): void {

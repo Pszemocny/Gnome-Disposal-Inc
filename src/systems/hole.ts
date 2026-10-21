@@ -7,7 +7,7 @@ import { HOLE_LEVELS, MAX_HOLE_LEVEL, holeLevel } from '../data/holeLevels';
 import { KEEP_TOOL_IDS } from '../data/upgrades';
 import { LAND } from '../data/land';
 import type { Gnome } from '../entities/gnomes';
-import { MACHINE_BOX, type Machine } from '../entities/machines';
+import { machineBox, type Machine } from '../entities/machines';
 import { glowTexture } from '../entities/mushrooms';
 import { inOutSine, inQuad } from '../core/ease';
 
@@ -275,7 +275,7 @@ export class Hole {
     const group = list.map((_, i) => i);
     const root = (i: number): number => (group[i] === i ? i : (group[i] = root(group[i])));
     for (const [i, lo] of list.entries()) {
-      const b = MACHINE_BOX[lo.type] ?? DEFAULT_BOX;
+      const b = machineBox(lo.type) ?? DEFAULT_BOX;
       const top = lo.pos.y + b.center[1] + b.half[1];
       const reach = Math.max(b.half[0], b.half[2]) + 0.3;
       for (const [j, up] of list.entries()) {
@@ -302,6 +302,11 @@ export class Hole {
       }
     }
     return gone;
+  }
+
+  // true while the hole is about to swallow this tool (it goes back to the inventory when the glide ends)
+  goingAway(m: Machine): boolean {
+    return this.glides.some((gl) => gl.gone && gl.m === m);
   }
 
   private glides: { m: Machine; from: THREE.Vector3; to: THREE.Vector3; t: number; delay: number; T: number; gone: boolean }[] = [];

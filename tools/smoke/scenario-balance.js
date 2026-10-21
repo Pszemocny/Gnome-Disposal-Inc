@@ -18,7 +18,7 @@ setTimeout(() => { if (!window.__done) window.__done = JSON.stringify({ ...R, ch
     const { EVENTS } = await import('/src/systems/events.ts');
     const { freshState, loadState, blockSaves } = await import('/src/core/state.ts');
     const { fuseCount } = await import('/src/entities/machines.ts');
-    const { UPGRADES, TOOL_IDS } = await import('/src/data/upgrades.ts');
+    const { UPGRADES, TOOL_IDS, FUSE_TOOLS } = await import('/src/data/upgrades.ts');
     const { Goals } = await import('/src/systems/goals.ts');
     blockSaves();
     // the goals keep their own copy of the save's progress: a swapped state needs fresh goals
@@ -405,7 +405,7 @@ setTimeout(() => { if (!window.__done) window.__done = JSON.stringify({ ...R, ch
         s.upgrades[id] = u.max;
         for (let k = 0; k < u.max; k++, i++) g.machines.place(id, new V3(-20 + (i % 14) * 3, 0, -20 + Math.floor(i / 14) * 3.2), Q());
       }
-      s.upgrades.fuses = 5;
+      for (const id of FUSE_TOOLS) s.upgrades[`${id}Fuses`] = 5;
       g.machines.drawFuses();
       R.fuses.count = g.machines.fuseMesh.count;
       R.fuses.boxes = g.machines.boxMesh.count;
@@ -453,7 +453,8 @@ setTimeout(() => { if (!window.__done) window.__done = JSON.stringify({ ...R, ch
     // ---- E: fuses per piece
     {
       const s = S();
-      s.upgrades.fan = 2; s.upgrades.fuses = 5; s.upgrades.robot = 1;
+      s.upgrades.fan = 2; s.upgrades.robot = 1;
+      for (const id of FUSE_TOOLS) s.upgrades[`${id}Fuses`] = 5;
       const a = g.machines.place('fan', new V3(10, 0, -8), Q());
       const b = g.machines.place('fan', new V3(13, 0, -8), Q());
       g.machines.breakMachine(a); g.machines.breakMachine(a);
@@ -557,10 +558,10 @@ setTimeout(() => { if (!window.__done) window.__done = JSON.stringify({ ...R, ch
   ok('C18', eq(m.regrabBall20, B?.regrabBall20) !== false && near(x.regrabBall20, 0.224, 0.002), `${x.regrabBall20} money ${m.regrabBall20} before ${B?.regrabBall20} dist ${m.regrabThrowDist}`);
   ok('C20', x.slipRegrabHeld === true && x.slipRegrabN === 4 && near(x.slipRegrab4, 0.5), `${x.slipRegrab4} n=${x.slipRegrabN} held ${x.slipRegrabHeld}`);
   ok('C19',near(x.kickedMidAir, 0.25) && near(m.kickedMidAir, m.plain, 1e-3), `${x.kickedMidAir} money ${m.kickedMidAir} plain ${m.plain} dist ${m.kickedMidAirDist}`);
-  // upgradeCost rounds up (Math.ceil): 200 x 1.9^4 = 2606.4 costs $2 607
-  ok('D1', JSON.stringify(R.shop.fanPrices) === '[2607,4953,9410,17878,33968,64538]' && R.hotbar.fan === '10/10' && R.placed.fan === 10 && R.shop.fanExtra === 0, `${R.shop.fanPrices} ${R.hotbar.fan} ${R.placed.fan}`);
+  // upgradeCost rounds up (Math.ceil): 200 x 1.4^4 = 768.3 costs $769; 20 fans since 2026-10-21, the 11th exists, Tools have no late surcharge
+  ok('D1', JSON.stringify(R.shop.fanPrices) === '[769,1076,1506,2109,2952,4133]' && R.hotbar.fan === '11/11' && R.placed.fan === 10 && R.placed.fanFree === 1 && R.shop.fanExtra === 5786, `${R.shop.fanPrices} ${R.hotbar.fan} ${R.placed.fan} free ${R.placed.fanFree} extra ${R.shop.fanExtra}`);
   ok('D2', JSON.stringify(R.shop.conveyorPrices) === '[2848,4272,6408,9611]' && R.placed.conveyor === 10, `${R.shop.conveyorPrices} ${R.placed.conveyor}`);
-  ok('D3', R.fuses.count === 220 && R.fuses.boxes === 44 && R.fuses.skipped === 0, `${R.fuses.count} ${R.fuses.boxes} ${R.fuses.skipped}`);
+  ok('D3', R.fuses.count === 270 && R.fuses.boxes === 54 && R.fuses.skipped === 0, `${R.fuses.count} ${R.fuses.boxes} ${R.fuses.skipped}`);
   ok('D4', R.perf.machinesP95 <= 1.5 && R.perf.drawCalls0 > 0 && R.perf.drawCalls20 > 0, JSON.stringify(R.perf));
   ok('D5', R.oldSave.fan === 4 && R.blueprint.placedFans === 4, `${R.oldSave.fan} ${R.blueprint.placedFans}`);
   ok('E1', R.fuses.fanA === 2 && R.fuses.fanB === 0, `${R.fuses.fanA} ${R.fuses.fanB}`);

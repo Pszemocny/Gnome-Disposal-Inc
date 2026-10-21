@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import { ctx } from '../core/context';
-import { TOOL_IDS, type Tab } from '../data/upgrades';
+import { FUSE_TOOLS, TOOL_IDS, type Tab } from '../data/upgrades';
 import { machineVisual } from '../entities/machines';
 import { blowerGeometry, magnetGunCoilGeometry, magnetGunGeometry, plowBladeGeometry, tractorGeometry, tractorWheelGeometry, vcMat } from '../world/models';
 import { TOOL_ICONS } from './hud';
@@ -12,11 +12,12 @@ export const ICONS: Record<string, string> = {
   magGun: '🧲', magPower: '🔋', magRange: '📡', throw: '💪', scope: '🔭',
   factorySpeed: '⚙️', batch: '👥', autocrank: '🔁', value: '💰', permit: '📜', glue: '🧴',
   speed: '👟', jump: '🧦', boots: '👢', magnetRange: '🪙', laptop: '💻',
-  crateSize: '📐', robotBed: '🛏️', robotSpeed: '⚡', robotArea: '🗺️', fuses: '🔌',
+  crateSize: '📐', robotBed: '🛏️', robotSpeed: '⚡', robotArea: '🗺️', fanPower: '🌀', beltWidth: '↔️',
   comboWindow: '⏱️', comboCap: '🔥', comboInsurance: '🛡️', jackpot: '🎰',
   mushChance: '🍄', mushTime: '⏳', goldChance: '✨', piggy: '🐷', hunger: '🍴', lucky: '🍀',
   dValue: '💎', dStart: '🎁', dTools: '🧰', dCombo: '🔥', dXp: '🕳️',
 };
+for (const id of FUSE_TOOLS) ICONS[`${id}Fuses`] = '🔌';
 export const FALLBACK_ICON = '🔧';
 export const TAB_ICONS: Record<Tab, string> = { Plow: '🚜', Magnet: '🧲', Factory: '🏭', Movement: '👟', Tools: '🧰', Combos: '🔥', Bonuses: '🍀', Land: '🌳', Deep: '💎' };
 export const LAND_ICONS = ['🏡', '🌷', '🌳', '🌲'];

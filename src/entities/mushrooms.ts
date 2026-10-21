@@ -1,8 +1,12 @@
 import * as THREE from 'three';
 import { ctx, lvl, rand } from '../core/context';
+import { outCubic } from '../core/ease';
 import { MUSHROOMS, type MushroomDef } from '../systems/buffs';
 import { mushroomPickupGeometry, vcMat } from '../world/models';
-import { MACHINE_BOX } from './machines';
+import { machineBox } from './machines';
+
+const HOP_TIME = 0.3; // s, the arc out of the hole
+const SQUASH_TIME = 0.15; // s, the landing squash after it
 
 interface Pickup {
   def: MushroomDef;
@@ -11,6 +15,7 @@ interface Pickup {
   age: number;
   glow: THREE.Sprite;
   spin: number; // rad/s, winds up from 0 after the spawn
+  hop: { from: THREE.Vector3; to: THREE.Vector3; t: number } | null;
 }
 
 let glowTex: THREE.CanvasTexture | null = null;
@@ -50,8 +55,12 @@ export class Mushrooms {
     const t = (9 + Math.sqrt(81 + 40 * pos.y)) / 20; // flight time: up at 9 m/s, gravity 20, down to y 0
     const x = pos.x + Math.cos(a) * sp * t;
     const z = pos.z + Math.sin(a) * sp * t;
+    return this.inTool(x, z);
+  }
+
+  private inTool(x: number, z: number): boolean {
     return ctx.machines.list.some((m) => {
-      const b = MACHINE_BOX[m.type];
+      const b = machineBox(m.type);
       return !!b && Math.hypot(m.pos.x - x, m.pos.z - z) < Math.max(b.half[0], b.half[2]) + 0.3;
     });
   }
@@ -82,7 +91,33 @@ export class Mushrooms {
     const sp = fromHole ? rand(4, 7) : 0;
     // the lesson mushroom turns by 45 degrees until it lands clear of the tools (8 tries cover the circle)
     for (let i = 0; clearOfTools && i < 8 && this.landsInTool(pos, a, sp); i++) a += Math.PI / 4;
-    this.list.push({ def, mesh, vel: new THREE.Vector3(Math.cos(a) * sp, fromHole ? 9 : 0, Math.sin(a) * sp), age: 0, glow, spin: 0 });
+    this.list.push({ def, mesh, vel: new THREE.Vector3(Math.cos(a) * sp, fromHole ? 9 : 0, Math.sin(a) * sp), age: 0, glow, spin: 0, hop: null });
+  }
+
+  // A resting mushroom the hole spawned on, grew over or slid onto hops 1 m past the rim, clear of the tools,
+  // so the player never has to walk into the hole for it (PP 2026-10-24).
+  private hopOut(m: Pickup): void {
+    const h = ctx.env.hole;
+    const r = ctx.env.holeRadius + 1;
+    let a = rand(0, Math.PI * 2);
+    for (let i = 0; i < 8 && this.inTool(h.x + Math.cos(a) * r, h.z + Math.sin(a) * r); i++) a += Math.PI / 4;
+    m.hop = { from: m.mesh.position.clone(), to: new THREE.Vector3(h.x + Math.cos(a) * r, 0, h.z + Math.sin(a) * r), t: 0 };
+    ctx.fx.burst(m.mesh.position.clone().setY(0.3), m.def.cap, 8);
+  }
+
+  private updateHop(m: Pickup, dt: number): void {
+    const hop = m.hop!;
+    hop.t += dt;
+    const k = Math.min(1, hop.t / HOP_TIME);
+    m.mesh.position.lerpVectors(hop.from, hop.to, outCubic(k));
+    m.mesh.position.y = 4 * k * (1 - k) * 1.2; // a 1.2 m high arc, on the ground at both ends
+    if (hop.t < HOP_TIME) return;
+    // landing squash, volume kept: sy * sxz * sxz = 1
+    const q = Math.min(1, (hop.t - HOP_TIME) / SQUASH_TIME);
+    const sy = 1 - 0.3 * (1 - outCubic(q));
+    const sxz = 1 / Math.sqrt(sy);
+    m.mesh.scale.set(1.4 * sxz, 1.4 * sy, 1.4 * sxz);
+    if (q === 1) m.hop = null;
   }
 
   update(dt: number): void {
@@ -90,7 +125,9 @@ export class Mushrooms {
     for (let i = this.list.length - 1; i >= 0; i--) {
       const m = this.list[i];
       m.age += dt;
-      if (m.vel.lengthSq() > 0) {
+      if (m.hop) {
+        this.updateHop(m, dt);
+      } else if (m.vel.lengthSq() > 0) {
         m.vel.y -= 20 * dt;
         m.mesh.position.addScaledVector(m.vel, dt);
         if (m.mesh.position.y <= 0 && ctx.env.holeDist(m.mesh.position.x, m.mesh.position.z) > ctx.env.holeRadius + 0.3) {
@@ -101,6 +138,8 @@ export class Mushrooms {
           m.mesh.position.copy(ctx.env.hole).setY(0.5);
           m.vel.set(rand(-6, 6), 9, rand(-6, 6));
         }
+      } else if (ctx.env.holeDist(m.mesh.position.x, m.mesh.position.z) < ctx.env.holeRadius + 0.3) {
+        this.hopOut(m);
       }
       m.spin = THREE.MathUtils.damp(m.spin, 2, 4, dt);
       m.mesh.rotation.y += m.spin * dt;

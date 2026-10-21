@@ -1,5 +1,5 @@
 // Esc resumes at once (pause menu, shop, overlays) and the game runs with a free cursor when the lock is refused.
-// Run: FULL=1 DPR=1 CDP_PORT=9372 MAXPOLL=1600 node tools/smoke/smoke.mjs <outDir> tools/smoke/scenario-esc.js
+// Run: FAKELOCK=1 DPR=1 CDP_PORT=9372 MAXPOLL=1600 node tools/smoke/smoke.mjs <outDir> tools/smoke/scenario-esc.js
 // Headless delivers Esc to the page even while locked (no browser UI to eat it); `browserEsc` mimics Chrome/Brave instead:
 // the browser drops the lock and the page never sees the key. `refuse(n)` mimics the browser refusing the next n
 // requests (reject + pointerlockerror). `holdNext()` keeps the next request pending until `grant()` sends it for real.
@@ -64,14 +64,13 @@ const g = window.gnome;
 const vis = (sel) => { const el = document.querySelector(sel); return !!el && !el.classList.contains('hidden') && getComputedStyle(el).display !== 'none'; };
 const menuName = () => (!vis('.menu') ? 'hidden' : document.querySelector('.menu .menu-card.title') ? 'title' : document.querySelector('.menu .logo')?.textContent);
 const locked = () => !!document.pointerLockElement;
-const hint = () => (vis('.click-to-play') ? 'visible' : 'hidden');
 const dim = () => g.hud.root.classList.contains('dim');
 const out = [];
 // every step starts with no simulated refusal or held request left over from the previous one
 const step = async (name, fn) => { ev.push(`${T()} --- ${name}`); refuseN = 0; hold = false; held = null; try { out.push(`${name} ${await fn()}`); } catch (e) { out.push(`${name} ERR ${String((e && e.stack) || e).slice(0, 300)}`); } };
 const settle = async (ms = 400) => { await sleep(ms); await frames(3); };
 const gap = () => sleep(1300); // Chromium refuses a re-lock for about 1 s after an exit
-// from any running state to "running with a free cursor + hint"
+// from any running state to "running with a free cursor"
 const toFree = async () => {
   if (locked()) { await gap(); await esc(); await settle(); }
   if (!g.paused) { await esc(); await settle(); } // free cursor → pause
@@ -81,16 +80,17 @@ const toLocked = async () => { if (!locked()) { if (g.paused) await toFree(); aw
 
 (async () => {
   g.state.upgrades.laptop = 1;
+  g.state.seenIntro = true; // fresh profile: skip the new-game intro cards
   await step('01_title_esc', async () => { await esc(); await settle(); return `menu=${menuName()} paused=${g.paused}`; });
   await step('00_title_play', async () => { await clickEl('.menu [data-a="play"]'); await settle(); return `locked=${locked()} paused=${g.paused}`; });
   await step('02_esc_keydown_locked', async () => { await gap(); await esc(); await settle(); return `paused=${g.paused} menu=${menuName()}`; });
-  await step('03_esc_pause_granted', async () => { await gap(); await esc(); await settle(); return `paused=${g.paused} locked=${locked()} menu=${menuName()} hint=${hint()} dim=${dim()}`; });
+  await step('03_esc_pause_granted', async () => { await gap(); await esc(); await settle(); return `paused=${g.paused} locked=${locked()} menu=${menuName()} dim=${dim()}`; });
   await step('04_browser_exit', async () => { await gap(); browserEsc(); await settle(); return `paused=${g.paused} menu=${menuName()}`; });
   await step('05_esc_pause_refused', async () => {
     await gap(); refuse(1); await esc(); await frames(1);
     const first = `menuNextFrame=${menuName()}`;
-    await settle(); await shot('esc-05-free-cursor-pill');
-    return `paused=${g.paused} locked=${locked()} menu=${menuName()} hint=${hint()} dim=${dim()} ${first} cursor=${g.renderer.domElement.style.cursor}`;
+    await settle(); await shot('esc-05-free-cursor');
+    return `paused=${g.paused} locked=${locked()} menu=${menuName()} dim=${dim()} ${first} cursor=${g.renderer.domElement.style.cursor}`;
   });
   await step('05b_walk_free', async () => {
     refuse(1000); // stay free while W is held
@@ -120,18 +120,18 @@ const toLocked = async () => { if (!locked()) { if (g.paused) await toFree(); aw
   await step('06_esc_free', async () => { await esc(); await settle(); return `paused=${g.paused} menu=${menuName()}`; });
   await step('08_click_free', async () => {
     await gap(); refuse(1); await esc(); await settle(); // free cursor again
-    const free = `before: paused=${g.paused} locked=${locked()} hint=${hint()}`;
+    const free = `before: paused=${g.paused} locked=${locked()}`;
     await gap(); await clickAt(320, 180); await frames(1);
     const lp = g.input.mouse.leftPressed;
     await settle();
-    return `locked=${locked()} hint=${hint()} held=${g.player.held ?? 'none'} leftPressed=${lp || g.input.mouse.leftPressed} (${free})`;
+    return `locked=${locked()} held=${g.player.held ?? 'none'} leftPressed=${lp || g.input.mouse.leftPressed} (${free})`;
   });
   await step('06b_walk_key_locks', async () => {
     await toFree();
-    const free = `before: paused=${g.paused} locked=${locked()} hint=${hint()}`;
+    const free = `before: paused=${g.paused} locked=${locked()}`;
     await gap(); refuse(3);
     await cdp(kd('w', 'KeyW', 87), kd('w', 'KeyW', 87, true), kd('w', 'KeyW', 87, true), kd('w', 'KeyW', 87, true)); await settle(); await cdp(ku('w', 'KeyW', 87)); await settle();
-    return `locked=${locked()} hint=${hint()} refusalsLeft=${refuseN} (${free})`;
+    return `locked=${locked()} refusalsLeft=${refuseN} (${free})`;
   });
   await step('06c_blur_free', async () => {
     await toFree();
@@ -146,13 +146,13 @@ const toLocked = async () => { if (!locked()) { if (g.paused) await toFree(); aw
     const granted = `granted: opened=${opened} shop=${vis('.shop.skill')} paused=${g.paused} menu=${menuName()} locked=${locked()}`;
     await gap(); await key('b', 'KeyB', 66); await settle();
     refuse(1); await esc(); await settle();
-    return `shop=${vis('.shop.skill')} paused=${g.paused} menu=${menuName()} hint=${hint()} | ${granted}`;
+    return `shop=${vis('.shop.skill')} paused=${g.paused} menu=${menuName()} | ${granted}`;
   });
   await step('10b_shop_b', async () => {
     await key('b', 'KeyB', 66); await settle();
     const opened = vis('.shop.skill');
     refuse(1); await key('b', 'KeyB', 66); await settle(); await frames(5);
-    return `shop=${vis('.shop.skill')} paused=${g.paused} reopened=${vis('.shop.skill')} opened=${opened} hint=${hint()}`;
+    return `shop=${vis('.shop.skill')} paused=${g.paused} reopened=${vis('.shop.skill')} opened=${opened}`;
   });
   await step('10c_shop_close_btn', async () => {
     await key('b', 'KeyB', 66); await settle();
@@ -163,20 +163,13 @@ const toLocked = async () => { if (!locked()) { if (g.paused) await toFree(); aw
     g.blueprints.open(); await settle();
     const opened = g.blueprints.isOpen;
     refuse(1); await esc(); await settle();
-    return `open=${g.blueprints.isOpen} paused=${g.paused} hint=${hint()} opened=${opened}`;
+    return `open=${g.blueprints.isOpen} paused=${g.paused} opened=${opened}`;
   });
   await step('16_legend_esc', async () => {
     g.legend.open(); await settle();
     const opened = g.legend.isOpen;
     refuse(1); await esc(); await settle();
-    return `open=${g.legend.isOpen} paused=${g.paused} hint=${hint()} opened=${opened}`;
-  });
-  await step('23_hint_under_shop', async () => {
-    const before = hint();
-    await key('b', 'KeyB', 66); await settle();
-    const hintHiddenWhileShop = vis('.shop.skill') && hint() === 'hidden';
-    refuse(1); await esc(); await settle();
-    return `hintHiddenWhileShop=${hintHiddenWhileShop} hintAfterEsc=${hint()} hintBefore=${before}`;
+    return `open=${g.legend.isOpen} paused=${g.paused} opened=${opened}`;
   });
   await step('17_leaderboard_esc', async () => {
     await esc(); await settle(); // free cursor → pause menu
@@ -232,34 +225,10 @@ const toLocked = async () => { if (!locked()) { if (g.paused) await toFree(); aw
     await toFree();
     await esc(); await settle(); // free cursor → pause menu
     await gap(); refuse(1); await clickEl('.menu [data-a="play"]'); await settle();
-    const refused = `paused=${g.paused} menu=${menuName()} hint=${hint()} dim=${dim()}`;
+    const refused = `paused=${g.paused} menu=${menuName()} dim=${dim()}`;
     await gap(); await esc(); await settle();
     await gap(); await clickEl('.menu [data-a="play"]'); await settle();
-    return `${refused} | granted: locked=${locked()} menu=${menuName()} hint=${hint()}`;
-  });
-  await step('27_pill_clear', async () => {
-    g.state.upgrades.magGun = 1; // a second gear: the gear line shows (sweeper.owned() > 1)
-    await toFree();
-    for (let i = 0; i < 50 && getComputedStyle(document.querySelector('.hud-gear')).display === 'none'; i++) await frames(1);
-    g.state.seenHints = g.state.seenHints.filter((id) => id !== 'magGun');
-    g.hud.firstUse('magGun');
-    await frames(3);
-    const area = (a, b) => Math.max(0, Math.min(a.right, b.right) - Math.max(a.left, b.left)) * Math.max(0, Math.min(a.bottom, b.bottom) - Math.max(a.top, b.top));
-    const measure = (label) => {
-      const p = document.querySelector('.click-to-play').getBoundingClientRect();
-      const parts = ['.hud-gear', '.hud-hint', '.hud-hole', '.hud-left', '.hud-money', '.hud-hotbar'].map((s) => `${s.slice(5)}=${Math.round(area(p, document.querySelector(s).getBoundingClientRect()))}`);
-      const h = document.querySelector('.hud-hole').getBoundingClientRect();
-      return `${label}: ${parts.join(' ')} pill=${Math.round(p.left)},${Math.round(p.top)},${Math.round(p.width)}x${Math.round(p.height)} holeBottom=${Math.round(h.bottom)} gearShown=${getComputedStyle(document.querySelector('.hud-gear')).display !== 'none'} hint=${hint()}`;
-    };
-    const small = measure('640');
-    await shot('esc-27-pill');
-    await cdp({ method: 'Emulation.setDeviceMetricsOverride', params: { width: 1280, height: 720, deviceScaleFactor: 1, mobile: false } });
-    await settle();
-    const big = measure('1280');
-    await shot('esc-27-pill-1280');
-    await cdp({ method: 'Emulation.setDeviceMetricsOverride', params: { width: 640, height: 360, deviceScaleFactor: 1, mobile: false } });
-    await settle();
-    return `${small} | ${big}`;
+    return `${refused} | granted: locked=${locked()} menu=${menuName()}`;
   });
   await step('28_reenter_delta', async () => {
     await toFree();
@@ -277,7 +246,7 @@ const toLocked = async () => { if (!locked()) { if (g.paused) await toFree(); aw
     await gap(); await rightClickAt(320, 180); await frames(1);
     const rp = g.input.mouse.rightPressed;
     await settle();
-    return `locked=${locked()} hint=${hint()} held=${g.player.held ?? 'none'} rightPressed=${rp || g.input.mouse.rightPressed}`;
+    return `locked=${locked()} held=${g.player.held ?? 'none'} rightPressed=${rp || g.input.mouse.rightPressed}`;
   });
   // stand 4 m in front of the chute, inside the factory's `near` radius (4.5 m)
   const nearFactory = () => {
@@ -303,6 +272,33 @@ const toLocked = async () => { if (!locked()) { if (g.paused) await toFree(); aw
     g.fx.shake(0.7); await slowFrame(); await frames(1);
     const l = notes('slow-frame').slice(n0).map((s) => JSON.parse(s.slice(11)));
     return `shake=${l.at(-1)?.shake} lines=${l.length} paused=${g.paused} near=${g.factory.near}`;
+  });
+  // Chrome/Brave order: a trusted Esc while locked never reaches the page and drops the lock. The overlay's close()
+  // re-locks at once (no gesture needed after the game's own exit), so a held Esc's repeat hits a locked page.
+  await step('32_overlay_esc_chrome', async () => {
+    window.__fakeLock.escExits = true;
+    const overlays = {
+      shopB: [() => key('b', 'KeyB', 66), () => g.shop.isOpen],
+      shopFrame: [() => new Promise((r) => requestAnimationFrame(() => { g.shop.open(); r(); })), () => g.shop.isOpen], // the E-at-desk path
+      blueprints: [() => key('k', 'KeyK', 75), () => g.blueprints.isOpen],
+      legend: [() => key('l', 'KeyL', 76), () => g.legend.isOpen],
+    };
+    const res = [];
+    for (const [name, [open, isOpen]] of Object.entries(overlays)) for (const held of [false, true]) {
+      await toLocked();
+      await gap(); await open(); await settle();
+      const opened = isOpen();
+      await gap();
+      await cdp(kd('Escape', 'Escape', 27)); await sleep(300);
+      if (held) await cdp(...[1, 2, 3, 4, 5].map(() => kd('Escape', 'Escape', 27, true)));
+      await cdp(ku('Escape', 'Escape', 27)); await settle();
+      res.push(`${name}${held ? 'Held' : 'Tap'} opened=${opened} open=${isOpen()} paused=${g.paused} menu=${menuName()}`);
+    }
+    await toLocked();
+    await gap(); await esc(); await settle();
+    res.push(`laterEsc menu=${menuName()} paused=${g.paused}`);
+    window.__fakeLock.escExits = false;
+    return res.join(' | ');
   });
   // the deep pauses the game for good: keep it last
   await step('19_deep_esc', async () => {

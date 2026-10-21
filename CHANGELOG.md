@@ -2,6 +2,18 @@
 
 Newest build first. Each build lists what changed and what to test. Shown in the start menu (button "What's new").
 
+## 2026-10-24 18:00
+
+- You can now own up to 20 Cooling Fans, and they are cheaper per fan than before. Big Blades, a new fan upgrade, makes every fan blow harder.
+- Wide Belt makes every conveyor belt wider, so gnomes ride side by side. Placed belts widen at once; a belt with no room goes back to your inventory.
+- Every tool now has its own Fuses upgrade in the Tools tree. An old save gives every tool the Fuses level you already had.
+- The highest upgrade levels cost more, so the shop lasts to the end of a run; tools, crates and the Deep keep their prices. A maxed save keeps its levels, the new prices apply from your next rebirth.
+- The Deep has more levels to spend Hole Shards on.
+- Esc in the shop, blueprints or legend now always takes you back into the game, never to the pause menu. The "Click or press W to capture the mouse" note is gone.
+- A new game opens with a short intro about the company, the factory and the hole. Click or press a key to move on, or just wait.
+- A mushroom never stays inside the hole any more: it hops out to just past the rim.
+- The start screen now tells the story in two sentences; all controls are under H.
+
 ## 2026-10-21 12:00
 
 - The UFO and the King come more often: the UFO about every 9 minutes from hole level 4, the King about every 16 minutes from level 10, and the King always arrives once, 6 s after the hole reaches level 10. Test: play a save at hole level 9 up to level 10 and wait 6 s for the King.

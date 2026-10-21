@@ -2,7 +2,7 @@ import { ctx, deep, lvl } from '../core/context';
 import { money } from '../core/format';
 import { saveState } from '../core/state';
 import { LAND } from '../data/land';
-import { TOOL_IDS, UPGRADE_BY_ID, UPGRADES, upgradeCost, type Tab, type Upgrade } from '../data/upgrades';
+import { FUSE_TOOLS, TOOL_IDS, UPGRADE_BY_ID, UPGRADES, upgradeCost, type Tab, type Upgrade } from '../data/upgrades';
 import { FALLBACK_ICON, ICONS, LAND_ICONS, MODELS, TAB_ICONS, thumbnail, warmThumbnails } from './icons';
 
 const TABS: Tab[] = ['Plow', 'Magnet', 'Factory', 'Movement', 'Tools', 'Combos', 'Bonuses', 'Land', 'Deep'];
@@ -113,8 +113,11 @@ const EFFECT: Record<string, (L: number) => string> = {
   robotBed: (L) => `${5 + 3 * L} gnomes`,
   robotSpeed: (L) => `${(2.5 + 0.6 * L).toFixed(1)} m/s`,
   robotArea: (L) => `${6 + 2 * L} m area`,
-  fuses: (L) => `${L} fuse${L === 1 ? '' : 's'}, ${L + 1} hits to break`,
+  fanPower: (L) => `x${(1 + 0.25 * L).toFixed(2)} push`,
+  beltWidth: (L) => `${(1.3 + 0.6 * L).toFixed(1)} m wide`,
 };
+const fuseEffect = (L: number) => `${L} fuse${L === 1 ? '' : 's'}, ${L + 1} hits to break`;
+for (const id of FUSE_TOOLS) EFFECT[`${id}Fuses`] = fuseEffect;
 
 export class Shop {
   isOpen = false;
@@ -238,6 +241,11 @@ export class Shop {
     // only ten digit keys: later tools are placed from the tool wheel
     if (key >= 10) this.say(`${u.name} bought! Open the tool wheel (hold Tab) to place it.`);
     else if (key >= 0) this.say(`${u.name} bought! Press ${(key + 1) % 10} to place it.`);
+    if (id === 'beltWidth') {
+      // placed belts widen at once
+      const back = ctx.machines.rebuild('conveyor');
+      if (back) this.say(`Wide Belt: ${back} belt(s) had no room and went back to your inventory.`);
+    }
     this.render();
     this.pop(`[data-buy="${id}"] .ico`);
   }
@@ -364,15 +372,17 @@ export class Shop {
       }
       return c;
     };
+    // a root takes the lowest free row of its column, a child the first free row at or below its parent's;
+    // a monotone counter per column pushed every later root under the Fuses children (Tools grew to 9 rows)
     const row = new Map<string, number>();
-    const free: number[] = [];
-    const place = (it: Item, parentRow?: number) => {
-      const c = colOf(it);
-      const f = free[c] ?? 0;
-      const r = parentRow !== undefined && f <= parentRow ? parentRow : f;
+    const used: Set<number>[] = [];
+    const place = (it: Item, from = 0) => {
+      const rows = (used[colOf(it)] ??= new Set());
+      let r = from;
+      while (rows.has(r)) r++;
+      rows.add(r);
       row.set(it.key, r);
-      free[c] = r + 1;
-      list.filter((k) => k.parent === it.key).forEach((k, i) => place(k, i === 0 ? r : undefined));
+      list.filter((k) => k.parent === it.key).forEach((k) => place(k, r));
     };
     for (const it of list) if (!it.parent) place(it);
     const w = Math.max(...col.values()) * CW + 120;

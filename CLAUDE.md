@@ -31,7 +31,7 @@ Three.js (render) + Rapier 3D `@dimforge/rapier3d-compat` (physics, WASM) + Vite
 ## Tests
 
 No unit test framework. Verification is scripted play in headless Chromium over CDP:
-`node <scratchpad>/smoke/smoke.mjs <outDir> <scenario.js>` with the dev server on 5199 (scripts kept in the session scratchpad; copy them into `tools/smoke/` if they become permanent). In DEV the game exposes `window.gnome` (the `ctx`). Headless rendering runs at about 5 fps, so scenarios wait on frames, not milliseconds.
+`node <scratchpad>/smoke/smoke.mjs <outDir> <scenario.js>` with the dev server on 5199 (scripts kept in the session scratchpad; copy them into `tools/smoke/` if they become permanent). In DEV the game exposes `window.gnome` (the `ctx`). Headless rendering runs at about 5 fps, so scenarios wait on frames, not milliseconds. Scenarios that need pointer lock run with `FAKELOCK=1` (lock emulated in the page on the headless shell), never `FULL=1`: full Chromium grabs and moves PP's real cursor.
 Every leaderboard scenario asserts `store.constructor.name === 'LocalStore'` first; the dev server never goes online (`pickStore()` returns `LocalStore` in DEV) and no `.env` file may exist in this folder.
 
 ## Animation rules
@@ -58,6 +58,13 @@ PP approved on 2026-10-20: "tablica musi byc aktualizowana po implementacji ogol
 - After every finished implementation, update `docs/SPEC.md` (the game spec, in the repo; PP 2026-10-20) and the work status in `BOARD.md` (local): what changed in the game, described for the player (mechanic, behaviour), not a list of files or functions.
 - Every decision (PP's or the session's) goes into `docs/SPEC.md` with one or two sentences of "why".
 - `docs/SPEC.md` must read like the game specification: someone without the code learns how the game works and why. Technical details and measurements stay in `docs/ai-work/`.
+
+## Changelog (in-game "What's new")
+
+PP 2026-10-24: "pisac mniej szczegolowy changelog w grze, aby ktos to przeczytal musi byc zdanie moze 2 o kazdej rzeczy a nie kilka linijek".
+
+- One bullet per change, at most two short sentences: what the player gets, in plain words. No numbers unless the player needs them, no edge cases, no internal names.
+- The "Test:" part goes only into the ai-work note, never into CHANGELOG.md.
 
 ## Decision log
 
