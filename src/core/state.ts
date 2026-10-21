@@ -147,6 +147,12 @@ export function loadState(): GameState {
         loadNotes.push('Fuses are now per tool: every tool got your old level.');
       }
     }
+    // the Piggy Bank became Coin Magnet level 10 (PP 2026-10-24): refund once, the key goes away with the next save
+    if (parsed.upgrades?.piggy) {
+      delete parsed.upgrades.piggy;
+      parsed.money = (parsed.money ?? 0) + 800;
+      loadNotes.push('The Piggy Bank was removed: $800 refunded. Coin Magnet level 10 now collects coins by itself.');
+    }
     adoptSaveVolume(parsed.settings?.volume);
     // older saves keep the Shadows checkbox here; the next save drops it
     adoptSaveShadows((parsed.settings as { shadows?: unknown } | undefined)?.shadows);

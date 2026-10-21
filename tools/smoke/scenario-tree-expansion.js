@@ -263,6 +263,27 @@ setTimeout(() => { if (!window.__done) window.__done = JSON.stringify({ ...R, ch
       R.U15 = { ...tl, scale: sc, scrollMax: rowsEl.scrollHeight - rowsEl.clientHeight, cutNames: cut.length, cut };
       await shot('Tools-1280');
       R.U15b = Object.fromEntries(['Plow', 'Magnet', 'Factory', 'Movement', 'Combos', 'Bonuses'].map((t) => [t.toLowerCase(), layout(t).rows]));
+      // U19: every connector starts at the node's own parent (siblings fork from their root) and ends at the node,
+      // stays inside the node's row band, and a parent right before its child is one straight segment
+      const pts = (d) => { let x = 0, y = 0; const out = []; for (const [, c, a, b] of d.matchAll(/([MHV])\s*(-?[\d.]+)(?:\s+(-?[\d.]+))?/g)) { if (c === 'M') { x = +a; y = +b; } else if (c === 'H') x = +a; else y = +a; out.push({ x, y }); } return out; };
+      const at = (n) => ({ x: parseFloat(n.style.left), y: parseFloat(n.style.top) });
+      const same = (p, q) => Math.abs(p.x - q.x) < 0.5 && Math.abs(p.y - q.y) < 0.5;
+      R.U19 = { missing: [], bent: [], outOfRow: [], paths: 0, children: 0 };
+      for (const t of ['Plow', 'Magnet', 'Factory', 'Tools']) {
+        document.querySelector(`.shop [data-tab="${t}"]`).click();
+        const paths = [...document.querySelectorAll('.tree-lines path')].map((p) => pts(p.getAttribute('d')));
+        R.U19.paths += paths.length;
+        for (const n of document.querySelectorAll('.shop [data-buy]')) {
+          const u = UPGRADE_BY_ID[n.dataset.buy];
+          if (!u.requires || UPGRADE_BY_ID[u.requires].tab !== t) continue;
+          R.U19.children++;
+          const c = at(n); const p = at(node(u.requires));
+          const path = paths.find((q) => same(q[0], { x: p.x + 120, y: p.y + 30 }) && same(q[q.length - 1], { x: c.x, y: c.y + 30 }));
+          if (!path) { R.U19.missing.push(u.id); continue; }
+          if (path.some((q) => q.y < c.y || q.y >= c.y + 94)) R.U19.outOfRow.push(u.id);
+          if (c.x - p.x === 150 && path.length !== 2) R.U19.bent.push(u.id);
+        }
+      }
       g.shop.close();
       for (const id of TOOL_IDS) delete s.upgrades[id];
       await cdp({ method: 'Emulation.clearDeviceMetricsOverride', params: {} });
@@ -530,7 +551,7 @@ setTimeout(() => { if (!window.__done) window.__done = JSON.stringify({ ...R, ch
   ok('P5c', R.P5c?.maxY < 1.0, J(R.P5c));
   ok('P6', R.P6?.parent === 'fan' && R.P6?.cls === 'needs' && R.P6?.effect === 'x1.00 push, next: x1.25 push' && R.P6?.price === '$150', J(R.P6));
   ok('P7', R.P7?.kept?.fanPower === 4 && R.P7?.kept?.beltWidth === 3 && R.P7?.kept?.fanFuses === 5, J(R.P7));
-  ok('U1', R.U1?.fuseNodes === 9 && J(R.U1?.names) === J(['Trampoline Fuses', 'Fan Fuses', 'Belt Fuses', 'Wheel Fuses', 'Magnet Fuses', 'Cannon Fuses', 'Vacuum Fuses', 'Black Hole Fuses', 'Robot Fuses']) && R.U1?.globalFusesNode === 0 && R.U1?.parents && J(R.U1?.holes) === J({ fanFuses: 5, cannonFuses: 6, vacuumFuses: 8, blackholeFuses: 10 }), J(R.U1));
+  ok('U1', R.U1?.fuseNodes === 9 && J(R.U1?.names) === J(['Trampoline Fuses', 'Fan Fuses', 'Belt Fuses', 'Robot Fuses', 'Wheel Fuses', 'Magnet Fuses', 'Cannon Fuses', 'Vacuum Fuses', 'Black Hole Fuses']) && R.U1?.globalFusesNode === 0 && R.U1?.parents && J(R.U1?.holes) === J({ fanFuses: 5, cannonFuses: 6, vacuumFuses: 8, blackholeFuses: 10 }), J(R.U1));
   ok('U2', R.U2?.fanBlownAfter3 === 3 && R.U2?.fanBrokenAfter3 === 0 && R.U2?.fanBrokenAfter4 === 30 && R.U2?.trampBrokenAfter1 === 30, J(R.U2));
   ok('U3', R.U3?.robotFuses === 2 && R.U3?.blownAfterHit === 1, J(R.U3));
   ok('U4', J(R.U4?.perTool) === '[4,4,4,4,4,4,4,4,4]' && R.U4?.fusesKey === undefined && R.U4?.note === 'Fuses are now per tool: every tool got your old level.' && R.U4?.savedHasFuses === false, J(R.U4));
@@ -544,8 +565,10 @@ setTimeout(() => { if (!window.__done) window.__done = JSON.stringify({ ...R, ch
   ok('U12', R.U12?.hole === 8 && R.U12?.price === '$2k', J(R.U12));
   ok('U13', R.U13?.hole === 10 && R.U13?.price === '$12.5k', J(R.U13));
   ok('U14', R.U14?.legendRows === 63 && R.U14?.upgrades === 63 && R.U14?.fuseRows === 9, J(R.U14));
-  ok('U15', R.U15?.rows === 6 && R.U15?.cols === 8 && R.U15?.scale >= 0.75 && R.U15?.scrollMax <= 0 && R.U15?.cutNames === 0, J(R.U15));
-  ok('U15b', J(R.U15b) === J({ plow: 3, magnet: 3, factory: 2, movement: 4, combos: 2, bonuses: 4 }), J(R.U15b));
+  // one row per tool (PP 2026-10-24): 11 rows scroll at 1280x720 at full size instead of shrinking
+  ok('U15', R.U15?.rows === 11 && R.U15?.cols === 5 && R.U15?.scale === 1 && R.U15?.cutNames === 0, J(R.U15));
+  ok('U15b', J(R.U15b) === J({ plow: 3, magnet: 4, factory: 5, movement: 5, combos: 4, bonuses: 5 }), J(R.U15b));
+  ok('U19', R.U19?.children > 0 && R.U19.paths === R.U19.children && !R.U19.missing.length && !R.U19.bent.length && !R.U19.outOfRow.length, J(R.U19));
   ok('U16', R.U16?.fanFusesAfterBoot === 5 && R.U16?.blownAfterClamp <= 5, J(R.U16));
   ok('U17', R.U17?.fanFuses === 4 && R.U17?.trampolineFuses === 2 && R.U17?.robotFuses === 2, J(R.U17));
   ok('U18', R.U18?.hasKey === false && R.U18?.notes === 0, J(R.U18));

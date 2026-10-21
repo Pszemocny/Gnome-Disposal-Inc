@@ -117,16 +117,31 @@ export const WEIGHT_TIERS: Record<WeightTier['id'], WeightTier> = {
   massive: { id: 'massive', mass: 3, scale: 1.25, value: 2.3, flee: 0.55 },
 };
 
-// The deeper the hole, the more often the heavy classes come out of the factory.
-export function rollTier(holeLevel: number, minId: WeightTier['id'] = 'normal', rnd: () => number = Math.random): WeightTier {
+// Feeding Frenzy closes the gap to 100 % Massive by a fifth per level (PP 2026-10-24)
+export function massiveOdds(holeLevel: number, frenzy = 0): number {
+  const pm = Math.max(0, Math.min(0.25, 0.03 * (holeLevel - 3)));
+  return pm + ((1 - pm) * frenzy) / 5;
+}
+
+// The deeper the hole, the more often the heavy classes come out of the factory. One draw gives the tier and the
+// natural tier (the same draw at Frenzy 0), which pays hole XP: Frenzy only ever moves a draw up to Massive, and the
+// share it adds pays tier XP x1 (2026-10-25, Q1 a)
+export function rollTiers(holeLevel: number, minId: WeightTier['id'] = 'normal', rnd: () => number = Math.random, frenzy = 0): { tier: WeightTier; xpTier: WeightTier } {
+  const r = rnd();
+  return { tier: tierFor(r, holeLevel, minId, frenzy), xpTier: tierFor(r, holeLevel, minId, 0) };
+}
+
+function tierFor(draw: number, holeLevel: number, minId: WeightTier['id'], frenzy: number): WeightTier {
   const L = holeLevel - 1;
+  const pm = massiveOdds(holeLevel, frenzy);
+  // Heavy stays first so the daily seed gives the same gnomes as before; capped so Massive can reach 100 %
   const odds: [WeightTier['id'], number][] = [
-    ['heavy', Math.min(0.3, 0.05 + 0.025 * L)],
-    ['massive', Math.max(0, Math.min(0.25, 0.03 * (holeLevel - 3)))],
+    ['heavy', Math.min(0.3, 0.05 + 0.025 * L, 1 - pm)],
+    ['massive', pm],
   ];
   const order: WeightTier['id'][] = ['normal', 'heavy', 'massive'];
   const allowed = (id: WeightTier['id']) => order.indexOf(id) >= order.indexOf(minId);
-  let r = rnd();
+  let r = draw;
   for (const [id, p] of odds) {
     if (!allowed(id)) continue;
     if (r < p) return WEIGHT_TIERS[id];

@@ -2,6 +2,17 @@
 
 Newest build first. Each build lists what changed and what to test. Shown in the start menu (button "What's new").
 
+## 2026-10-25 16:00
+
+- Dumping a crate into the hole now pays full hole XP for every gnome in it. A crate tipped over at the rim still pays a quarter.
+- A Magnet Gun ball flies as one body at the speed of its heaviest gnome, so the whole ball lands in one clump.
+- Golden gnomes no longer drop extra mushrooms: every gnome has the same chance, only the wizard drops more.
+- New Factory upgrade Feeding Frenzy (hole level 4, 5 levels): more Massive gnomes per level, all of them at level 5. While you own it, gnomes give normal XP and fly as far as light ones.
+- Golden gnomes shine like metal, and Gold Midas turns every gnome in the yard gold while it lasts. Hats keep their colour.
+- New mushroom Eclipse Cap: x2 money for 20 s while the sky slowly swings between day and night.
+- The Piggy Bank is gone: Coin Magnet now has 10 levels, and level 10 sends coins to your bank by itself. Old saves get the $800 back.
+- The shop trees are tidy rows: each tool reads left to right, the tool, its upgrades, then its Fuses. Rows go from the cheapest unlocked tool down to the locked ones, and no line crosses another row.
+
 ## 2026-10-25 12:00
 
 - A moved robot's area ring shows again: its post now always lands on the ground, even when you place it aiming far ahead.

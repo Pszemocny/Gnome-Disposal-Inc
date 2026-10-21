@@ -545,7 +545,8 @@ setTimeout(() => { if (!window.__done) window.__done = JSON.stringify({ ...R, ch
   ok('C5', near(x.kick, 0.25) && R.strike.kickBallCounted === true, `${x.kick} ${R.strike.kickBallCounted}`);
   ok('C6', near(x.pound, 0.25), x.pound);
   ok('C7', near(x.plow, 0.25) && near(x.blower, 0.25) && x.plowHit && x.blowHit, `${x.plow} ${x.blower}`);
-  ok('C8', near(x.crate2, 0.5) && eq(m.crate2, B?.crate2) !== false, `${x.crate2} money ${m.crate2} before ${B?.crate2}`);
+  // a crate dump pays full XP since 2026-10-25 (PP 2026-10-24 "pelne xp dla skrzyni"): two gnomes x1
+  ok('C8', near(x.crate2, 2) && eq(m.crate2, B?.crate2) !== false, `${x.crate2} money ${m.crate2} before ${B?.crate2}`);
   ok('C9', near(x.fanWalker, 0.25), x.fanWalker);
   ok('C10', near(x.vacuumThrown, 0.25) && near(x.robotTip, 0.25) && eq(m.vacuumThrown, B?.vacuumThrown) !== false, `${x.vacuumThrown} ${x.robotTip} money ${m.vacuumThrown} before ${B?.vacuumThrown}`);
   ok('C11', near(x.walkIn, 0.25), x.walkIn);

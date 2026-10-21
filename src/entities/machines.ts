@@ -808,7 +808,7 @@ export class Machines {
         for (const g of dumped) {
           g.throwPos = null;
           g.bullseye = false;
-          ctx.hole.consume(g, undefined, true);
+          ctx.hole.consume(g, undefined, 'crate'); // full XP for a crate dump (PP 2026-10-24)
         }
         ctx.coins.burst(bonus, ctx.hole.holeOrigin, 1.5);
         // after the gnomes, so this is the big text the player reads (not a combo tier)

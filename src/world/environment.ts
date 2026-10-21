@@ -13,6 +13,11 @@ const DAY_TOP = new THREE.Color(0x4f9ee8);
 const DAY_BOTTOM = new THREE.Color(0xcfe8ff);
 const NIGHT_TOP = new THREE.Color(0x05061a);
 const NIGHT_BOTTOM = new THREE.Color(0x1a1f3a);
+const SUN_DAY = new THREE.Color(0xfff2d8);
+const SUN_NIGHT = new THREE.Color(0x9ab0ff);
+// s per sky flip under the Eclipse Cap: one swing every 1.5 s stays under the WCAG 3 flashes/s;
+// PP 2026-10-24 "nie" to a reduce-flashing option
+const FLIP_T = 1.5;
 const WHITE = new THREE.Color(0xffffff);
 const PURPLE = new THREE.Color(0xc77aff);
 const GOLD = new THREE.Color(0xffd23f);
@@ -32,6 +37,7 @@ export class Environment {
   deskPos = new THREE.Vector3(7.5, 0, -13);
   night = 0; // 0 day .. 1 night
   nightShade = 0; // the night the player sees: 0 on Low quality, where the look stays day
+  shade = 0; // the night the sky shows: the clock, or the Eclipse Cap swing
   dayClock = 0;
 
   private sun: THREE.DirectionalLight;
@@ -460,13 +466,16 @@ export class Environment {
       target = t > 0.6 ? Math.min(1, (t - 0.6) * 10, (1 - t) * 10) : 0;
     }
     this.night = THREE.MathUtils.damp(this.night, target, 0.8, dt);
-    this.nightShade = lowfx || prefs.quality === 'low' ? 0 : this.night;
+    // the Eclipse Cap swings the sky on its own; the clock, `night` and `isNight` (visitors) carry on underneath
+    const want = ctx.buffs.active('daynight') ? 0.5 - 0.5 * Math.cos((Math.PI * ctx.time) / FLIP_T) : this.night;
+    this.shade = THREE.MathUtils.damp(this.shade, want, 6, dt);
+    this.nightShade = lowfx || prefs.quality === 'low' ? 0 : this.shade;
     const n = this.nightShade;
     (this.skyMat.uniforms.top.value as THREE.Color).copy(DAY_TOP).lerp(NIGHT_TOP, n);
     (this.skyMat.uniforms.bottom.value as THREE.Color).copy(DAY_BOTTOM).lerp(NIGHT_BOTTOM, n);
     (ctx.scene.fog as THREE.Fog).color.copy(DAY_BOTTOM).lerp(NIGHT_BOTTOM, n);
     this.sun.intensity = 2.6 * (1 - n) + 0.25 * n;
-    this.sun.color.setHex(n > 0.5 ? 0x9ab0ff : 0xfff2d8);
+    this.sun.color.copy(SUN_DAY).lerp(SUN_NIGHT, n);
     this.hemi.intensity = 0.9 * (1 - n) + 0.35 * n;
     this.lamp.intensity = 25 * n;
     (this.stars.material as THREE.PointsMaterial).opacity = n;

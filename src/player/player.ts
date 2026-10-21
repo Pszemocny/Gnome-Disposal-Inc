@@ -2,6 +2,7 @@ import * as THREE from 'three';
 import type RAPIER from '@dimforge/rapier3d-compat';
 import { ctx, G, groups, lvl, rand } from '../core/context';
 import { MAX_HOLE_LEVEL } from '../data/holeLevels';
+import { WEIGHT_TIERS } from '../data/gnomeTypes';
 import { TOOL_IDS, UPGRADE_BY_ID } from '../data/upgrades';
 import { isFree, type Gnome } from '../entities/gnomes';
 import type { Prop } from '../entities/props';
@@ -252,10 +253,12 @@ export class Player {
         const v = s.g.body.linvel();
         end.add(tmpV.set(p.x, p.y, p.z));
         bv.add(tmpV.set(v.x, v.y, v.z));
+        m = Math.max(m, s.g.body.mass()); // the ball flies at the heaviest member's speed
       }
       end.divideScalar(sw.length);
       bv.divideScalar(sw.length);
     }
+    if (lvl('frenzy') && (h?.gnome || sw.length)) m = WEIGHT_TIERS.normal.mass; // as throwHeld's mRef (Q1 a)
 
     // Trick Scope (shop): the predicted path while something is held; fades in and out over 0.2 s
     const holding = !!h || sw.length > 0;
@@ -667,7 +670,8 @@ export class Player {
     this.swarm = [];
   }
 
-  // Same impulse for every gnome, so the speed is J / mass: weight matters here and only here.
+  // The ball flies as one body: every gnome gets J scaled by its mass over the heaviest member's, so all leave at
+  // J / m_max (PP 2026-10-24); one gnome in hand is J / m as before.
   private throwHeld(): void {
     ctx.hud.hideHint();
     const h = this.held;
@@ -675,8 +679,10 @@ export class Player {
     const J = this.throwJ;
     const thrown = this.heldGnomes();
     const spread = thrown.length > 1 ? 0.06 : 0;
+    const mMax = thrown.reduce((a, g) => Math.max(a, g.body.mass()), 0);
+    const mRef = lvl('frenzy') ? WEIGHT_TIERS.normal.mass : mMax; // Feeding Frenzy: the arm compensates the weight, J / 1.2 (2026-10-25, Q1 a)
     for (const g of thrown) {
-      const impulse = new THREE.Vector3(d.x + rand(-spread, spread), d.y + 0.17 + rand(-spread, spread), d.z + rand(-spread, spread)).multiplyScalar(J);
+      const impulse = new THREE.Vector3(d.x + rand(-spread, spread), d.y + 0.17 + rand(-spread, spread), d.z + rand(-spread, spread)).multiplyScalar((J * g.body.mass()) / mRef);
       ctx.gnomes.drop(g, impulse);
       ctx.state.stats.thrown++;
     }

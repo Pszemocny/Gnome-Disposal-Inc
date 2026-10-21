@@ -3,6 +3,7 @@ import type RAPIER from '@dimforge/rapier3d-compat';
 import { ctx, G, drawPose, groups, lvl, rand, savePose } from '../core/context';
 import { coinGeometry } from '../world/models';
 import { outCubic } from '../core/ease';
+import { UPGRADE_BY_ID } from '../data/upgrades';
 
 export interface Coin {
   body: RAPIER.RigidBody;
@@ -70,6 +71,11 @@ export class Coins {
     return 2 + lvl('magnetRange') * 1.2;
   }
 
+  // the last Coin Magnet level is the old Piggy Bank (PP 2026-10-24)
+  get autoCollect(): boolean {
+    return lvl('magnetRange') >= UPGRADE_BY_ID.magnetRange.max;
+  }
+
   burst(total: number, origin: THREE.Vector3, power = 1): void {
     if (total <= 0) return;
     const n = Math.max(1, Math.min(6, Math.ceil(Math.log10(total + 1) * 1.6)));
@@ -121,7 +127,7 @@ export class Coins {
   }
 
   nearestFree(pos: THREE.Vector3, maxD: number): Coin | null {
-    if (lvl('piggy')) return null;
+    if (this.autoCollect) return null;
     let best: Coin | null = null;
     let bd = maxD;
     for (const c of this.list) {
@@ -152,7 +158,7 @@ export class Coins {
   update(dt: number): void {
     const pp = ctx.player.position;
     const reach = this.pickupRadius * (ctx.buffs.active('midas') ? 1.5 : 1);
-    const piggy = lvl('piggy') > 0;
+    const auto = this.autoCollect;
     const env = ctx.env;
     for (let i = this.list.length - 1; i >= 0; i--) {
       const c = this.list[i];
@@ -189,7 +195,7 @@ export class Coins {
         }
       }
       const d = c.pos.distanceTo(pp);
-      if ((d < reach && c.age > 0.35) || (piggy && c.age > 1.6) || c.age > 40) {
+      if ((d < reach && c.age > 0.35) || (auto && c.age > 1.6) || c.age > 40) {
         c.flying = true;
         c.flyT = 0;
         ctx.physics.removeRigidBody(c.body);

@@ -11,6 +11,7 @@ interface Def {
   time: number; // seconds
   hard: boolean; // reward x1.5
   ok: () => boolean; // offered only while possible; an active contract that stops being possible fails at once
+  offer?: () => boolean; // checked only when rolling a new contract: a running one keeps running when it turns false
   value: () => number; // counter read each frame; progress = increase since the start
   peak?: boolean; // progress = highest value seen (combo), not the increase
 }
@@ -41,8 +42,9 @@ export class Contracts {
     { id: 'crate', title: () => 'Dump a FULL crate into the hole', target: () => 1, time: 120, hard: true, ok: () => ctx.machines.list.some((m) => m.type === 'box'), value: () => this.fullDumps },
     { id: 'king', title: () => 'Push the KING into the hole with the plow tractor', target: () => 1, time: 180, hard: true, ok: () => lvl('tractor') > 0 && ctx.gnomes.list.some((g) => g.type.id === 'king'), value: () => this.plowKings },
     { id: 'combo', title: (n) => `Reach a x${n} combo`, target: () => (L() >= 8 ? 60 : L() >= 4 ? 30 : 15), time: 60, hard: true, ok: () => this.current?.id === 'combo' || ctx.hole.combo === 0, value: () => ctx.hole.combo, peak: true }, // offered only with no running combo, or it could complete at once
-    // massive gnomes roll from hole level 4 (3 %), the odds grow with the level
-    { id: 'haul', title: (n) => `${n} HEAVY HAUL (feed massive gnomes)`, target: () => (L() >= 7 ? 3 : 1), time: 90, hard: true, ok: () => L() >= 4, value: () => st().hauls },
+    // massive gnomes roll from hole level 4 (3 %), the odds grow with the level;
+    // with Feeding Frenzy every gnome is a haul: not offered, but one running when Frenzy is bought keeps running (2026-10-25)
+    { id: 'haul', title: (n) => `${n} HEAVY HAUL (feed massive gnomes)`, target: () => (L() >= 7 ? 3 : 1), time: 90, hard: true, ok: () => L() >= 4, offer: () => !lvl('frenzy'), value: () => st().hauls },
   ];
 
   current: Def | null = null;
@@ -94,7 +96,7 @@ export class Contracts {
   }
 
   private roll(): void {
-    const pool = this.defs.filter((d) => d.ok());
+    const pool = this.defs.filter((d) => d.ok() && (d.offer?.() ?? true));
     const fresh = pool.filter((d) => d.id !== this.lastId);
     const d = pick(fresh.length ? fresh : pool);
     this.current = d;

@@ -2,6 +2,7 @@ import { ctx, deep, lvl } from '../core/context';
 import { money } from '../core/format';
 import { saveState } from '../core/state';
 import { LAND } from '../data/land';
+import { massiveOdds } from '../data/gnomeTypes';
 import { FUSE_TOOLS, TOOL_IDS, UPGRADE_BY_ID, UPGRADES, upgradeCost, type Tab, type Upgrade } from '../data/upgrades';
 import { FALLBACK_ICON, ICONS, LAND_ICONS, MODELS, TAB_ICONS, thumbnail, warmThumbnails } from './icons';
 
@@ -12,7 +13,7 @@ const CH = 94;
 // shop-only styles (style.css is shared with other UI)
 const CSS = `
 .shop-tree { position: relative; margin: 0; transform-origin: 0 0; }
-.tree-lines { position: absolute; inset: 0; pointer-events: none; }
+.tree-lines { position: absolute; inset: 0; pointer-events: none; overflow: visible; }
 .tree-lines path { fill: none; stroke: #4a5058; stroke-width: 3; stroke-dasharray: 6 5; }
 .tree-lines path.on { stroke: #5fd0ff; stroke-dasharray: none; }
 .badge.needs { background: var(--bad); color: #fff; }
@@ -36,7 +37,7 @@ const CSS = `
 @media (max-width: 950px) { .shop.skill .tab .tl { display: none; } .shop.skill .tab .ti { margin: 0; font-size: 17px; } }
 /* green count of affordable items on a tab */
 .tab-n { position: absolute; top: -2px; right: -4px; min-width: 16px; height: 16px; padding: 0 4px; border-radius: 8px; background: var(--good); color: #10301a; font: 700 11px/16px var(--font); text-align: center; }
-/* the five rows of Tools fit a 1280x720 window without scrolling; the tree sits in the middle of the screen */
+/* the tree sits in the middle of the screen; the 11 Tools rows scroll at 1280x720 and fit from about 1920x1080 */
 .shop.skill .shop-rows { padding: 8px 12px; display: flex; }
 .shop.skill .tree-fit { margin: auto; overflow: hidden; }
 .shop.skill .node { position: absolute; width: 120px; height: 90px; display: flex; flex-direction: column; align-items: center; cursor: pointer; }
@@ -102,7 +103,8 @@ const EFFECT: Record<string, (L: number) => string> = {
   magPower: (L) => `${(0.8 + 0.2 * L).toFixed(1)} m ball, ${(7 + 1.2 * lvl('magRange') + 0.6 * L).toFixed(1)} m reach`,
   throw: (L) => `x${(1 + 0.15 * L).toFixed(2)} throw`,
   scope: (L) => ['no sight', 'colour crosshair', 'reflex glass', 'glass + distance and multiplier'][L] ?? '',
-  magnetRange: (L) => `${(2 + L * 1.2).toFixed(1)} m pickup`,
+  magnetRange: (L) => `${(2 + L * 1.2).toFixed(1)} m pickup${L >= UPGRADE_BY_ID.magnetRange.max ? ', coins fly to the bank' : ''}`,
+  frenzy: (L) => `${Math.round(100 * massiveOdds(ctx.state.holeLevel, L))}% massive`,
   value: (L) => `x${(1 + L * 0.1).toFixed(1)} money`,
   factorySpeed: (L) => `x${(1 + L * 0.15).toFixed(2)} speed`,
   comboCap: (L) => `x${2 + L * 0.5 + deep('dCombo') * 0.5} cap`,
@@ -354,53 +356,37 @@ export class Shop {
     });
   }
 
-  // skill tree: column = hole level tier, pushed right of its parent; rows packed per column, the first child
-  // keeps its parent's row when free. Lines from an owned parent light up.
+  // skill tree: one row per root (an item without a parent on this tab), read left to right: the root, then its
+  // descendants in data order (so a tool's Fuses come last); rows sorted by unlock level, then base price (PP 2026-10-24).
+  // A line runs from the node's own parent: straight when the parent stands right before it, otherwise it forks off
+  // the parent's line in the gap after the parent and runs under the row (below the labels) to the node.
+  // A line lights up when the node's parent is owned.
   private tree(tab: Tab): string {
     const ups = UPGRADES.filter((u) => u.tab === tab);
     const list = tab === 'Land' ? this.landItems() : ups.map((u) => this.upgradeItem(u, ups));
     this.views = new Map(list.map((it) => [it.key, it.view]));
     if (!list.length) return '';
-    const tiers = [...new Set(list.map((it) => it.hole))].sort((a, b) => a - b);
-    const byKey = new Map(list.map((it) => [it.key, it]));
-    const col = new Map<string, number>();
-    const colOf = (it: Item): number => {
-      let c = col.get(it.key);
-      if (c === undefined) {
-        c = Math.max(tiers.indexOf(it.hole), it.parent ? colOf(byKey.get(it.parent)!) + 1 : 0);
-        col.set(it.key, c);
-      }
-      return c;
-    };
-    // a root takes the lowest free row of its column, a child the first free row at or below its parent's;
-    // a monotone counter per column pushed every later root under the Fuses children (Tools grew to 9 rows)
-    const row = new Map<string, number>();
-    const used: Set<number>[] = [];
-    const place = (it: Item, from = 0) => {
-      const rows = (used[colOf(it)] ??= new Set());
-      let r = from;
-      while (rows.has(r)) r++;
-      rows.add(r);
-      row.set(it.key, r);
-      list.filter((k) => k.parent === it.key).forEach((k) => place(k, r));
-    };
-    for (const it of list) if (!it.parent) place(it);
-    const w = Math.max(...col.values()) * CW + 120;
-    const h = Math.max(...row.values()) * CH + 90;
+    const price = (it: Item) => UPGRADE_BY_ID[it.key]?.cost ?? 0;
+    const rows = list
+      .filter((it) => !it.parent)
+      .sort((a, b) => a.hole - b.hole || price(a) - price(b))
+      .map((root) => {
+        const row = [root];
+        const add = (key: string) => list.filter((k) => k.parent === key).forEach((k) => (row.push(k), add(k.key)));
+        add(root.key);
+        return row;
+      });
+    const w = (Math.max(...rows.map((row) => row.length)) - 1) * CW + 120;
+    const h = (rows.length - 1) * CH + 90;
     let lines = '';
     let nodes = '';
-    for (const it of list) {
-      const c = col.get(it.key)!;
-      const r = row.get(it.key)!;
-      if (it.parent) {
-        const pc = col.get(it.parent)!;
-        const pr = row.get(it.parent)!;
-        // an edge that skips a column runs in the gap under the parent's row, not through the node in between
-        const via = c - pc > 1 ? `V${pr * CH + 93}H${c * CW - 12}V${r * CH + 30}` : `V${r * CH + 30}`;
-        lines += `<path class="${it.parentOn ? 'on' : ''}" d="M${pc * CW + 120} ${pr * CH + 30}H${pc * CW + 134}${via}H${c * CW}"/>`;
-      }
+    rows.forEach((row, r) => row.forEach((it, c) => {
+      const pc = row.findIndex((p) => p.key === it.parent);
+      const y = r * CH + 30;
+      const route = c === pc + 1 ? '' : `H${(pc + 1) * CW - 15}V${r * CH + 92}H${c * CW - 15}V${y}`;
+      if (pc >= 0) lines += `<path class="${it.parentOn ? 'on' : ''}" d="M${pc * CW + 120} ${y}${route}H${c * CW}"/>`;
       nodes += `<div class="node ${it.cls}" style="left:${c * CW}px;top:${r * CH}px" ${it.attr} data-desc="${it.view.desc}"><span class="tags">${it.tags}</span><span class="ico">${it.ico}</span>${it.pips}<span class="name">${it.name}</span><span class="cost">${it.cost}</span></div>`;
-    }
+    }));
     return `<div class="tree-fit"><div class="shop-tree" style="width:${w}px;height:${h}px"><svg class="tree-lines" width="${w}" height="${h}">${lines}</svg>${nodes}</div></div>`;
   }
 

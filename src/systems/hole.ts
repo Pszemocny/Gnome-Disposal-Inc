@@ -32,7 +32,7 @@ export const TRICK_CAP = 20;
 // a Magnet Gun volley (n > 1 gnomes in one throw): the trick product is capped lower and the flat bonus is paid
 // once per throw, otherwise every gnome of a 70-gnome ball scored the full trick (night plan F2)
 export const VOLLEY_CAP = 8; // PP 2026-10-20: raised from 4 so AIR still pays on a SNIPER volley
-// XP for a gnome a machine, crate, robot, plow, blower or kick fed (PP 2026-10-20 10a); a hand throw pays x1,
+// XP for a gnome a machine, robot, plow, blower or kick fed (PP 2026-10-20 10a); a hand throw and a crate dump pay x1,
 // a Magnet Gun ball x1/sqrt(n); the King always pays his full XP
 export const FEED_XP = 0.25;
 const RIM_CARRY = 1.5; // tools within this distance of the rim move with the hole (night plan F7)
@@ -85,8 +85,9 @@ export class Hole {
     ctx.hud.moneyPulse();
   }
 
-  // `machine`: a machine ate it on the spot or tipped it in (crate dump, vacuum, black hole, robot), whoever threw it
-  consume(g: Gnome, at?: THREE.Vector3, machine = false): void {
+  // `machine`: a machine ate it on the spot or tipped it in, whoever threw it; `'crate'`: a crate dump pays full XP
+  // (PP 2026-10-24); `true`: vacuum, black hole, robot
+  consume(g: Gnome, at?: THREE.Vector3, machine: boolean | 'crate' = false): void {
     const s = ctx.state;
     const gain = ctx.buffs.active('combo') ? 2 : 1;
     const before = this.combo;
@@ -134,8 +135,9 @@ export class Hole {
       ctx.achievements.unlock('bullseye');
     }
     if (g.tier.id === 'massive') {
-      tricks.push('HEAVY HAUL');
       s.stats.hauls++;
+      // with Feeding Frenzy every gnome is massive: no big text on each of them
+      if (!lvl('frenzy')) tricks.push('HEAVY HAUL');
     }
     if (g.tier.id !== 'normal') s.stats.heavies++;
     // a perfect shot must not break the economy
@@ -150,13 +152,15 @@ export class Hole {
     const rush = ctx.factory.rush > 0 ? 1.5 : 1;
     // stolen loot comes back x1 straight to the counter, not as coins a greedy gnome could steal again (night plan F6)
     const value = g.type.value * g.tier.value * trick * rush * this.valueScale * this.comboMult * ctx.buffs.valueMult() * g.valueMult * (g.parade >= 0 ? 3 : 1) + bonus * this.valueScale;
-    const feed = g.type.id === 'king' ? 1 : machine || g.thrownBy !== 'player' ? FEED_XP : 1 / Math.sqrt(g.xpGroup?.n ?? 1);
-    const xp = g.type.xp * g.tier.value * feed * (1 + lvl('hunger') * 0.1) * (1 + deep('dXp') * 0.25);
+    const feed = g.type.id === 'king' || machine === 'crate' ? 1 : machine || g.thrownBy !== 'player' ? FEED_XP : 1 / Math.sqrt(g.xpGroup?.n ?? 1);
+    // the weight Feeding Frenzy adds pays money, not XP: levels are not forced (2026-10-25, Q1 a)
+    const xp = g.type.xp * g.xpTier.value * feed * (1 + lvl('hunger') * 0.1) * (1 + deep('dXp') * 0.25);
     const origin = at ?? this.holeOrigin;
     ctx.gnomes.remove(g);
 
     ctx.coins.burst(value, origin, at ? 0.6 : 1 + Math.min(1, this.combo / 60));
-    ctx.mushrooms.maybeDrop(origin.clone().setY(0.5), g.type.id === 'wizard' ? 6 : g.type.id === 'golden' ? 4 : 1);
+    // drops follow the count of gnomes, not their price (PP 2026-10-24); the wizard casts, so he keeps x6
+    ctx.mushrooms.maybeDrop(origin.clone().setY(0.5), g.type.id === 'wizard' ? 6 : 1);
     // the eat burst grows with the combo: 14 particles at combo 1, x2.5 from combo 30, in bursts of at most 30
     const n = Math.round(14 * (1 + 1.5 * Math.min(1, (this.combo - 1) / 29)));
     const parts = Math.ceil(n / 30);

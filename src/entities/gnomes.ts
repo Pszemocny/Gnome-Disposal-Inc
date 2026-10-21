@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import type RAPIER from '@dimforge/rapier3d-compat';
 import { ctx, G, drawPose, groups, lvl, pick, rand, savePose } from '../core/context';
-import { BOOM_CHANCE, FLEE, GNOME_TYPES, TYPE_BY_ID, WEIGHT_TIERS, rollTier, type GnomeType, type WeightTier } from '../data/gnomeTypes';
+import { BOOM_CHANCE, FLEE, GNOME_TYPES, TYPE_BY_ID, WEIGHT_TIERS, rollTiers, type GnomeType, type WeightTier } from '../data/gnomeTypes';
 import { SimplexNoise } from 'three/addons/math/SimplexNoise.js';
 import { PART_ORDER, PART_PIVOT, gnomeGeometry, gnomeParts, vcMat } from '../world/models';
 import { money } from '../core/format';
@@ -32,6 +32,7 @@ export interface Gnome {
   thrownBy: 'player' | 'machine' | 'kick' | null;
   noGrabUntil: number; // thrown gnomes cannot be caught again right away
   tier: WeightTier;
+  xpTier: WeightTier; // pays hole XP: the tier without Feeding Frenzy's upgrade (money and mass use `tier`)
   // trick-shot tracking for a player throw
   throwPos: THREE.Vector3 | null;
   touchedGround: boolean;
@@ -125,6 +126,7 @@ const HIDDEN = new THREE.Matrix4().makeScale(0, 0, 0);
 // Hats glow at night: one uniform shared by every gnome material, an emissive term masked by the 'glow' vertex attribute.
 const NIGHT = { value: 0 };
 const HAT_GLOW = 0.5;
+const GOLD = { value: 0 }; // Midas: every gnome shines gold (PP 2026-10-24), one uniform shared like NIGHT
 
 export class Gnomes {
   list: Gnome[] = [];
@@ -145,19 +147,26 @@ export class Gnomes {
 
   constructor() {
     for (const t of GNOME_TYPES) {
-      const mat = vcMat(t.emissiveEyes ? { emissive: 0x111111 } : {});
+      // golden gnomes are shiny for good (PP 2026-10-24 "zlote blyszczace"); without an envMap metalness 0.6 read
+      // brown at night, so less metal and more glow keep them brighter than a classic gnome (2026-10-25)
+      const mat = vcMat(t.id === 'golden' ? { metalness: 0.3, roughness: 0.35, emissive: 0x553800 } : t.emissiveEyes ? { emissive: 0x111111 } : {});
       // runs again on every recompile (the quality switch sets needsUpdate), so the shared uniform is attached here
       mat.onBeforeCompile = (s) => {
         s.uniforms.night = NIGHT;
+        s.uniforms.gold = GOLD;
         s.uniforms.hatGlow = { value: new THREE.Color(t.hat).multiplyScalar(HAT_GLOW) };
         s.vertexShader = s.vertexShader
           .replace('#include <common>', 'attribute float glow;\nvarying float vGlow;\n#include <common>')
           .replace('#include <begin_vertex>', '#include <begin_vertex>\nvGlow = glow;');
+        // the hat keeps its colour (1.0 - vGlow) so the type stays readable under Midas
         s.fragmentShader = s.fragmentShader
-          .replace('#include <common>', 'uniform float night;\nuniform vec3 hatGlow;\nvarying float vGlow;\n#include <common>')
-          .replace('#include <emissivemap_fragment>', '#include <emissivemap_fragment>\ntotalEmissiveRadiance += hatGlow * (vGlow * night);');
+          .replace('#include <common>', 'uniform float night;\nuniform float gold;\nuniform vec3 hatGlow;\nvarying float vGlow;\n#include <common>')
+          .replace('#include <color_fragment>', '#include <color_fragment>\ndiffuseColor.rgb = mix(diffuseColor.rgb, vec3(1.0, 0.78, 0.25), 0.7 * gold * (1.0 - vGlow));')
+          .replace('#include <roughnessmap_fragment>', '#include <roughnessmap_fragment>\nroughnessFactor = mix(roughnessFactor, 0.3, gold);')
+          .replace('#include <metalnessmap_fragment>', '#include <metalnessmap_fragment>\nmetalnessFactor = mix(metalnessFactor, 0.6, gold);')
+          .replace('#include <emissivemap_fragment>', '#include <emissivemap_fragment>\ntotalEmissiveRadiance += hatGlow * (vGlow * night) + vec3(0.45, 0.3, 0.06) * gold * (1.0 - vGlow);');
       };
-      mat.customProgramCacheKey = () => 'gnome-hatglow';
+      mat.customProgramCacheKey = () => 'gnome-hatglow-gold';
       const mesh = new THREE.InstancedMesh(gnomeGeometry(t), mat, t.capacity);
       mesh.count = 0;
       mesh.castShadow = true;
@@ -191,11 +200,15 @@ export class Gnomes {
     return NIGHT.value;
   }
 
+  get goldShade(): number {
+    return GOLD.value;
+  }
+
   get maxGnomes(): number {
     return 120 + lvl('permit') * 40;
   }
 
-  spawn(typeId: string, pos: THREE.Vector3, opts: { awake?: boolean; vel?: THREE.Vector3; yaw?: number; tier?: WeightTier['id'] } = {}): Gnome | null {
+  spawn(typeId: string, pos: THREE.Vector3, opts: { awake?: boolean; vel?: THREE.Vector3; yaw?: number; tier?: WeightTier['id']; xpTier?: WeightTier['id'] } = {}): Gnome | null {
     const base = TYPE_BY_ID[typeId];
     let goldFrom: string | null = null;
     // Golden Hour: every new gnome comes out golden and turns back into its own type when the event ends
@@ -210,7 +223,9 @@ export class Gnomes {
     const yaw = opts.yaw ?? rand(0, Math.PI * 2);
     tmpQ.setFromAxisAngle(UP, yaw);
     // the king is a boss (type mass 40); a fat gnome is always heavy or massive
-    const tier = type.id === 'king' ? WEIGHT_TIERS.normal : opts.tier ? WEIGHT_TIERS[opts.tier] : rollTier(ctx.state.holeLevel, base.id === 'fat' ? 'heavy' : 'normal');
+    const rolled = type.id === 'king' || opts.tier ? null : rollTiers(ctx.state.holeLevel, base.id === 'fat' ? 'heavy' : 'normal', Math.random, lvl('frenzy'));
+    const tier = type.id === 'king' ? WEIGHT_TIERS.normal : opts.tier ? WEIGHT_TIERS[opts.tier] : rolled!.tier;
+    const xpTier = rolled?.xpTier ?? (opts.xpTier ? WEIGHT_TIERS[opts.xpTier] : tier);
     const mass = type.id === 'king' ? type.mass : tier.mass;
     // size follows the weight class exactly, so the player can read the weight at a glance
     const scale = type.scale * tier.scale;
@@ -235,7 +250,7 @@ export class Gnomes {
     const g: Gnome = {
       id: this.nextId++, type, body, collider, slot: slots.length, state: awake ? 'walk' : 'statue', awake,
       timer: 0, think: rand(0, 0.5), target: null, yaw, scale, loot: 0, valueMult: 1, cooldown: 0, angryOverride: false,
-      parade: -1, life: 0, thrownBy: null, noGrabUntil: 0, tier,
+      parade: -1, life: 0, thrownBy: null, noGrabUntil: 0, tier, xpTier,
       throwPos: null, touchedGround: false, bounced: false, bullseye: false, volley: null, xpGroup: null,
       prevVy: 0, squash: 0, screamed: false, pop: 0, goldFrom, scared: 0, fleeing: false,
       prevPos: new THREE.Vector3(pos.x, pos.y, pos.z), prevRot: tmpQ.clone(), ph: 0,
@@ -271,7 +286,7 @@ export class Gnomes {
   retype(g: Gnome, typeId: string): Gnome | null {
     const p = g.body.translation();
     const v = g.body.linvel();
-    const n = this.spawn(typeId, new THREE.Vector3(p.x, p.y, p.z), { awake: g.awake, yaw: g.yaw, tier: g.tier.id, vel: new THREE.Vector3(v.x, v.y, v.z) });
+    const n = this.spawn(typeId, new THREE.Vector3(p.x, p.y, p.z), { awake: g.awake, yaw: g.yaw, tier: g.tier.id, xpTier: g.xpTier.id, vel: new THREE.Vector3(v.x, v.y, v.z) });
     if (!n) return null;
     if (g.state === 'ragdoll') {
       this.ragdoll(n, g.timer, g.thrownBy);
@@ -456,6 +471,8 @@ export class Gnomes {
   }
 
   update(dt: number): void {
+    // the look follows the "next N gnomes x3" counter, not the 30 s timer
+    GOLD.value = THREE.MathUtils.damp(GOLD.value, ctx.buffs.midasLeft > 0 ? 1 : 0, 12, dt);
     if (!this.partsOn && !this.fallbackTold) {
       this.fallbackTold = true;
       ctx.hud.toast('Gnome parts off: no WEBGL_multi_draw', 'info');

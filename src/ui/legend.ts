@@ -232,7 +232,7 @@ export class Legend {
     const deepUps = UPGRADES.filter((u) => u.currency === 'shards').map((u) => `<tr><td>${u.name}</td><td>${u.desc}</td></tr>`).join('');
     const sec = (title: string, id: string, extra = '') => `<h3>${title}</h3><p>${TEXT[id] ?? GENERIC}</p>${extra}`;
 
-    return `<h3>Hole levels</h3><p>Feed the hole to fill its XP bar. A hand throw pays a gnome's full XP, a Magnet Gun ball of n gnomes pays 1/√n each, and a machine, crate, robot, plow, blower or kick pays a quarter; the King always pays in full. Every level makes the hole bigger and every gnome worth more.</p>
+    return `<h3>Hole levels</h3><p>Feed the hole to fill its XP bar. A hand throw pays a gnome's full XP, a Magnet Gun ball of n gnomes pays 1/√n each, and a machine, robot, plow, blower or kick pays a quarter; a crate dump and the King always pay in full. Every level makes the hole bigger and every gnome worth more.</p>
       <table><tr><th>Level</th><th>XP to next</th><th>Radius</th><th>Money</th><th>Unlocks</th></tr>${levels}</table>
       <h3>Land</h3><p>Bought in the shop (Land tab). A bigger yard holds more gnomes and machines.</p>
       <table><tr><th>Land</th><th>Size</th><th>Price</th><th>Hole level</th></tr>${land}</table>

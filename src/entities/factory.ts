@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import { ctx, G, groups, lvl, rng } from '../core/context';
-import { TYPE_BY_ID, rollTier } from '../data/gnomeTypes';
+import { TYPE_BY_ID, rollTiers } from '../data/gnomeTypes';
 import type { Gnome } from './gnomes';
 import { factoryGeometry, gearGeometry, labelSprite, leverArmGeometry, leverBaseGeometry, vcMat } from '../world/models';
 import { tex } from '../world/textures';
@@ -204,8 +204,8 @@ export class Factory {
     const t = 0.9;
     // ballistic shot with gravity 20; x1.06 makes up for the gnome's linear damping
     const vel = new THREE.Vector3(((end.x - start.x) / t) * 1.06 + r(-0.15, 0.15), (end.y - start.y) / t + 0.5 * 20 * t, ((end.z - start.z) / t) * 1.06 + r(-0.15, 0.15));
-    const tier = id === 'king' ? undefined : rollTier(ctx.state.holeLevel, id === 'fat' ? 'heavy' : 'normal', rnd).id;
-    const g = ctx.gnomes.spawn(id, start, { vel, yaw: r(0, Math.PI * 2), tier });
+    const t2 = id === 'king' ? undefined : rollTiers(ctx.state.holeLevel, id === 'fat' ? 'heavy' : 'normal', rnd, lvl('frenzy'));
+    const g = ctx.gnomes.spawn(id, start, { vel, yaw: r(0, Math.PI * 2), tier: t2?.tier.id, xpTier: t2?.xpTier.id });
     if (!g) return null;
     // tumble out of the chute, statues stay where they land
     ctx.gnomes.ragdoll(g, r(1, 2));

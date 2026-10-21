@@ -1,5 +1,5 @@
 export type Tab = 'Plow' | 'Magnet' | 'Factory' | 'Movement' | 'Tools' | 'Combos' | 'Bonuses' | 'Land' | 'Deep';
-// every shop tab is drawn as a tree (column = hole level / requires); see src/ui/shop.ts
+// every shop tab is drawn as a tree: one row per root, in data order; see src/ui/shop.ts
 
 export interface Upgrade {
   id: string;
@@ -44,11 +44,14 @@ const BEFORE_TOOLS: Upgrade[] = [
   U('permit', 'Factory', 'Gnome Permit', '+40 max gnomes in the yard.', 5, 300, 1.8, 2),
   // 3 levels (F11): awake gnomes barely matter once machines ragdoll them
   U('glue', 'Factory', 'Gnome Glue', 'Statues wake up 15% less often.', 3, 400, 1.8, 3),
+  // PP 2026-10-24: 5 levels raise the Massive share to 100 %, no off switch
+  U('frenzy', 'Factory', 'Feeding Frenzy', 'Every level makes the factory turn out more Massive gnomes (3 kg, x2.3 money); level 5: all of them.', 5, 2000, 2.2, 4),
 
   U('speed', 'Movement', 'Running Shoes', '+12% move speed.', 5, 20, 1.6),
   U('jump', 'Movement', 'Spring Socks', '+15% jump height.', 3, 30, 1.7),
   U('boots', 'Movement', 'Gnome Boots', 'Double jump, and the ground pound (J in the air) reaches 5.5 m and pushes 1.5x harder. Gnomes hate these boots.', 1, 600, 1, 3),
-  U('magnetRange', 'Movement', 'Coin Magnet', '+1.2 m coin pickup radius.', 6, 20, 1.5),
+  // level 10 is the old Piggy Bank, about $90k (PP 2026-10-24 "bardzo drogi np 100k")
+  U('magnetRange', 'Movement', 'Coin Magnet', '+1.2 m coin pickup radius. Level 10: coins fly into your bank by themselves and greedy gnomes cannot steal them.', 10, 20, 2.2),
   U('laptop', 'Movement', 'Laptop', 'Open the shop anywhere with B.', 1, 150, 1),
 ];
 
@@ -99,7 +102,6 @@ const AFTER_TOOLS: Upgrade[] = [
   U('mushChance', 'Bonuses', 'Spore Bag', '+30% mushroom drop chance.', 5, 100, 1.6),
   U('mushTime', 'Bonuses', 'Long Trip', '+20% mushroom effect duration.', 4, 200, 1.7),
   U('goldChance', 'Bonuses', 'Gold Fever', 'More golden gnomes.', 4, 500, 1.8),
-  U('piggy', 'Bonuses', 'Piggy Bank', 'Coins fly into your bank by themselves. Greedy gnomes cannot steal them.', 1, 800, 1, 2),
   U('hunger', 'Bonuses', 'Hole Hunger', '+10% hole XP.', 5, 150, 1.7),
   U('lucky', 'Bonuses', 'Four-leaf Clover', 'Events happen more often.', 3, 1000, 1.9, 2),
 

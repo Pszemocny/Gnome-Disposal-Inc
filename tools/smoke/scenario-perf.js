@@ -32,7 +32,8 @@ const buf = () => { const gl = g.renderer.getContext(); return `${gl.drawingBuff
   try {
     const S = await import('/src/core/settings.ts');
     // the env reads prefs.quality for the night look: a second module instance would leave nightShade at 1 on Low
-    const nightOn = (q) => { S.prefs.quality = q; const n0 = g.env.night; g.env.night = 1; g.env.update(0); const n = g.env.nightShade; g.env.night = n0; g.env.update(0); return n; };
+    // `shade` (the sky's night, damped towards `night` since the Eclipse Cap, 2026-10-25) is set too: update(0) does not move it
+    const nightOn = (q) => { S.prefs.quality = q; const n0 = g.env.night; const s0 = g.env.shade; g.env.night = g.env.shade = 1; g.env.update(0); const n = g.env.nightShade; g.env.night = n0; g.env.shade = s0; g.env.update(0); return n; };
     const q0 = S.prefs.quality;
     if (!S.lowfx && (nightOn('low') !== 0 || nightOn('medium') !== 1)) throw new Error('settings module instance');
     S.prefs.quality = q0;
@@ -142,6 +143,7 @@ const buf = () => { const gl = g.renderer.getContext(); return `${gl.drawingBuff
           g.state.holeLevel = 10; g.env.rebuildHole();
           g.state.land = 3; g.env.rebuildLand();
           Object.assign(U, { permit: 5, robot: 12, fan: 3, trampoline: 3, conveyor: 2, magnet: 1, vacuum: 1 });
+          if (P.has('frenzy')) U.frenzy = 5; // &frenzy: every gnome Massive (Feeding Frenzy 5), the baseline run stays as it was
           const h = g.env.hole;
           for (let i = 0; i < 12; i++) { const a = (i / 12) * Math.PI * 2; g.machines.place('robot', new V(h.x + Math.cos(a) * 10, 0, h.z + Math.sin(a) * 10), Q.clone()); }
           const tools = ['fan', 'fan', 'fan', 'trampoline', 'trampoline', 'trampoline', 'conveyor', 'conveyor', 'magnet', 'vacuum'];

@@ -10,11 +10,11 @@ export const ICONS: Record<string, string> = {
   ...TOOL_ICONS,
   kick: '🦶', tractor: '🚜', plowWidth: '📏', blower: '🍃', blowPower: '💨', blowRange: '🎯',
   magGun: '🧲', magPower: '🔋', magRange: '📡', throw: '💪', scope: '🔭',
-  factorySpeed: '⚙️', batch: '👥', autocrank: '🔁', value: '💰', permit: '📜', glue: '🧴',
+  factorySpeed: '⚙️', batch: '👥', autocrank: '🔁', value: '💰', permit: '📜', glue: '🧴', frenzy: '🍖',
   speed: '👟', jump: '🧦', boots: '👢', magnetRange: '🪙', laptop: '💻',
   crateSize: '📐', robotBed: '🛏️', robotSpeed: '⚡', robotArea: '🗺️', fanPower: '🌀', beltWidth: '↔️',
   comboWindow: '⏱️', comboCap: '🔥', comboInsurance: '🛡️', jackpot: '🎰',
-  mushChance: '🍄', mushTime: '⏳', goldChance: '✨', piggy: '🐷', hunger: '🍴', lucky: '🍀',
+  mushChance: '🍄', mushTime: '⏳', goldChance: '✨', hunger: '🍴', lucky: '🍀',
   dValue: '💎', dStart: '🎁', dTools: '🧰', dCombo: '🔥', dXp: '🕳️',
 };
 for (const id of FUSE_TOOLS) ICONS[`${id}Fuses`] = '🔌';
