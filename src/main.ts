@@ -36,6 +36,7 @@ import { daily } from './systems/daily';
 import { replay } from './systems/replay';
 import { installCrashReport, note, watchCanvas } from './ui/crash';
 import { shot } from './ui/shot';
+import { stats } from './ui/stats';
 
 installCrashReport();
 
@@ -83,6 +84,7 @@ async function boot(): Promise<void> {
   ctx.hole = new Hole();
   ctx.env = new Environment();
   applyQuality(renderer, ctx.scene);
+  stats.init(renderer);
   ctx.gnomes = new Gnomes();
   ctx.coins = new Coins();
   ctx.mushrooms = new Mushrooms();
@@ -102,6 +104,7 @@ async function boot(): Promise<void> {
   ctx.strike = new Strike();
 
   ctx.machines.restore(state.placed);
+  void renderer.compileAsync(ctx.scene, camera); // every material in the scene links on the title screen, not on first sight
   // the gun is the default gear once owned (gear itself is not saved)
   if (lvl('magGun')) ctx.player.setGear('magGun');
 
@@ -302,6 +305,7 @@ async function boot(): Promise<void> {
       redraw = !ctx.paused;
     }
     shot.update(now);
+    stats.frame(now);
     // measurement for the factory mouse jump (PP 2026-10-20): `tail logs/errors.log` after a 5300 session, or the
     // browser console ("[gnome] mouse-jump", "[gnome] slow-frame") on GitHub Pages
     const shake = +ctx.fx.shakeLevel.toFixed(2);

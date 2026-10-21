@@ -44,25 +44,33 @@ export const prefs: Settings = {
 // ?lowfx (headless tests, slow machines): Low for this page load only, the cookie keeps the saved choice
 export const lowfx = new URLSearchParams(location.search).has('lowfx');
 
-// Pixel ratio, shadows on/off and the sun's shadow map size; all of it takes effect on the next frame.
+// Pixel ratio, shadows on/off, the sun's shadow map size and reach; all of it takes effect on the next frame.
+// High is the look from before 2026-10-21 (ratio 1.5, 1024², ±40 m); Medium is the lighter default PP asked for
+// (ratio 1, 512², ±25 m).
 export function applyQuality(renderer: THREE.WebGLRenderer, scene: THREE.Scene): void {
   const q = lowfx ? 'low' : prefs.quality;
-  renderer.setPixelRatio(q === 'low' ? 1 : Math.min(q === 'high' ? 2 : 1.5, window.devicePixelRatio));
+  // never above the screen's own ratio: with browser zoom below 100 % (DPR 0.8) Medium must not draw more than High
+  renderer.setPixelRatio(Math.min(q === 'high' ? 1.5 : 1, window.devicePixelRatio));
   renderer.shadowMap.enabled = q !== 'low';
   // three r186 removed PCFSoftShadowMap (it falls back to PCF with a warning); softness comes from shadow.radius
   renderer.shadowMap.type = THREE.PCFShadowMap;
   renderer.shadowMap.needsUpdate = true;
-  const size = q === 'high' ? 2048 : 1024;
+  const size = q === 'high' ? 1024 : 512;
+  const half = q === 'high' ? 40 : 25;
   scene.traverse((o) => {
     if (o instanceof THREE.DirectionalLight && o.castShadow) {
-      // the blur radius is in texels: double it with the doubled map so High is not sharper than Medium
+      // same edge width in metres: 2 x 7.8 cm on High, 1.6 x 9.8 cm on Medium (PCF takes 5 taps at any radius)
       o.userData.baseShadowRadius ??= o.shadow.radius;
-      o.shadow.radius = o.userData.baseShadowRadius * (size / 1024);
+      o.shadow.radius = o.userData.baseShadowRadius * (q === 'high' ? 1 : 0.8);
       if (o.shadow.mapSize.x !== size) {
         o.shadow.mapSize.set(size, size);
         o.shadow.map?.dispose(); // three makes a new map at the new size on the next shadow pass
         o.shadow.map = null;
       }
+      const sc = o.shadow.camera;
+      sc.left = sc.bottom = -half;
+      sc.right = sc.top = half;
+      sc.updateProjectionMatrix();
     }
     // shaders are compiled with or without shadow code
     const m = (o as { material?: { needsUpdate: boolean } }).material;

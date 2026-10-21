@@ -5,6 +5,7 @@ Newest build first. Each build lists what changed and what to test. Shown in the
 ## 2026-10-21 08:00
 
 - Errors from the online version are reported to the developers (no names, no addresses), so a crash on GitHub Pages is no longer lost. The game keeps running when the report cannot be sent. Test (Pages version): play normally; nothing changes on screen.
+- Smoother near the factory and the hole: the default graphics (Medium) are lighter, with lower sharpness on high-resolution screens and a shorter shadow reach, so shadows end closer to you (about 25 m). High is now the old Medium look: pick it in the pause menu to compare. The materials of everything in your yard are prepared on the title screen. Test: walk factory → house → hole for a minute on Medium, then on High; open the game with `?stats` after the address, play a minute, then take a screenshot (P) or a system screenshot of the two lines in the top-left corner. The lines stop while the game is paused, so they still show the game's numbers in the pause menu.
 
 ## 2026-10-21 02:00
 

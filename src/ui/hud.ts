@@ -126,6 +126,10 @@ export class Hud {
   private bubbles: Bubble[] = [];
   private tmp = new THREE.Vector3();
   private lastMoney = -1;
+  private shardsText = '';
+  private holeLabelText = '';
+  private holeFillText = '';
+  private holeMultText = '';
   private bigT = BIG_T;
   private bigSize = 1;
   private pulseT = 1;
@@ -373,13 +377,18 @@ export class Hud {
       this.moneyEl.textContent = money(s.money);
       this.lastMoney = s.money;
     }
-    this.shardsEl.textContent = s.shards > 0 ? `💎 ${num(s.shards)} shards` : '';
+    // DOM writes only on change: 3 text writes per frame were 180 mutations a second on a still screen
+    const shards = s.shards > 0 ? `💎 ${num(s.shards)} shards` : '';
+    if (shards !== this.shardsText) this.shardsEl.textContent = this.shardsText = shards;
 
     const L = holeLevel(s.holeLevel);
     const max = s.holeLevel >= MAX_HOLE_LEVEL;
-    this.holeLabel.textContent = max ? `HOLE LVL ${s.holeLevel} · MAX · JUMP IN` : `HOLE LVL ${s.holeLevel}`;
-    this.holeFill.style.width = max ? '100%' : `${Math.min(100, (s.holeXp / L.xp) * 100)}%`;
-    this.holeMult.textContent = max ? `x${L.mult} money` : `XP ${Math.floor(s.holeXp)} / ${L.xp} · money x${L.mult} → x${holeLevel(s.holeLevel + 1).mult}`;
+    const levelText = max ? `HOLE LVL ${s.holeLevel} · MAX · JUMP IN` : `HOLE LVL ${s.holeLevel}`;
+    if (levelText !== this.holeLabelText) this.holeLabel.textContent = this.holeLabelText = levelText;
+    const fill = max ? '100%' : `${Math.min(100, (s.holeXp / L.xp) * 100)}%`;
+    if (fill !== this.holeFillText) this.holeFill.style.width = this.holeFillText = fill;
+    const mult = max ? `x${L.mult} money` : `XP ${Math.floor(s.holeXp)} / ${L.xp} · money x${L.mult} → x${holeLevel(s.holeLevel + 1).mult}`;
+    if (mult !== this.holeMultText) this.holeMult.textContent = this.holeMultText = mult;
 
     const hole = ctx.hole;
     if (hole.combo > 1) {
@@ -391,7 +400,7 @@ export class Hud {
       const sc = 1 + Math.min(0.6, hole.combo / 120);
       this.comboBox.style.transform = `translateY(-50%) scale(${sc}) rotate(${Math.sin(ctx.time * 20) * Math.min(4, hole.combo / 15)}deg)`;
       this.comboBox.style.color = hole.combo >= 60 ? '#ff4a8a' : hole.combo >= 15 ? '#ffd23f' : '#fff';
-    } else this.comboBox.classList.remove('on');
+    } else this.comboBox.classList.toggle('on', false); // unlike remove(), no attribute write when already off
 
     // effects panel under the contract, in its style: one row per running effect
     const row = (color: string, label: string, right: string) => `<div class="ef-row" style="border-color:${color}"><span>${label}</span><b>${right}</b></div>`;

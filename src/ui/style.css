@@ -282,6 +282,9 @@ canvas { display: block; }
 /* the pill never sits on an open shop, blueprints, legend or leaderboard: they all carry .shop */
 body:has(.shop:not(.hidden)) .click-to-play { display: none; }
 
+/* ?stats frame-time readout (src/ui/stats.ts), above everything, never in the way of the mouse */
+.perf-stats { position: fixed; left: 4px; top: 4px; padding: 2px 6px; background: rgba(0,0,0,.6); color: #fff; font: 12px ui-monospace, Menlo, monospace; white-space: pre; pointer-events: none; z-index: 1000; }
+
 .deep { position: fixed; inset: 0; background: #000; z-index: 50; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 24px; animation: fadein 2s; }
 .deep-line { font-family: 'Creepster', var(--font); font-size: 44px; color: #b0f0ff; text-align: center; padding: 0 20px; animation: fadein 1.2s; letter-spacing: 2px; }
 @keyframes fadein { from { opacity: 0; } }
