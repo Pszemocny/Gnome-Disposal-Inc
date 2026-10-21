@@ -43,10 +43,11 @@ say "21-char name" "$(post "$(row Abcdefghijabcde 1 1 main "$(k $ONE main "$T")"
 say "score 1e400" "$(post "$(row Huge 1e400 1 main x)")" 4xx
 say "board x" "$(post "$(row Board 1 1 x "$(k $ONE x "$T")")")" 4xx
 say "daily-2099-01-01" "$(post "$(row Future 1 1 daily-2099-01-01 "$(k $ONE daily-2099-01-01 "$T")")")" 4xx
-# speed board: score = seconds to hole level 12 (119 = 405dc00000000000, 120 = 405e000000000000)
+# speed board: score = seconds to hole level 12 (119 = 405dc00000000000, 120 = 405e000000000000, 1e299 = 7e031cfd3999f7b0)
+# the accepted row uses 1e299 s so it sorts last on the public FASTEST board until the cleanup deletes it
 say "speed 119 s" "$(post "$(row Speed 119 12 speed "$(k 405dc00000000000 speed "$T")")")" 4xx
 say "speed level 11" "$(post "$(row Speed 120 11 speed "$(k 405e000000000000 speed "$T")")")" 4xx
-say "speed 120 s lvl 12" "$(post "$(row Speed 120 12 speed "$(k 405e000000000000 speed "$T")")")" 2xx
+say "speed 1e299 s lvl 12" "$(post "$(row Speed 1e299 12 speed "$(k 7e031cfd3999f7b0 speed "$T")")")" 2xx
 say "id in body" "$(post "$(row Id 1 1 main "$(k $ONE main "$T")" | sed 's/^{/{"id":1,/')")" 4xx
 say "array with bad row" "$(post "[$(row Array 1 1 main "$(k $ONE main "$T")"),$(row Array -1 1 main x)]")" 4xx
 say "array: rows unchanged" "$(count Array)" 0

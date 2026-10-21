@@ -10,6 +10,8 @@ const MAX_NAME = 20; // PP 2026-10-24: a first name or nickname, at most 20 char
 // letters of any alphabet (Polish diacritics too), digits, spaces, . _ - '; at least one letter or digit
 const NAME = /^(?=.*[\p{L}\p{N}])[\p{L}\p{M}\p{N} ._'’-]+$/u;
 const SPEED = 'speed'; // FASTEST LVL 12: score = runTime in seconds, lower is better
+// this run's level-12 time, or null when the run has none or its clock started before the update (runTimeUnknown)
+const runLvl12 = (): number | null => (ctx.state.runTimeUnknown ? null : ctx.state.maxLevelAt);
 
 export interface Entry {
   name: string; // a first name or nickname, never a full official name (PP 2026-10-24)
@@ -32,6 +34,7 @@ const W_REJECT = 'The online board rejected this score: saved on this computer o
 // a resend after this may store a second row: accepted, honest double submits are allowed
 const W_MAYBE = 'The online board did not answer in time: the score is saved on this computer and might have reached the online board too.';
 const W_CLOCK = "The online board rejected this score: check your computer's date and time. Saved on this computer only.";
+const W_TIME = 'Your time was not saved online.'; // the money row went through, only the FASTEST row failed
 const TIMEOUT_MS = 6000;
 const COLS = 'name,score,level,board,created_at';
 
@@ -300,7 +303,8 @@ export class Leaderboard {
     this.board = this.tab = board;
     this.title.textContent = title;
     this.form.classList.toggle('hidden', !form);
-    this.run.textContent = `Your run: ${money(s.totalEarned)} · Hole lvl ${s.holeLevel}` + (s.maxLevelAt !== null ? ` · Lvl 12 in ${clock(s.maxLevelAt)}` : '');
+    const t = runLvl12();
+    this.run.textContent = `Your run: ${money(s.totalEarned)} · Hole lvl ${s.holeLevel}` + (t !== null ? ` · Lvl 12 in ${clock(t)}` : '');
     this.msg.textContent = '';
     this.el.classList.remove('hidden');
     void this.render();
@@ -336,9 +340,10 @@ export class Leaderboard {
       await this.store.submit({ name, score: s.totalEarned, level: s.holeLevel, at, board: this.board });
       w = this.store.warning ?? null;
       // every run that reached level 12 posts its time with this submit (PP 2026-10-24: "za każdym razem gdy wskoczysz")
-      if (s.maxLevelAt !== null) {
-        await this.store.submit({ name, score: s.maxLevelAt, level: MAX_HOLE_LEVEL, at, board: SPEED });
-        w ??= this.store.warning ?? null;
+      const t = runLvl12();
+      if (t !== null) {
+        await this.store.submit({ name, score: t, level: MAX_HOLE_LEVEL, at, board: SPEED });
+        if (this.store.warning) w ??= W_TIME;
       }
     } finally {
       this.sending = false;

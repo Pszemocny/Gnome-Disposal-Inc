@@ -60,6 +60,7 @@ export interface GameState {
   factoryAuto: boolean; // the lever beside the factory: false switches Auto Crank off
   runTime: number; // unpaused real seconds of this run (FASTEST LVL 12 board)
   maxLevelAt: number | null; // runTime when the hole reached MAX_HOLE_LEVEL in this run
+  runTimeUnknown?: boolean; // a reborn save from before the run clock: this run's time is never posted; freshState drops it
 }
 
 // keeps the game's old slug on purpose: a new key would wipe existing saves (same for the other storage keys)
@@ -155,8 +156,10 @@ export function loadState(): GameState {
       ...parsed,
       stats: { ...base.stats, ...(parsed.stats ?? {}) },
       settings: base.settings,
-      // a save from before the run clock: its total play time (exact on the first run, slower after a rebirth)
+      // a save from before the run clock: its total play time, exact on the first run only; after a rebirth it spans
+      // all runs, so this run's time is marked unknown and never posted
       runTime: parsed.runTime ?? parsed.stats?.playTime ?? 0,
+      runTimeUnknown: parsed.runTimeUnknown || (parsed.runTime === undefined && (parsed.stats?.rebirths ?? 0) > 0) || undefined,
     };
   } catch {
     return freshState();

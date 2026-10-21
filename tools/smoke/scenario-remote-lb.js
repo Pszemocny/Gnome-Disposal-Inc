@@ -49,6 +49,7 @@ const step = async (name, fn) => { try { out[name] = await fn(); } catch (e) { o
   const W_REJECT = 'The online board rejected this score: saved on this computer only.';
   const W_MAYBE = 'The online board did not answer in time: the score is saved on this computer and might have reached the online board too.';
   const W_CLOCK = "The online board rejected this score: check your computer's date and time. Saved on this computer only.";
+  const W_TIME = 'Your time was not saved online.';
 
   if (location.search.includes('daily=')) {
     await step('R6_daily_over', async () => {
@@ -326,13 +327,19 @@ const step = async (name, fn) => { try { out[name] = await fn(); } catch (e) { o
     r.secondRun = (await run('Speedy')).posts;
     speedReply.v = () => empty(503);
     const fail = await run('Speedy');
-    r.fail = { toast: fail.bad, localRows: fail.localRows, done: fail.done };
+    // the money row went through: only the time row failed, so the toast names the time, not the score
+    r.fail = { toast: fail.bad, toastIsTime: fail.bad[0] === W_TIME, localRows: fail.localRows, done: fail.done };
     speedReply.v = () => json({ message: 'new row for relation "scores" violates check constraint "scores_speed_check"' }, 400);
     const rej = await run('Speedy');
-    r.reject = { toast: rej.bad, toastIsReject: rej.bad[0] === W_REJECT, localRows: rej.localRows, done: rej.done };
+    r.reject = { toast: rej.bad, toastIsTime: rej.bad[0] === W_TIME, localRows: rej.localRows, done: rej.done };
     speedReply.v = () => json({ code: 'P0001', message: 'bad key' }, 400);
     const clk = await run('Speedy');
-    r.clock = { toastIsClock: clk.bad[0] === W_CLOCK };
+    r.clock = { toastIsTime: clk.bad[0] === W_TIME };
+    // both rows refused: the score warning wins
+    next = (c) => (c.method === 'POST' ? json({ message: 'violates check constraint' }, 400) : json([]));
+    const both = await run('Speedy');
+    r.bothRejected = { toastIsReject: both.bad[0] === W_REJECT };
+    next = (c) => (c.method === 'POST' ? (c.body.board === 'speed' ? speedReply.v() : empty(201)) : json([]));
     speedReply.v = () => empty(201);
     g.state.maxLevelAt = null;
     r.noTime = { posts: (await run('Slowpoke')).posts, holeLevel: g.state.holeLevel };
@@ -365,6 +372,48 @@ const step = async (name, fn) => { try { out[name] = await fn(); } catch (e) { o
     const kept = { localSpeedKept: sp.length, ascending: scores.every((v, i) => i === 0 || scores[i - 1] <= v), fastestKept: scores[0] === 1000 - 54 * 7, mainKept: main.length };
     g.state.maxLevelAt = null;
     return { tab, rebirth, kept };
+  });
+
+  await step('R20_old_reborn_save', async () => {
+    // a save from before the run clock, mid-run after 2 rebirths: playTime spans all runs, so its time is unknown
+    const S = await mod(/\/src\/core\/state\.ts/);
+    const SAVE = 'gnome-boozed-save-v1';
+    const realRaw = localStorage.getItem(SAVE);
+    const realState = g.state;
+    const old = S.freshState();
+    delete old.runTime;
+    delete old.maxLevelAt;
+    old.holeLevel = 11;
+    old.totalEarned = 5e6;
+    old.stats.rebirths = 2;
+    old.stats.playTime = 36000;
+    // goal fields the HUD reads every frame (freshState leaves them to the rebirth code)
+    Object.assign(old, JSON.parse(JSON.stringify({ goalStart: realState.goalStart, goalsDone: realState.goalsDone })));
+    localStorage.setItem(SAVE, JSON.stringify(old));
+    // a first-run save of the same shape keeps playTime as its run time (exact on the first run)
+    const first = JSON.parse(JSON.stringify(old));
+    first.stats.rebirths = 0;
+    localStorage.setItem(SAVE, JSON.stringify(first));
+    const firstRunTime = S.loadState().runTime;
+    localStorage.setItem(SAVE, JSON.stringify(old));
+    g.state = S.loadState();
+    next = (c) => (c.method === 'POST' ? empty(201) : json([]));
+    let r;
+    try {
+      g.hole.levelUp();
+      const level = g.state.holeLevel;
+      const p0 = calls.length;
+      const o = offer(); await settle();
+      const line = runLine();
+      submit('Oldie'); await settle();
+      const f = S.freshState(g.state);
+      r = { level, posts: posts(p0).map((c) => c.body.board), runLineLacksTime: !line.includes('Lvl 12 in'), done: o.n, firstRunTime, freshUnknown: f.runTimeUnknown ?? false };
+    } finally {
+      g.state = realState;
+      if (realRaw === null) localStorage.removeItem(SAVE);
+      else localStorage.setItem(SAVE, realRaw);
+    }
+    return r;
   });
 
   await step('R18_run_timer', async () => {
