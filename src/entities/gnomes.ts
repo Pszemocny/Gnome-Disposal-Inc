@@ -80,6 +80,8 @@ const SQUASH_TIME = 0.15;
 export const POP_TIME = 0.25;
 export const GNOME_DAMPING = 0.15; // linear damping of every gnome body; the cannon and funnel arcs count it
 const SWALLOW_TIME = 0.5; // an eaten gnome shrinks to 0 in this time
+// x scale: the hole eats a gnome only below this centre height (a standing gnome is at 0.44), no catching in mid-air
+export const SWALLOW_Y = 0.6;
 const SWALLOW_SPIN = Math.PI * 3; // radians around the hole axis over the swallow
 // Gnome built from moving parts (demo on classic, PP 2026-10-20 "gnom z ruchomych czesci").
 const PARTS_TYPES = new Set(['classic']);
@@ -468,10 +470,9 @@ export class Gnomes {
     g.timer = 0; // counts up: seconds since the fall started, drives the swallow animation
     g.collider.setCollisionGroups(NONE);
     ctx.env.holePulse();
-    const p = g.body.translation();
+    // no pull to the centre: the hole has no magnet (PP 2026-10-22), the tube wall in update() keeps it inside
     const v = g.body.linvel();
-    const h = ctx.env.hole;
-    g.body.setLinvel({ x: v.x * 0.3 + (h.x - p.x) * 1.5, y: Math.min(v.y, 0) - 2, z: v.z * 0.3 + (h.z - p.z) * 1.5 }, true);
+    g.body.setLinvel({ x: v.x * 0.3, y: Math.min(v.y, 0) - 2, z: v.z * 0.3 }, true);
     if (Math.random() < 0.35) ctx.audio.voice('scream', 1.3 / g.scale);
   }
 
@@ -507,9 +508,9 @@ export class Gnomes {
       if (g.pop > 0) g.pop -= dt;
       if (g.state === 'held') {
         g.prevVy = 0;
-        // a gnome dragged low over the hole slips off the magnet and falls in
+        // a gnome dragged down into the hole's opening slips off the magnet and falls in
         const hp = g.body.translation();
-        if (env.holeDist(hp.x, hp.z) < env.holeRadius && hp.y < 1.4 * g.scale) {
+        if (env.holeDist(hp.x, hp.z) < env.holeRadius && hp.y < SWALLOW_Y * g.scale) {
           this.drop(g);
           this.startFalling(g);
           continue;
@@ -526,12 +527,29 @@ export class Gnomes {
 
       if (g.state === 'falling') {
         g.timer += dt;
-        if (p.y < -2.6) ctx.hole.consume(g);
+        if (p.y < -2.6) {
+          ctx.hole.consume(g);
+          continue;
+        }
+        // the tube wall (not a pull): a falling gnome never leaves the opening sideways
+        const wall = r - 0.2 * g.scale;
+        const dx = p.x - env.hole.x;
+        const dz = p.z - env.hole.z;
+        const d = Math.hypot(dx, dz);
+        if (d > wall) {
+          const nx = dx / d;
+          const nz = dz / d;
+          g.body.setTranslation({ x: env.hole.x + nx * wall, y: p.y, z: env.hole.z + nz * wall }, true);
+          savePose(g, g.body);
+          const v = g.body.linvel();
+          const out = v.x * nx + v.z * nz;
+          if (out > 0) g.body.setLinvel({ x: v.x - out * nx, y: v.y, z: v.z - out * nz }, true);
+        }
         continue;
       }
 
       const dc = env.holeDist(p.x, p.z);
-      if (dc < r && p.y < 1.4 * g.scale) {
+      if (dc < r && p.y < SWALLOW_Y * g.scale) {
         this.startFalling(g);
         continue;
       }

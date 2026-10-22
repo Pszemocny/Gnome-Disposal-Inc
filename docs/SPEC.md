@@ -35,6 +35,7 @@ Decyzje:
 - Nastroje dziury (od poziomu 2, co 150-200 s): przez 45 s dziura „pragnie” jednego typu (nigdy zwykłego, złotego ani króla), ten typ płaci x3; baner i szept. Drwiny: po 5 pudłach z rzędu „Five misses. Pathetic.”, po LONG SHOT „Ooh.”.
 - Wpadnięcie gracza do dziury: dziura go wypluwa z fontanną monet, ale płaci tylko raz na poziom w danym biegu.
 - Dziura nie ma obwódki; jedzenie przyspiesza wir, od combo 10 wir zmienia kolor (biały → fiolet → złoto).
+- Dziura nie przyciąga: zjada gnoma dopiero, gdy ten jest w otworze, czyli nad otworem i nisko (środek gnoma poniżej 0,6 jego wzrostu; stojący gnom ma 0,44). Gnom przelatujący nad dziurą w powietrzu leci dalej. Zjedzony gnom spada z 30% swojej prędkości w bok i nie jest ściągany do środka; ściana rury nie pozwala mu wyjść bokiem. Linia rzutu Trick Scope liczy trafienie tak samo. Maszyny, które gracz stawia (Vacuum Tower, Gnome Magnet), i eventy (trzęsienie ziemi, tornado) dalej pchają gnomy do dziury, bo to nie jest siła samej dziury.
 
 Decyzje:
 - (PP, 2026-10-19) „x2, x5, aby było warto”: tricki płacą x2..x5 i świętują, bo wcześniej nie było widać, że się opłacają.
@@ -46,6 +47,7 @@ Decyzje:
 - (sesja, 2026-10-21, zmienione 2026-10-22) Zjazd dziury ok. 12 m/s, w 1 do 4 s: zjazd do Dark Forest ma 47 m, a w 1 s dziura przelatywałaby przez ogród w mgnieniu oka.
 - (PP, 2026-10-22, zastępuje 4 m z 2026-10-21) 8 m dalej na każdą ziemię (15 / 23 / 31 / 39 m na poziomie 1): „automatyczne landy powinny dziure oddalac za kazdym razem aby byla dalej i dalej i trudniej bylo do niej dotrzec maszynami”. Każda ziemia zmusza więc gracza do przestawienia albo dokupienia maszyn. Skutek: na poziomie 8 dziura stoi 47 m od fabryki. Kąty z 2026-10-21 zostały, bo skrypt sprawdzający przy 8 m nie złamał żadnego warunku (płot, biurko, dom, łopata, litery).
 - (PP, 2026-10-20) Bez obwódki dziury i animacji jedzenia obwódką.
+- (PP, 2026-10-22) Dziura bez magnesu i przyciągania: „zmien aby dziura nie miala zadnego magnesu ani przyciagania”. Wcześniej łapała gnoma do 1,4 jego wzrostu nad ziemią i ściągała go do środka, więc rzut tuż nad dziurą i tak wpadał; teraz trafić trzeba naprawdę. Próg 0,6 (a nie niżej), bo gnom stojący na skrawku ziemi w kole dziury ma środek na 0,44 i nadal ma wpaść.
 - (sesja, 2026-10-20) Fotel i flaming płacą pełną stawkę tylko do zdobycia osiągnięcia, potem 10%; chciwy gnom oddaje łup x1 bez monet; wpadnięcie gracza płaci raz na poziom: bo to były pętle na nieskończoną kasę (F4, F5, F6).
 - (PP, 2026-10-22) BULLSEYE liczy się tylko wtedy, gdy gnom wpada do dziury do 2 s po przejściu przez obręcz: „powiedzmy ze bullseye powinien dzialac przez 2s po przejsciu przez krag nie dluzej”. Bez limitu gnom przez obręcz, który spadł na trawę i trafił do dziury z ręki, nadal płacił BULLSEYE.
 - (PP, 2026-10-20) Trickshot (BULLSEYE) nie zwalnia już czasu, zostają napis, premia, iskry, fanfara i drżenie: „myślałem, że gra się zacina”.

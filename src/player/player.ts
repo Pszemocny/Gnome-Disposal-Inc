@@ -4,7 +4,7 @@ import { ctx, G, groups, lvl, rand } from '../core/context';
 import { MAX_HOLE_LEVEL } from '../data/holeLevels';
 import { WEIGHT_TIERS } from '../data/gnomeTypes';
 import { TOOL_IDS, UPGRADE_BY_ID } from '../data/upgrades';
-import { isFree, type Gnome } from '../entities/gnomes';
+import { isFree, SWALLOW_Y, type Gnome } from '../entities/gnomes';
 import type { Prop } from '../entities/props';
 import { boxBottom, footprintOverHole, machineBox, machineVisual, needsRepair, type Machine } from '../entities/machines';
 import { Sweeper, type Gear } from './sweeper';
@@ -302,6 +302,7 @@ export class Player {
     const landN = new THREE.Vector3(0, 1, 0);
     let inHole = false;
     let hoop = false;
+    const swallowY = SWALLOW_Y * (this.heldGnomes()[0]?.scale ?? 1); // the same height rule as Gnomes.update
     this.landed = false;
     while (pts.length < ARC_PTS && !this.landed) {
       prev.copy(p);
@@ -315,7 +316,7 @@ export class Player {
         const b = tmpV.copy(p).sub(hc).dot(hn);
         if (a * b <= 0 && tmpV.copy(prev).lerp(p, a / (a - b || 1)).distanceTo(hc) < Hole.RING_RADIUS) hoop = true;
       }
-      if (env.holeDist(p.x, p.z) < env.holeRadius && p.y < 0.8) {
+      if (env.holeDist(p.x, p.z) < env.holeRadius && p.y < swallowY) {
         inHole = this.landed = true;
         landAt.set(p.x, 0.03, p.z);
       } else {

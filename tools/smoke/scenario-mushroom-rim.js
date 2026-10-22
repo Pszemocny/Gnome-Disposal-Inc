@@ -1,4 +1,5 @@
 // A resting mushroom never stays inside the hole's opening: it hops out to the rim (docs/ai-work/2026-10-24-mushroom-rim.md).
+// h1-h3: the hole has no magnet or pull on gnomes (docs/ai-work/2026-10-22-hole-no-pull.md).
 // Run: DEV_PORT=5173 CDP_PORT=9391 node tools/smoke/smoke.mjs <outDir> <this file>
 const g = window.gnome;
 const out = [];
@@ -48,6 +49,57 @@ setTimeout(() => { if (!window.__done) window.__done = out.join('\n') + '\nTIMEO
       g.env.hole.x += 6; // the slide moves the centre frame by frame; the end state is what matters
       step(0.6);
       ok('d', g.mushrooms.list.includes(m) && dist(m) > g.env.holeRadius + 0.3, `d=${dist(m).toFixed(2)} R=${g.env.holeRadius}`);
+    }
+
+    // h1-h3: the hole has no magnet or pull (docs/ai-work/2026-10-22-hole-no-pull.md); gnomes and physics stepped at 60 Hz
+    {
+      g.env.rebuildHole(); // d moved the centre without the ground slabs
+      const c = g.env.hole.clone(); const R = g.env.holeRadius;
+      const clear = () => { for (const x of [...g.gnomes.list]) if (x.state !== 'gone') g.gnomes.remove(x); };
+      const hd = (x) => { const p = x.body.translation(); return g.env.holeDist(p.x, p.z); };
+      const run = (x, sec, each) => { for (let i = 0; i < Math.round(sec * 60) && g.gnomes.list.includes(x); i++) { g.gnomes.update(1 / 60); if (!g.gnomes.list.includes(x)) break; each?.(); g.gnomes.savePoses(); g.physics.step(); } };
+      const fling = (pos, vel) => { clear(); const x = g.gnomes.spawn('classic', pos, { tier: 'normal', awake: false }); g.gnomes.ragdoll(x); x.body.setLinvel(vel, true); return x; };
+
+      // h1: flying 1.0 m over the centre, fast enough to leave the circle before it sinks to 0.6 x scale
+      {
+        const x = fling(new V(c.x, 1.0, c.z), new V(16, 0, 0));
+        let fell = false; let minY = 9;
+        run(x, 0.4, () => { if (x.state === 'falling') fell = true; minY = Math.min(minY, x.body.translation().y); });
+        ok('h1', !fell && x.state !== 'falling' && hd(x) > R, `fell=${fell} d=${hd(x).toFixed(2)} R=${R} minY=${minY.toFixed(2)} scale=${x.scale}`);
+      }
+
+      // h2: dropped onto the hole: swallowed, keeps 0.3 x its horizontal speed (no inward part), never past r while falling
+      {
+        const x = fling(new V(c.x - 1.0, 1.5, c.z), new V(3, 0, 0));
+        let vBefore = null; let vAfter = null; let maxD = 0; let fellAt = -1; let n = 0;
+        run(x, 3, () => {
+          n++;
+          if (x.state !== 'falling') { vBefore = x.body.linvel(); return; }
+          if (fellAt < 0) { fellAt = n; vAfter = x.body.linvel(); }
+          maxD = Math.max(maxD, hd(x));
+        });
+        const gone = !g.gnomes.list.includes(x);
+        const noPull = vBefore && vAfter && Math.abs(vAfter.x - vBefore.x * 0.3) < 0.05 && Math.abs(vAfter.z - vBefore.z * 0.3) < 0.05;
+        ok('h2', fellAt > 0 && gone && noPull && maxD <= R, `fellAt=${fellAt} gone=${gone} vBefore=${vBefore?.x.toFixed(2)},${vBefore?.z.toFixed(2)} vAfter=${vAfter?.x.toFixed(2)},${vAfter?.z.toFixed(2)} maxD=${maxD.toFixed(2)} R=${R}`);
+      }
+
+      // h4: a fast gnome skimming into the opening keeps 7.5 m/s sideways after the catch: the tube wall holds it inside r
+      {
+        const x = fling(new V(c.x, 0.5, c.z), new V(25, 0, 0));
+        let maxD = 0; let fell = false; let walled = 0;
+        run(x, 3, () => { if (x.state !== 'falling') return; fell = true; const d = hd(x); maxD = Math.max(maxD, d); if (d > R - 0.25) walled++; });
+        ok('h4', fell && !g.gnomes.list.includes(x) && maxD <= R && walled > 0, `fell=${fell} maxD=${maxD.toFixed(2)} wall=${(R - 0.2 * x.scale).toFixed(2)} framesAtWall=${walled} R=${R}`);
+      }
+
+      // h3: resting on the corner strip (a ground slab inside the circle, outside the square gap) is still swallowed
+      {
+        clear();
+        const x = g.gnomes.spawn('classic', new V(c.x + R * 0.85, 0.6, c.z), { tier: 'normal', awake: false });
+        let fell = false;
+        run(x, 1, () => { if (x.state === 'falling') fell = true; });
+        ok('h3', fell, `fell=${fell} start d=${(R * 0.85).toFixed(2)} square half=${(R * 0.7071).toFixed(2)} R=${R}`);
+      }
+      clear();
     }
   } catch (e) {
     out.push('ERROR ' + (e.stack || e));
