@@ -76,7 +76,7 @@ setTimeout(() => { if (!window.__done) window.__done = JSON.stringify({ ...R, ch
     await frames(5);
 
     // ---- 01_formula: every hole spot on its land's line from the factory (the Backyard line turned by LAND[L].turn),
-    // at 15 + 4 L + 1.2 (n - 1) m, inside its land
+    // at 15 + 8 L + 1.2 (n - 1) m, inside its land
     const landDir = (L) => DIR.clone().applyAxisAngle(new V3(0, 1, 0), -LAND[L].turn * Math.PI / 180);
     {
       let rows = 0, offline = 0, minMargin = Infinity, minFar = Infinity;
@@ -101,8 +101,8 @@ setTimeout(() => { if (!window.__done) window.__done = JSON.stringify({ ...R, ch
       const d1 = LAND.map((_, L) => holeAt(1, L).distanceTo(FACTORY).toFixed(0)).join(',');
       R.formula = { rows, offline, minMargin: +minMargin.toFixed(2), minFar: +minFar.toFixed(2), l12: xz(l12), d1, bad };
       ok('01_formula', rows === 48 && offline === 0 && minMargin >= 2 && minFar >= 8 && !bad.length, JSON.stringify(R.formula));
-      ok('01_formula_L12', near(l12.x, 30.28, 0.05) && near(l12.z, 0.77, 0.05), xz(l12));
-      ok('01_formula_dist', d1 === '15,19,23,27', d1);
+      ok('01_formula_L12', near(l12.x, 41.55, 0.05) && near(l12.z, 4.88, 0.05), xz(l12));
+      ok('01_formula_dist', d1 === '15,23,31,39', d1);
       // L6 (PP 2026-10-21 "Dziura musi zmieniać stronę"): the first spot of each new land lies off the Backyard line,
       // on the other side than the land before
       const lateral = LAND.slice(1).map((t, i) => { const f = holeAt(t.hole, i + 1).clone().sub(FACTORY); return f.x * DIR.z - f.z * DIR.x; });
@@ -261,7 +261,7 @@ setTimeout(() => { if (!window.__done) window.__done = JSON.stringify({ ...R, ch
       g.state.holeLevel = 7;
       g.env.rebuildHole();
       levelBy();
-      // the 35.5 m slide runs at about 12 m/s: about 3 s, never the old 1 s dash
+      // the 46.6 m slide runs at about 12 m/s: about 3.9 s, never the old 1 s dash
       const tf0 = g.time;
       for (let i = 0; i < 20000 && g.env.sliding && g.time - tf0 < 6; i++) await frames(1);
       const slideTime = g.time - tf0;
@@ -269,7 +269,7 @@ setTimeout(() => { if (!window.__done) window.__done = JSON.stringify({ ...R, ch
       const forestHole = g.env.hole.distanceTo(holeAt(8, 3));
       const ach = g.state.achievements.includes('land');
       R.forest = { land: g.state.land, max: g.env.max.x, hole: xz(g.env.hole), err: +forestHole.toFixed(3), ach, slideTime: +slideTime.toFixed(2) };
-      ok('04_forest', g.state.land === 3 && g.env.max.x === 94 && forestHole < 0.05 && ach && slideTime >= 2.5 && slideTime <= 3.5, JSON.stringify(R.forest));
+      ok('04_forest', g.state.land === 3 && g.env.max.x === 94 && forestHole < 0.05 && ach && slideTime >= 3.4 && slideTime <= 4.4, JSON.stringify(R.forest));
 
       // a dump worth two levels that crosses a land switch: the second level-up runs during the slide
       await setState(fresh({ holeLevel: 4 }));

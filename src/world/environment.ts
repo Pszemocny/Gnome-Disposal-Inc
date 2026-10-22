@@ -30,7 +30,7 @@ const SUN_Z = SUN_OFFSET.clone().normalize();
 const SUN_X = new THREE.Vector3(0, 1, 0).cross(SUN_Z).normalize();
 const SUN_Y = SUN_Z.clone().cross(SUN_X);
 const tmpV = new THREE.Vector3();
-// the hole slides to a new Land's spot at about this speed (m/s), in 1 to 3 s: the Forest slide is 35 m long
+// the hole slides to a new Land's spot at about this speed (m/s), in 1 to 4 s: the Forest slide is 47 m long
 const HOLE_SLIDE_SPEED = 12;
 const FENCE_RISE_TIME = 0.3; // seconds a new land's fence takes to grow out of the ground
 // the Backyard line: from the gnome factory (-7.5, -13) through the Backyard hole (0, 0)
@@ -463,7 +463,7 @@ export class Environment {
     if (to.distanceTo(this.hole) > 0.01) {
       const from = this.hole.clone();
       ctx.fx.dust(from.clone().setY(0.1), 1);
-      const T = THREE.MathUtils.clamp(from.distanceTo(to) / HOLE_SLIDE_SPEED, 1, 3);
+      const T = THREE.MathUtils.clamp(from.distanceTo(to) / HOLE_SLIDE_SPEED, 1, 4);
       ctx.audio.rumble(T);
       this.slide = { from, to, t: 0, T, dust: 0.15 };
       this.fenceRise = 0;

@@ -16,8 +16,9 @@ export const LAND: LandTier[] = [
   { name: 'Dark Forest', half: 58, cost: 40000, hole: 8, turn: -40 },
 ];
 
-// metres further from the factory the hole stands with each land (15 / 19 / 23 / 27 m at hole level 1)
-export const LAND_STEP = 4;
+// metres further from the factory the hole stands with each land (15 / 23 / 31 / 39 m at hole level 1): every land
+// puts it further from the machines (PP 2026-10-22)
+export const LAND_STEP = 8;
 
 // The land a hole level brings: the highest tier whose level is reached.
 export function landFor(level: number): number {

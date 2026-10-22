@@ -112,3 +112,38 @@ Ladder: `holeCenterFor` keeps its signature (rung 2), the direction per land is 
 - Fixed: when the hole changed side and carried a fan from its old rim, the fan could glide onto a robot post that `clearSlide` had just moved beside the new spot, because `clearSlide` checked the pole only against tools where they stood before the glide. Now `Hole.glideTargets` (read-only getter over the private glides) goes from `rebuildLand` into `clearSlide`, which rejects a spot whose pole (1.2 m behind the post) is within a gliding tool's footprint radius + 0.26 m of where that tool ends; a tool gliding in above the pole top (1.6 m) does not count. Same idea as `Hole.moveCrateHomes`.
 - Red check (new `04_slide_fan` in scenario-auto-lands: a fan 1.4 m past the old rim on the post's side, the post's pole facing the new hole): `1 FAIL / 32 PASS`, `{"poleFan":0.3,"blocked":true}`.
 - After the fix: auto-lands `33 PASS`, `{"post":"(-0.96,19.20)","poleFan":11.9,"blocked":false}` (the post took the other side of the path, the next candidate in the existing order); 04_slide_posts unchanged (minGap 3.61, 0 blocked).
+
+## L8: the hole moves 8 m further with each land (2026-10-22)
+
+### Problem
+PP (terminal, 2026-10-22): "automatyczne landy powinny dziure oddalac za kazdym razem aby byla dalej i dalej i trudniej bylo do niej dotrzec maszynami" and "poprosze wieksze odleglosci jak napisales". The proposal: 8 m per land instead of 4 m, so the hole stands 15 / 23 / 31 / 39 m from the factory at level 1 of each land (was 15 / 19 / 23 / 27 m), plus 1.2 m per level as before. Order: "PP: bez planu", no job or migration.
+
+Interpretation: only `LAND_STEP` changes; the L6 turns stay unless the probe says a constraint breaks. The slide keeps about 12 m/s; the clamp grows when a slide needs more than 3 s.
+
+### Gotowe, gdy
+1. `STEP=8 node <scratchpad>/l8/probe.mjs '[0,-25,25,-40]'` → every land `mm >= 2` and `mf >= 8`, every letter >= 6.8 m.
+2. `scenario-auto-lands.js` → all PASS, `01_formula_dist` = `15,23,31,39`, `01_formula_L12` at (41.55, 4.88), `04_forest` slide 3.4-4.4 s.
+3. `scenario-letters.js` → all PASS.
+4. `scenario-robot-stations.js` → all PASS.
+5. `scenario-tree-expansion.js` (alone) → all PASS.
+6. `npx tsc --noEmit -p .` → no output.
+7. Screenshots `l6-land-0..3` show the hole on each land, inside the fence (by eye).
+
+Ladder: rung 5, one constant (`LAND_STEP`) and the slide clamp's upper bound; no new code.
+
+### Work progress (L8)
+- Probe (scratchpad `l8/probe.mjs`, the L6 probe with the step as `STEP`): with 8 m and the L6 turns 0 / -25 / +25 / -40 every constraint holds. Fence margin (edge) >= 4.6 m (Backyard, unchanged) and >= 12.3 m on the new lands; desk, house, shovel >= 12.2 m on the new lands; letters G 15.6, N 12.1, O 27.3, M 44.7, E 58.6 m from every hole path. Allowed turns with 8 m: Garden -43..+28°, Lawn -60..+32°, Forest -60..+37°, so the picks keep 3-20° slack. No turn and no letter moved.
+- Slides: Garden 12.7 m, Lawn 27.7 m, Forest 46.6 m. At 12 m/s the Forest slide needs 3.9 s, so the clamp goes from 1-3 s to 1-4 s (Garden 1.06 s, Lawn 2.31 s, Forest 3.88 s). Dust and rumble unchanged.
+- Done: `LAND_STEP` 4 -> 8 (`src/data/land.ts`), slide clamp 1-3 s -> 1-4 s and its comment (`src/world/environment.ts`). auto-lands: 01_formula comment, 01_formula_L12 (30.28, 0.77) -> (41.55, 4.88), 01_formula_dist `15,19,23,27` -> `15,23,31,39`, 04_forest slide window 2.5-3.5 s -> 3.4-4.4 s. Letters, robot-stations, mushroom-rim and endgame read spots through `holeCenterFor` or use Backyard spots, so they needed no change. SPEC (distance rule, new PP decision with the quote, slide decision), CHANGELOG `## 2026-10-28 18:00`, BOARD.
+- New distances from the factory (level 1 -> level 12 on the same land): Backyard 15 -> 28.2 m, Garden 23 -> 36.2 m, Lawn 31 -> 44.2 m, Dark Forest 39 -> 52.2 m. In real play the hole reaches each land at level 3 / 5 / 8: Garden 25.4 m, Lawn 35.8 m, Forest 47.4 m.
+
+### Check (L8), one run each on a private server (port 5227, CDP 9861, FAKELOCK=1, URL_QUERY='')
+- [PASS] 1. probe — `STEP=8 node l8/probe.mjs '[0,-25,25,-40]'` → mm 4.57 / 13.85 / 12.34 / 20.76, mf 13.41 / 12.15 / 12.82 / 23.84, letters G 15.64, N 12.08, O 27.31, M 44.74, E 58.57.
+- [PASS] 2. auto-lands — `33 PASS / 0 FAIL`; `01_formula_dist 15,23,31,39`, `01_formula_L12 (41.55,4.88)`, `01_formula_side lateral m 10.7,-15.1,30.5`, `04_forest slideTime 3.9`, `10_scenery_grass ... on the hole path 0`.
+- [PASS] 3. letters — `26 PASS / 0 FAIL`, `L0 bad []`.
+- [PASS] 4. robot-stations — `39 PASS / 0 FAIL`.
+- [PASS] 5. tree-expansion (alone) — `54 PASS / 0 FAIL` (F3 passed this time).
+- [PASS] 6. `npx tsc --noEmit -p .` → no output, exit 0.
+- [PASS] 7. Screenshots. The `l6-land-0..3` shots from 13_hole_shots show only the controls panel and the factory sign, so they prove nothing. A scratch scenario (`l8/zz-shots.js`: HUD hidden, player 6 m from the factory looking at the hole) saved `l8/shots/hole-L<land>-n<level>.png`. By eye: the hole is visible on every land, on open grass inside the fence, and it gets clearly further away with each land.
+- Rejected: fixing the 13_hole_shots camera in the scenario; outside this order (distances), the scratch shots cover the check → separate order if PP wants permanent shots.
+- Rejected (orchestrator, 2026-10-22): fixing the camera of 13_hole_shots in scenario-auto-lands.js. Its shots show the controls panel and the factory sign, not the hole; the hole positions are asserted numerically by 01_formula*, and the by-eye check for L8 used clean scratch shots (HUD hidden, view from the factory). Remove or fix the step when the next visual change to the hole needs lasting screenshots.

@@ -2,6 +2,10 @@
 
 Newest build first. Each build lists what changed for the player. Shown in the start menu (button "What's new").
 
+## 2026-10-28 18:00
+
+- Every new land now pushes the hole much further from the factory, so your machines have a longer way to go.
+
 ## 2026-10-28 14:00
 
 - The ending is a real 3D scene now: you fall past walls of gnomes with glowing eyes, and the hole shows you the pile of armchairs, flamingos and golden letters you fed it.
