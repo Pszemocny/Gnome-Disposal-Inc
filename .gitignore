@@ -8,3 +8,5 @@ logs/
 BOARD.md
 # the Supabase key lives only in GitHub repository variables
 .env*
+# PP's editor settings (PhpStorm), not part of the game (PP 2026-10-22)
+.idea/
