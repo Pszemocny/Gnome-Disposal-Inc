@@ -55,6 +55,8 @@ export interface GameState {
     hauls: number;
     heavies: number; // heavy or massive gnomes eaten, any feeder
     trickShots: number; // player throws that bounced off a trampoline into the hole
+    chairs: number; // armchairs the hole ate, every time (the pile in the ending)
+    flamingos: number; // flamingos the hole ate, every time
   };
   goal: number;
   goalBase: number;
@@ -111,6 +113,8 @@ export function freshState(keep?: GameState): GameState {
       hauls: 0,
       heavies: 0,
       trickShots: 0,
+      chairs: 0,
+      flamingos: 0,
     },
     goal: keep?.goal ?? 0,
     goalBase: keep?.goalBase ?? 0,

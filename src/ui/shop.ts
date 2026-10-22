@@ -102,7 +102,7 @@ const EFFECT: Record<string, (L: number) => string> = {
   speed: (L) => `${(6.2 * (1 + L * 0.12)).toFixed(1)} m/s`,
   magPower: (L) => `${(0.8 + 0.2 * L).toFixed(1)} m ball, ${(7 + 1.2 * lvl('magRange') + 0.6 * L).toFixed(1)} m reach`,
   throw: (L) => `x${(1 + 0.15 * L).toFixed(2)} throw`,
-  scope: (L) => ['no sight', 'colour crosshair', 'reflex glass', 'glass + distance and multiplier'][L] ?? '',
+  scope: (L) => ['no sight', 'colour crosshair', 'reflex glass', 'glass + distance, multiplier, see-through gnomes'][L] ?? '',
   magnetRange: (L) => `${(2 + L * 1.2).toFixed(1)} m pickup${L >= UPGRADE_BY_ID.magnetRange.max ? ', coins fly to the bank' : ''}`,
   frenzy: (L) => `${Math.round(100 * massiveOdds(ctx.state.holeLevel, L))}% massive`,
   value: (L) => `x${(1 + L * 0.1).toFixed(1)} money`,

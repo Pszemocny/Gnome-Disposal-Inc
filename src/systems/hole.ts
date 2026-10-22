@@ -254,6 +254,8 @@ export class Hole {
   }
 
   consumeProp(kind: 'chair' | 'flamingo'): void {
+    if (kind === 'chair') ctx.state.stats.chairs++;
+    else ctx.state.stats.flamingos++;
     // full pay the first time (the achievement), then 10%: carrying props in was the best skill-free income (night plan F4)
     const first = !ctx.achievements.has(kind);
     const bonus = (kind === 'chair' ? 250 : 80) * (first ? 1 : 0.1) * this.valueScale;

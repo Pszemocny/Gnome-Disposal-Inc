@@ -52,6 +52,7 @@ export class Replay {
       this.pos = 0;
       this.playing = true;
       for (const bm of ctx.gnomes.parts.values()) bm.visible = false;
+      for (const m of ctx.gnomes.seeMeshes.values()) m.visible = false;
       ctx.hud.bigText('INSTANT REPLAY', '#5fd0ff', 'I to skip');
     } else {
       this.pos += realDt * 60;
@@ -66,6 +67,7 @@ export class Replay {
   private stop(): void {
     this.playing = false;
     for (const bm of ctx.gnomes.parts.values()) bm.visible = true;
+    for (const m of ctx.gnomes.seeMeshes.values()) m.visible = true;
     // rewrites every mesh and its count from the live gnomes
     ctx.gnomes.writeInstances();
   }

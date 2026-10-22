@@ -2,6 +2,12 @@
 
 Newest build first. Each build lists what changed for the player. Shown in the start menu (button "What's new").
 
+## 2026-10-28 14:00
+
+- The ending is a real 3D scene now: you fall past walls of gnomes with glowing eyes, and the hole shows you the pile of armchairs, flamingos and golden letters you fed it.
+- At its last level, the Trick Scope makes the gnomes you hold see-through, so you can see where you throw.
+- A cleaning robot with nothing to do drives back and parks on its station next to the pole, instead of stopping wherever it finished.
+
 ## 2026-10-28 10:00
 
 - The second level of Midas Spores costs more, $6m instead of $5m; the other levels keep their prices.

@@ -279,7 +279,12 @@ canvas { display: block; }
 /* ?stats frame-time readout (src/ui/stats.ts), above everything, never in the way of the mouse */
 .perf-stats { position: fixed; left: 4px; top: 4px; padding: 2px 6px; background: rgba(0,0,0,.6); color: #fff; font: 12px ui-monospace, Menlo, monospace; white-space: pre; pointer-events: none; z-index: 1000; }
 
-.deep { position: fixed; inset: 0; background: #000; z-index: 50; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 24px; animation: fadein 2s; }
+/* the 3D shaft (src/ui/outro.ts) shows through; only the centre is darkened so the lines stay readable */
+.deep { position: fixed; inset: 0; background: radial-gradient(ellipse at 50% 50%, rgba(0,0,0,.6), rgba(0,0,0,0) 50%); z-index: 50; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 24px; }
+/* fades in from black over 4 s; z-index -1 keeps it under the lines inside .deep */
+.deep-fade { position: absolute; inset: 0; z-index: -1; background: #000; pointer-events: none; animation: fadeout 4s forwards; }
+@keyframes fadeout { to { opacity: 0; } }
+body:has(.deep) .hud, body:has(.deep) .hud-left { visibility: hidden; }
 .deep-line { font-family: 'Creepster', var(--font); font-size: 44px; color: #b0f0ff; text-align: center; padding: 0 20px; animation: fadein 1.2s; letter-spacing: 2px; }
 .deep-lines { display: contents; }
 .deep-f { position: absolute; bottom: 28px; font: 700 18px var(--font); color: #b0f0ff; opacity: .8; letter-spacing: 1px; animation: fadein 1.2s; }

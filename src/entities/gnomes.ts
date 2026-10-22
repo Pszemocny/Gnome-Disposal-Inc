@@ -5,7 +5,7 @@ import { BOOM_CHANCE, FLEE, GNOME_TYPES, TYPE_BY_ID, WEIGHT_TIERS, rollTiers, ty
 import { SimplexNoise } from 'three/addons/math/SimplexNoise.js';
 import { PART_ORDER, PART_PIVOT, gnomeGeometry, gnomeParts, vcMat } from '../world/models';
 import { money } from '../core/format';
-import { inQuad, outBack } from '../core/ease';
+import { inQuad, outBack, outCubic } from '../core/ease';
 
 // held = floating in the player's arms; stashed = hidden inside a crate or cannon; gone = removed, its body is freed
 export type GnomeState = 'statue' | 'walk' | 'ragdoll' | 'held' | 'stashed' | 'falling' | 'gone';
@@ -53,6 +53,7 @@ export interface Gnome {
   prevRot: THREE.Quaternion;
   ph: number; // step phase, advanced by the distance walked (two steps per 2π)
   lag: PartLag | null; // null = drawn as one piece
+  seeT: number; // 0..1 fade to see-through while held at Trick Scope Lvl 3
 }
 
 // Offsets of the moving parts, damped every frame in every state (targets are 0 outside 'walk').
@@ -105,6 +106,9 @@ const STRUGGLE_LINES = ['Let go!', 'Nooo!', 'I can see my house!', 'Put me DOWN!
 // held gnomes stay quiet when their bubbles would cover the crosshair: a full Magnet Gun ball,
 // or the Trick Scope glass (Lvl 2+, shown while something is held)
 const heldQuiet = (): boolean => ctx.player.swarm.length > 3 || lvl('scope') >= 2;
+// Trick Scope Lvl 3: held gnomes turn 90 % see-through so the player sees the target (PP 2026-10-22)
+const SEE_TIME = 0.15;
+const SEE_ALPHA = 0.1;
 
 const NORMAL = groups(G.GNOME, G.GROUND | G.GNOME | G.PLAYER | G.STATIC | G.PROP);
 const NONE = groups(G.GNOME, 0);
@@ -136,6 +140,7 @@ export class Gnomes {
   list: Gnome[] = [];
   byCollider = new Map<number, Gnome>();
   readonly meshes = new Map<string, THREE.InstancedMesh>();
+  readonly seeMeshes = new Map<string, THREE.InstancedMesh>(); // gnomes fading to see-through (Trick Scope Lvl 3)
   // without multi-draw every part would be its own draw call: such a browser keeps one-piece gnomes
   readonly partsOn = ctx.renderer.extensions.has('WEBGL_multi_draw') && !new URLSearchParams(location.search).has('noparts');
   readonly parts = new Map<string, THREE.BatchedMesh>(); // part gnomes, NPARTS instances per slot
@@ -151,27 +156,9 @@ export class Gnomes {
 
   constructor() {
     for (const t of GNOME_TYPES) {
-      // golden gnomes are shiny for good (PP 2026-10-24 "zlote blyszczace"); without an envMap metalness 0.6 read
-      // brown at night, so less metal and more glow keep them brighter than a classic gnome (2026-10-25)
-      const mat = vcMat(t.id === 'golden' ? { metalness: 0.3, roughness: 0.35, emissive: 0x553800 } : t.emissiveEyes ? { emissive: 0x111111 } : {});
-      // runs again on every recompile (the quality switch sets needsUpdate), so the shared uniform is attached here
-      mat.onBeforeCompile = (s) => {
-        s.uniforms.night = NIGHT;
-        s.uniforms.gold = GOLD;
-        s.uniforms.hatGlow = { value: new THREE.Color(t.hat).multiplyScalar(HAT_GLOW) };
-        s.vertexShader = s.vertexShader
-          .replace('#include <common>', 'attribute float glow;\nvarying float vGlow;\n#include <common>')
-          .replace('#include <begin_vertex>', '#include <begin_vertex>\nvGlow = glow;');
-        // the hat keeps its colour (1.0 - vGlow) so the type stays readable under Midas
-        s.fragmentShader = s.fragmentShader
-          .replace('#include <common>', 'uniform float night;\nuniform float gold;\nuniform vec3 hatGlow;\nvarying float vGlow;\n#include <common>')
-          .replace('#include <color_fragment>', '#include <color_fragment>\ndiffuseColor.rgb = mix(diffuseColor.rgb, vec3(1.0, 0.78, 0.25), 0.7 * gold * (1.0 - vGlow));')
-          .replace('#include <roughnessmap_fragment>', '#include <roughnessmap_fragment>\nroughnessFactor = mix(roughnessFactor, 0.3, gold);')
-          .replace('#include <metalnessmap_fragment>', '#include <metalnessmap_fragment>\nmetalnessFactor = mix(metalnessFactor, 0.6, gold);')
-          .replace('#include <emissivemap_fragment>', '#include <emissivemap_fragment>\ntotalEmissiveRadiance += hatGlow * (vGlow * night) + vec3(0.45, 0.3, 0.06) * gold * (1.0 - vGlow);');
-      };
-      mat.customProgramCacheKey = () => 'gnome-hatglow-gold';
-      const mesh = new THREE.InstancedMesh(gnomeGeometry(t), mat, t.capacity);
+      const mat = gnomeMat(t, false);
+      const geo = gnomeGeometry(t);
+      const mesh = new THREE.InstancedMesh(geo, mat, t.capacity);
       mesh.count = 0;
       mesh.castShadow = true;
       mesh.receiveShadow = true;
@@ -179,6 +166,15 @@ export class Gnomes {
       mesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
       ctx.scene.add(mesh);
       this.meshes.set(t.id, mesh);
+      // see-through pass for Trick Scope Lvl 3: same geometry, per-instance alpha, no shadow from a faded gnome
+      geo.setAttribute('see', new THREE.InstancedBufferAttribute(new Float32Array(t.capacity), 1).setUsage(THREE.DynamicDrawUsage));
+      const see = new THREE.InstancedMesh(geo, gnomeMat(t, true), t.capacity);
+      see.count = 0;
+      see.receiveShadow = true;
+      see.frustumCulled = false;
+      see.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
+      ctx.scene.add(see);
+      this.seeMeshes.set(t.id, see);
       this.slots.set(t.id, []);
       this.bodies.set(t.id, new Float32Array(t.capacity * 16));
       if (this.partsOn && PARTS_TYPES.has(t.id)) {
@@ -259,6 +255,7 @@ export class Gnomes {
       prevVy: 0, squash: 0, screamed: false, pop: 0, goldFrom, scared: 0, fleeing: false,
       prevPos: new THREE.Vector3(pos.x, pos.y, pos.z), prevRot: tmpQ.clone(), ph: 0,
       lag: this.parts.has(typeId) ? { yaw, swing: 0, hatP: 0, hatY: 0, beardP: 0, beardY: 0, beardVP: 0, beardVY: 0, roll: 0, hatR: 0 } : null,
+      seeT: 0,
     };
     if (awake) body.lockRotations(true, true);
     slots.push(g);
@@ -333,6 +330,7 @@ export class Gnomes {
   // Hide a gnome inside a crate or cannon.
   stash(g: Gnome): void {
     g.state = 'stashed';
+    g.seeT = 0; // leaves the crate or cannon opaque
     g.body.setEnabled(false);
   }
 
@@ -496,11 +494,13 @@ export class Gnomes {
 
     const pp = ctx.player.position;
     const r = env.holeRadius;
+    const see = lvl('scope') >= 3;
 
     for (let i = this.list.length - 1; i >= 0; i--) {
       const g = this.list[i];
       if (g.lag) this.updateLag(g, g.lag, dt);
       if (g.state === 'stashed') continue;
+      g.seeT = THREE.MathUtils.clamp(g.seeT + (g.state === 'held' && see ? dt : -dt) / SEE_TIME, 0, 1);
       if (g.squash > 0) g.squash -= dt;
       if (g.pop > 0) g.pop -= dt;
       if (g.state === 'held') {
@@ -855,6 +855,9 @@ export class Gnomes {
       const mesh = this.meshes.get(id)!;
       const bm = this.parts.get(id);
       const bodies = this.bodies.get(id)!;
+      const seeMesh = this.seeMeshes.get(id)!;
+      const seeA = seeMesh.geometry.getAttribute('see') as THREE.InstancedBufferAttribute;
+      let m = 0; // see-through gnomes, packed like n
       let n = 0; // one-piece gnomes are packed at the front of the InstancedMesh
       for (let i = 0; i < slots.length; i++) {
         const g = slots[i];
@@ -910,7 +913,12 @@ export class Gnomes {
         }
         tmpM.compose(tmpV, tmpQ, tmpS.set(sxz, sy, sxz));
         tmpM.toArray(bodies, i * 16);
-        if (g.lag && bm) {
+        if (g.seeT > 0) {
+          // a held gnome does not walk, so its parts are at rest and drawing it in one piece shows no jump
+          if (bm) for (let k = 0; k < NPARTS; k++) bm.setVisibleAt(i * NPARTS + k, false);
+          seeA.setX(m, 1 - (1 - SEE_ALPHA) * outCubic(g.seeT));
+          seeMesh.setMatrixAt(m++, tmpM);
+        } else if (g.lag && bm) {
           this.writeParts(bm, g, g.lag, i, tmpM, lean);
         } else {
           if (bm) for (let k = 0; k < NPARTS; k++) bm.setVisibleAt(i * NPARTS + k, false);
@@ -919,6 +927,11 @@ export class Gnomes {
       }
       mesh.count = n;
       mesh.instanceMatrix.needsUpdate = true;
+      seeMesh.count = m;
+      if (m) {
+        seeMesh.instanceMatrix.needsUpdate = true;
+        seeA.needsUpdate = true;
+      }
       if (bm) {
         for (let k = slots.length * NPARTS; k < (this.partsDrawn.get(id) ?? 0) * NPARTS; k++) bm.setVisibleAt(k, false);
         this.partsDrawn.set(id, slots.length);
@@ -965,6 +978,39 @@ export class Gnomes {
   clearAll(): void {
     while (this.list.length) this.remove(this.list[this.list.length - 1]);
   }
+}
+
+// The gnome material: night hat glow and Midas gold; `see` adds the per-instance alpha of the see-through pass.
+function gnomeMat(t: GnomeType, see: boolean): THREE.MeshStandardMaterial {
+  // golden gnomes are shiny for good (PP 2026-10-24 "zlote blyszczace"); without an envMap metalness 0.6 read
+  // brown at night, so less metal and more glow keep them brighter than a classic gnome (2026-10-25)
+  const mat = vcMat(t.id === 'golden' ? { metalness: 0.3, roughness: 0.35, emissive: 0x553800 } : t.emissiveEyes ? { emissive: 0x111111 } : {});
+  mat.transparent = see;
+  // runs again on every recompile (the quality switch sets needsUpdate), so the shared uniform is attached here
+  mat.onBeforeCompile = (s) => {
+    s.uniforms.night = NIGHT;
+    s.uniforms.gold = GOLD;
+    s.uniforms.hatGlow = { value: new THREE.Color(t.hat).multiplyScalar(HAT_GLOW) };
+    s.vertexShader = s.vertexShader
+      .replace('#include <common>', 'attribute float glow;\nvarying float vGlow;\n#include <common>')
+      .replace('#include <begin_vertex>', '#include <begin_vertex>\nvGlow = glow;');
+    // the hat keeps its colour (1.0 - vGlow) so the type stays readable under Midas
+    s.fragmentShader = s.fragmentShader
+      .replace('#include <common>', 'uniform float night;\nuniform float gold;\nuniform vec3 hatGlow;\nvarying float vGlow;\n#include <common>')
+      .replace('#include <color_fragment>', '#include <color_fragment>\ndiffuseColor.rgb = mix(diffuseColor.rgb, vec3(1.0, 0.78, 0.25), 0.7 * gold * (1.0 - vGlow));')
+      .replace('#include <roughnessmap_fragment>', '#include <roughnessmap_fragment>\nroughnessFactor = mix(roughnessFactor, 0.3, gold);')
+      .replace('#include <metalnessmap_fragment>', '#include <metalnessmap_fragment>\nmetalnessFactor = mix(metalnessFactor, 0.6, gold);')
+      .replace('#include <emissivemap_fragment>', '#include <emissivemap_fragment>\ntotalEmissiveRadiance += hatGlow * (vGlow * night) + vec3(0.45, 0.3, 0.06) * gold * (1.0 - vGlow);');
+    if (!see) return;
+    s.vertexShader = s.vertexShader
+      .replace('#include <common>', 'attribute float see;\nvarying float vSee;\n#include <common>')
+      .replace('#include <begin_vertex>', '#include <begin_vertex>\nvSee = see;');
+    s.fragmentShader = s.fragmentShader
+      .replace('#include <common>', 'varying float vSee;\n#include <common>')
+      .replace('#include <color_fragment>', '#include <color_fragment>\ndiffuseColor.a *= vSee;');
+  };
+  mat.customProgramCacheKey = () => (see ? 'gnome-hatglow-gold-see' : 'gnome-hatglow-gold');
+  return mat;
 }
 
 // body roll of a walker at speed fraction a, shared by the drawn body and the hat lag

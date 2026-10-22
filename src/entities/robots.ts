@@ -50,6 +50,8 @@ const REACH = 1.1;
 const HOLE_GAP = 1.0; // the truck never gets closer than this to the hole edge
 const ARRIVE_HOLE = 1.3;
 const ARRIVE_HOME = 0.6;
+const PARK = 0.15; // m from the station centre: parked (then it turns to face the pad)
+const PARK_SLOW = 1.5; // 1/s: the last metres home the speed falls with the distance, so it rolls in without a jolt
 // the pole stands 1.2 m from the post; the step-out keeps it out of the rim whichever way the station faces
 const STATION_REACH = 1.3;
 const STATION_SPACE = 3.3; // m between two station centres: the 2 x 2.6 m pads never overlap, at any heading
@@ -309,8 +311,8 @@ export function updateRobot(m: Machine, dt: number): void {
       }
     }
   }
-  // the post moved away from an idle truck (hole level-up)
-  if (r.state === 'idle' && hdist(p, home) > 1) r.state = 'return';
+  // an idle truck off its spot (pushed, repaired where it broke, the post moved by a level-up) parks again
+  if (r.state === 'idle' && hdist(p, home) > ARRIVE_HOME) r.state = 'return';
   // a partial load goes to the hole when nothing was found for a while
   if (m.queue.length && (r.state === 'idle' || r.state === 'return')) {
     r.lonely += dt;
@@ -347,13 +349,17 @@ export function updateRobot(m: Machine, dt: number): void {
       }
       break;
     case 'return':
-      if (hdist(p, home) < ARRIVE_HOME) {
+      if (hdist(p, home) < PARK) {
         r.state = 'idle';
         r.skip.clear();
       } else {
         wp = home.clone();
         near = HOME_NEAR;
       }
+      break;
+    case 'idle':
+      // parked beside the pole: face the pad's direction (the pole behind the truck)
+      r.yaw = THREE.MathUtils.damp(r.yaw, r.yaw + wrap(m.marker!.rotation.y - r.yaw), 6, dt);
       break;
     case 'pick':
       pick(m, r, dt);
@@ -392,6 +398,7 @@ export function updateRobot(m: Machine, dt: number): void {
     const diff = wrap(Math.atan2(wp.x - p.x, wp.z - p.z) - r.yaw);
     r.yaw = THREE.MathUtils.damp(r.yaw, r.yaw + diff, 6, dt);
     speed = Math.abs(diff) > TURN_LIMIT ? 0 : robotSpeed();
+    if (r.state === 'return') speed = Math.min(speed, 0.3 + PARK_SLOW * hdist(p, home));
     // the player standing in front: wait
     const pp = ctx.player.position;
     const d = hdist(pp, p);

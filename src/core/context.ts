@@ -26,6 +26,7 @@ import type { Strike } from '../systems/strike';
 import type { Blueprints } from '../ui/blueprints';
 import type { Legend } from '../ui/legend';
 import type { Leaderboard } from '../ui/leaderboard';
+import type { Outro } from '../ui/outro';
 
 export interface Ctx {
   R: typeof RAPIER;
@@ -59,6 +60,7 @@ export interface Ctx {
   blueprints: Blueprints;
   legend: Legend;
   leaderboard: Leaderboard;
+  outro: Outro;
   time: number;
   renderAlpha: number; // how far render time is between the previous and the current physics step, 0..1
   paused: boolean;

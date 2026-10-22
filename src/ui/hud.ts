@@ -347,7 +347,14 @@ export class Hud {
 
   deep(shards: number, done: () => void): void {
     ctx.paused = true;
+    const { chairs, flamingos } = ctx.state.stats;
+    const letters = ctx.state.secrets.filter((s) => s.startsWith('letter-')).map((s) => s.slice(7));
+    ctx.outro.start(chairs, flamingos, letters);
     const el = h('div', 'deep', document.body);
+    h('div', 'deep-fade', el);
+    // always a line, no numbers (PP 2026-10-22, O2 b); the camera turns to the pile only when there is one
+    const pile = chairs + flamingos + letters.length > 0;
+    const heapLine = pile ? 'It kept everything you gave.' : 'It kept nothing else.';
     const lines = [
       'You fall.',
       'Past the dirt. Past the roots. Past the gnomes.',
@@ -356,6 +363,7 @@ export class Hud {
       'They are waiting.',
       'The hole was never hungry.',
       'It was lonely.',
+      heapLine,
       `You gained ${shards} Hole Shard${shards === 1 ? '' : 's'}.`,
       'The garden begins again.',
     ];
@@ -370,8 +378,10 @@ export class Hud {
       ctx.audio.toast();
     };
     let i = 0;
+    // no skipping: every line plays its 2.6 s (PP 2026-10-22, O1 c "bez pomijania")
     const next = () => {
       if (i >= lines.length) {
+        ctx.outro.lookAtHeap(false);
         lineEl.innerHTML = '<div class="deep-line">THE DEEP</div><button class="btn">Be reborn</button>';
         lineEl.querySelector('button')!.addEventListener('click', () => {
           window.removeEventListener('keydown', onF);
@@ -379,6 +389,7 @@ export class Hud {
         });
         return;
       }
+      ctx.outro.lookAtHeap(pile && lines[i] === heapLine);
       // born with the second line: a kick-F tapped right after falling in cannot open the tab
       if (i === 1 && LINKS.coffee && !f) {
         f = h('div', 'deep-f', el);

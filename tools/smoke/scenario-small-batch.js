@@ -210,7 +210,8 @@ setTimeout(() => { if (!window.__done) window.__done = JSON.stringify({ ...R, ch
           if (x.touchedGround || x.state === 'gone' || (p.y < 1 && Math.hypot(v.x, v.y, v.z) < 1)) at.set(x, new V3(p.x, 0, p.z));
         }
       }
-      R.B4 = l.map((x) => ({ st: x.state, tg: x.touchedGround, y: r2(x.body.translation().y) }));
+      R.B4 = l.map((x) => ({ st: x.state, tg: x.touchedGround, y: r2(x.body.translation().y), at: at.has(x) ? [r2(at.get(x).x), r2(at.get(x).z)] : null }));
+      R.B4ring = [r2(ring.x), r2(ring.z)];
       const mean = new V3(); for (const p of at.values()) mean.add(p); mean.divideScalar(at.size || 1);
       const dist = Math.hypot(mean.x - ring.x, mean.z - ring.z);
       ok('B4', landed && at.size === 3 && dist < 1, `ring within ${r2(dist)} m landed ${landed} n ${at.size}`);

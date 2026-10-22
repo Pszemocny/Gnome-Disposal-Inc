@@ -32,6 +32,7 @@ import { Strike } from './systems/strike';
 import { Blueprints } from './ui/blueprints';
 import { Legend } from './ui/legend';
 import { Leaderboard } from './ui/leaderboard';
+import { Outro } from './ui/outro';
 import { daily } from './systems/daily';
 import * as progress from './systems/progress';
 import { replay } from './systems/replay';
@@ -122,6 +123,7 @@ async function boot(): Promise<void> {
   });
   menu.show('title');
   ctx.leaderboard = new Leaderboard();
+  ctx.outro = new Outro();
   progress.init();
   let started = false;
   // the shop, the blueprints panel and the legend pause the game and free the pointer themselves
@@ -297,8 +299,12 @@ async function boot(): Promise<void> {
     // a free cursor while playing (refused lock after Esc) must not sit over the crosshair; menus and overlays pause
     canvas.style.cursor = ctx.paused ? '' : 'none';
     canvas.style.filter = ctx.buffs.active('booze') ? `hue-rotate(${Math.sin(ctx.time * 0.8) * 40}deg) saturate(1.5) blur(${0.6 + Math.sin(ctx.time * 2) * 0.4}px)` : '';
-    // menus are DOM over the canvas: one frozen frame is enough while paused
-    if (!ctx.paused || redraw) {
+    // the ending draws its own scene every frame; the yard is never drawn behind it
+    if (ctx.outro.active) {
+      ctx.outro.update(realDt);
+      renderer.render(ctx.outro.scene, ctx.outro.camera);
+    } else if (!ctx.paused || redraw) {
+      // menus are DOM over the canvas: one frozen frame is enough while paused
       renderer.render(ctx.scene, camera);
       redraw = !ctx.paused;
     }

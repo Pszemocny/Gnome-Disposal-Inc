@@ -724,6 +724,67 @@ setTimeout(() => { if (!window.__done) window.__done = J({ ...R, checks, timeout
       R.R3 = { left, poleInFan, postDist, keep: r2(keep), back, fans: g.machines.placedCount('fan'), toast: toasts.includes('The hole moved under one of your machines. It is back in your inventory.') };
       delete g.state.upgrades.fan;
     }
+    // ---- P1 / P1b / P2 (PP 2026-10-22 "jak robot nie ma nic do roboty to jest kolo tyczki"): an idle truck parks on
+    // its pad facing the pad direction, leaves for a new gnome; a broken one stays put and parks after the repair.
+    // Waits run on game time (headless is ~5 fps, dt is capped at 0.05 s).
+    {
+      const gameWait = async (sec, until) => { const t0 = g.time; while (g.time - t0 < sec) { await frames(1); if (until && until()) return true; } return false; };
+      const wrapA = (a) => Math.atan2(Math.sin(a), Math.cos(a));
+      const h = g.env.hole; const hr = g.env.holeRadius;
+      // a side of the hole with open grass for the station (hole + 7 m) and a gnome 3 m beyond it
+      const dir = [[1, 0], [-1, 0], [0, 1], [0, -1]].find(([dx, dz]) => [7, 10].every((k) => g.env.inside(h.x + dx * (hr + k), h.z + dz * (hr + k), 2) && !g.factory.inside(h.x + dx * (hr + k), h.z + dz * (hr + k)))) ?? [1, 0];
+      const at = (k) => new V3(h.x + dir[0] * (hr + k), 0, h.z + dir[1] * (hr + k));
+      const parkState = (m) => { const v = m.body.linvel(); const q = m.body.rotation(); const bodyYaw = Math.atan2(2 * (q.x * q.z + q.w * q.y), 1 - 2 * (q.x * q.x + q.y * q.y));
+        return { state: m.robot.state, dist: r2(hd(m.body.translation(), m.pos)), speed: r2(Math.hypot(v.x, v.z)), yawErr: r2(Math.abs(wrapA(bodyYaw - m.marker.rotation.y))) }; };
+      await reset();
+      g.state.upgrades.robot = 1;
+      const s = at(7);
+      const m = g.machines.place('robot', s, qy(0));
+      await frames(10);
+      await teleport(s.x + dir[1] * 10, s.z + dir[0] * 10, 0, 0); // off to the side, never in front of the truck
+      // P1: the truck at the rim facing the hole with 2 gnomes: it tips, then has nothing to do
+      const rim = at(1.2);
+      m.body.setTranslation({ x: rim.x, y: 0.4, z: rim.z }, true);
+      m.body.setLinvel({ x: 0, y: 0, z: 0 }, true);
+      m.robot.yaw = Math.atan2(-dir[0], -dir[1]);
+      g.machines.savePoses();
+      stash(m, 2);
+      m.robot.state = 'drive';
+      let tipped = false; const slow = []; const curve = [];
+      const parked = await gameWait(12, () => {
+        const d = hd(m.body.translation(), m.pos);
+        if (m.robot.state === 'tip') tipped = true;
+        if (tipped) curve.push([r2(d), r2(m.robot.speed)]);
+        if (tipped && m.robot.state === 'return' && d < 0.4) slow.push(m.robot.speed);
+        return tipped && m.robot.state === 'idle';
+      });
+      const atIdle = parkState(m);
+      await gameWait(1.5);
+      await shot('rs-P1-parked');
+      R.P1 = { dir, tipped, parked, queue: m.queue.length, atIdle, after: parkState(m), slowFrames: slow.length, slowMax: r2(Math.max(0, ...slow)), curveTail: curve.slice(-12) };
+      // P1b: a gnome lands in its area: it leaves the pad
+      const gp = at(10);
+      const gn = g.gnomes.spawn('classic', new V3(gp.x + dir[1] * 1, 0.5, gp.z + dir[0] * 1), { tier: 'normal' });
+      m.robot.scan = 0;
+      const left = await gameWait(6, () => m.robot.state !== 'idle' && hd(m.body.translation(), m.pos) > 0.5);
+      R.P1b = { left, state: m.robot.state, target: m.robot.targetGnome === gn, dist: r2(hd(m.body.translation(), m.pos)) };
+      // P2: broken 5 m from the post: stays; repaired: parks
+      clearGnomes();
+      m.queue = [];
+      m.robot.targetGnome = null;
+      const off = new V3(s.x + dir[1] * 5, 0.4, s.z + dir[0] * 5);
+      m.body.setTranslation(off, true);
+      m.body.setLinvel({ x: 0, y: 0, z: 0 }, true);
+      g.machines.savePoses();
+      m.robot.state = 'return';
+      m.broken = 30;
+      await gameWait(2);
+      const brokenMoved = r2(hd(m.body.translation(), off));
+      m.broken = 0;
+      const back = await gameWait(12, () => m.robot.state === 'idle');
+      await gameWait(1);
+      R.P2 = { brokenMoved, back, after: parkState(m) };
+    }
     // ---- F1: 12 robots, 300 gnomes, 60 s: machines.update p95, station bodies, station draw calls
     {
       await reset();
@@ -803,6 +864,10 @@ setTimeout(() => { if (!window.__done) window.__done = J({ ...R, checks, timeout
   ok('R1', R1n.previewBlocked === (R1n.back === 1) && R1f.previewBlocked === false && R1f.back === 0 && R1f.robots === 1, J(R.R1));
   ok('R2', R.R2?.maxPath > 0 && R.R2?.arrived, J(R.R2));
   ok('R3', R.R3?.fans === 1 && (R.R3?.left ? R.R3.poleInFan === false && R.R3.back === 0 && Math.abs(R.R3.postDist - R.R3.keep) < 0.05 : R.R3?.toast === true), J(R.R3));
+  const pk = (s) => s?.state === 'idle' && s.dist < 0.6 && s.speed < 0.05;
+  ok('P1', R.P1?.tipped && R.P1?.parked && R.P1?.queue === 0 && pk(R.P1?.after) && R.P1?.after?.yawErr < 0.2 && R.P1?.slowFrames >= 2 && R.P1?.slowMax < 1.0, J(R.P1));
+  ok('P1b', R.P1b?.left && R.P1b?.state === 'seek', J(R.P1b));
+  ok('P2', R.P2?.brokenMoved < 0.1 && R.P2?.back && pk(R.P2?.after), J(R.P2));
   ok('F1', R.F1?.updateP95 <= 1.0 && R.F1?.bodiesDelta === 12 && R.F1?.callsDelta <= 12, J(R.F1));
   // truck + bed are 1.8 m long; a badge that still drew the station would be at least its 2.6 m pad
   ok('F3', R.F3?.thumbWidth < 2.0, J(R.F3));

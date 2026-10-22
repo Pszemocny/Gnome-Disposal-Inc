@@ -35,7 +35,7 @@ const BEFORE_TOOLS: Upgrade[] = [
   U('magRange', 'Magnet', 'Magnet Dish', '+1.2 m magnet range and a wider cone (widest on the Magnet Gun).', 5, 60, 1.6, 2),
   // downgrade only here so far (PP 2026-10-21 "downgrade siły"): the last level makes weight irrelevant, a step down brings it back
   { ...U('throw', 'Magnet', 'Strong Arm', '+15% throw power. Heavy gnomes fly shorter, but at the last level every gnome flies the same, by hand or by Magnet Gun.', 6, 15, 1.5), downgrade: true },
-  U('scope', 'Magnet', 'Trick Scope', 'A sight for throws. Lvl 1: the crosshair turns green over the hole, gold for a trick. Lvl 2: a reflex glass at the centre names the trick. Lvl 3: the glass adds the distance and the multiplier.', 3, 300, 2),
+  U('scope', 'Magnet', 'Trick Scope', 'A sight for throws. Lvl 1: the crosshair turns green over the hole, gold for a trick. Lvl 2: a reflex glass at the centre names the trick. Lvl 3: the glass adds the distance and the multiplier, and the gnomes you hold turn see-through.', 3, 300, 2),
   // level 10 is the old Piggy Bank, about $90k (PP 2026-10-24 "bardzo drogi np 100k"); Magnet tab since PP 2026-10-21
   U('magnetRange', 'Magnet', 'Coin Magnet', '+1.2 m coin pickup radius. Level 10: coins fly into your bank by themselves and greedy gnomes cannot steal them.', 10, 20, 2.2),
 

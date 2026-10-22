@@ -158,7 +158,7 @@ setTimeout(() => { if (!window.__done) window.__done = JSON.stringify({ ...R, ch
       const fenceMid = fence.some((v) => v > 0.05 && v < 0.95);
       const fenceOver = fence.some((v) => v > 1.01);
       const toast = toastTexts().some((t) => t.includes('The hole moved! Tools in its way went back to your inventory.'));
-      R.garden = { land: g.state.land, level: g.state.holeLevel, max: g.env.max.z, min: g.env.min.z, arrived, samples: dists.length, increasing, at: +at.toFixed(3), fanA: g.machines.list.includes(fanA) ? 'there' : 'gone', rimB: +rimB.toFixed(2), crateHome: +crateHome.toFixed(2), jumps, crateY: +ct.y.toFixed(2), crateInList: g.machines.list.includes(crate), fenceMid, fenceOver, toast };
+      R.garden = { land: g.state.land, level: g.state.holeLevel, max: g.env.max.z, min: g.env.min.z, arrived, samples: dists.length, increasing, at: +at.toFixed(3), fanA: g.machines.list.includes(fanA) ? 'there' : 'gone', rimB: +rimB.toFixed(2), crateHome: +crateHome.toFixed(2), jumps, crateY: +ct.y.toFixed(2), crateInList: g.machines.list.includes(crate), fenceMid, fenceOver, toast, cards: toastTexts().map((t) => t.slice(0, 40)) };
       ok('02_levelup_garden', g.state.land === 1 && g.env.max.z === 42 && g.env.max.x === 42 && g.env.min.z === -22 && arrived !== null && arrived <= 1.5 && increasing && at < 0.05 && !g.machines.list.includes(fanA) && near(rimB, 1.0, 0.3) && toast, JSON.stringify(R.garden));
       ok('02_crate', crateHome >= 3.4 - 1e-3 && jumps === 1 && ct.y > 0 && g.machines.list.includes(crate), `home ${crateHome.toFixed(2)} respawns ${jumps} y ${ct.y.toFixed(2)}`);
       ok('02_fence_rise', fenceMid && fenceOver, `fence scale samples ${fence.slice(0, 8).map((v) => v.toFixed(2))}`);
