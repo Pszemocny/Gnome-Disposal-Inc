@@ -46,7 +46,7 @@ export class Mushrooms {
   maybeDrop(pos: THREE.Vector3, bonus = 1): void {
     // the mushroom lesson is guaranteed (PP 2026-10-20): the next eaten gnome drops one when none lies on the grass
     const lesson = ctx.goals.wantsMushroom && this.list.length === 0;
-    const chance = lesson ? 1 : 0.025 * (1 + lvl('mushChance') * 0.3) * (1 + lvl('mushStorm') * 0.5) * bonus;
+    const chance = lesson ? 1 : 0.025 * (1 + lvl('mushChance') * 0.3) * (1 + lvl('mushStorm') * 0.15) * bonus;
     if (Math.random() < chance) this.spawn(this.pickDef(), pos, true, lesson);
   }
 
@@ -67,7 +67,7 @@ export class Mushrooms {
 
   pickDef(): MushroomDef {
     // Midas Spores: a flat share of Gold Midas on top of the weights (PP 2026-10-21 "same zlote"), never below the gold level
-    if (ctx.state.holeLevel >= GOLD_LEVEL && Math.random() < lvl('goldSpores') * 0.18) return MUSHROOM_BY_ID.midas;
+    if (ctx.state.holeLevel >= GOLD_LEVEL && Math.random() < lvl('goldSpores') * 0.05) return MUSHROOM_BY_ID.midas;
     const total = MUSHROOMS.reduce((s, m) => s + mushroomWeight(m), 0);
     let r = Math.random() * total;
     for (const m of MUSHROOMS) {

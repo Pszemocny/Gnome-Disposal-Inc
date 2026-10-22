@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import { ctx, deep, lvl, rand } from '../core/context';
-import { BOOM } from '../data/gnomeTypes';
+import { BOOM, GOLD_HOUR } from '../data/gnomeTypes';
 import { blockSaves, freshState, saveState } from '../core/state';
 import { money } from '../core/format';
 import { HOLE_LEVELS, MAX_HOLE_LEVEL, holeLevel } from '../data/holeLevels';
@@ -37,6 +37,8 @@ export const VOLLEY_CAP = 8; // PP 2026-10-20: raised from 4 so AIR still pays o
 // XP for a gnome a machine, robot, plow, blower or kick fed (PP 2026-10-20 10a); a hand throw and a crate dump pay x1,
 // a Magnet Gun ball x1/sqrt(n); the King always pays his full XP
 export const FEED_XP = 0.25;
+// the base price of a gnome: a Golden Hour gold pays less than a natural golden (GOLD_HOUR)
+export const typeValue = (g: Gnome): number => (g.goldFrom ? GOLD_HOUR.value : g.type.value);
 const RIM_CARRY = 1.5; // tools within this distance of the rim move with the hole (night plan F7)
 const MACHINE_GLIDE = 0.25; // seconds a carried tool takes to follow a level-up
 const MACHINE_GONE = 0.2; // seconds a swallowed tool shrinks before it goes back to the inventory
@@ -172,17 +174,20 @@ export class Hole {
     // flat trick bonuses grow in over the first holes: 1/4 at level 1, full from level 4, so hoop shots do not buy the
     // whole early shop (PP 2026-10-21 "b", docs/ai-work/2026-10-21-bullseye-early-money.md)
     bonus *= Math.min(1, ctx.state.holeLevel / 4);
-    const value = g.type.value * g.tier.value * trick * rush * this.valueScale * this.comboMult * ctx.buffs.valueMult() * g.valueMult * (g.parade >= 0 ? 3 : 1) + bonus * this.valueScale;
+    const value = typeValue(g) * g.tier.value * trick * rush * this.valueScale * this.comboMult * ctx.buffs.valueMult() * g.valueMult * (g.parade >= 0 ? 3 : 1) + bonus * this.valueScale;
     // fullXp: a machine shot of a gnome the player fed in pays the player's XP; it carries no throw, so no trick above
-    const feed = g.type.id === 'king' || machine === 'crate' ? 1 : machine || (g.thrownBy !== 'player' && !g.fullXp) ? FEED_XP : 1 / Math.sqrt(g.xpGroup?.n ?? 1);
+    const full = g.type.id === 'king' || machine === 'crate';
+    const fed = !full && (!!machine || (g.thrownBy !== 'player' && !g.fullXp));
+    const feed = full ? 1 : fed ? FEED_XP : 1 / Math.sqrt(g.xpGroup?.n ?? 1);
     // the weight Feeding Frenzy adds pays money, not XP: levels are not forced (2026-10-25, Q1 a)
-    const xp = g.type.xp * g.xpTier.value * feed * this.xpMult;
+    const xp = (g.goldFrom ? GOLD_HOUR.xp : g.type.xp) * g.xpTier.value * feed * this.xpMult;
     const origin = at ?? this.holeOrigin;
     ctx.gnomes.remove(g);
 
     ctx.coins.burst(value, origin, at ? 0.6 : 1 + Math.min(1, this.combo / 60));
-    // drops follow the count of gnomes, not their price (PP 2026-10-24); the wizard casts, so he keeps x6
-    ctx.mushrooms.maybeDrop(origin.clone().setY(0.5), g.type.id === 'wizard' ? 6 : 1);
+    // drops follow the count of gnomes, not their price (PP 2026-10-24); the wizard casts, so he keeps x6;
+    // a gnome fed at FEED_XP drops at 1/4: machines eat many per second (PP 2026-10-22 "g8. a")
+    ctx.mushrooms.maybeDrop(origin.clone().setY(0.5), (g.type.id === 'wizard' ? 6 : 1) * (fed ? 0.25 : 1));
     // the eat burst grows with the combo: 14 particles at combo 1, x2.5 from combo 30, in bursts of at most 30
     const n = Math.round(14 * (1 + 1.5 * Math.min(1, (this.combo - 1) / 29)));
     const parts = Math.ceil(n / 30);

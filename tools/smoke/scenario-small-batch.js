@@ -265,13 +265,17 @@ setTimeout(() => { if (!window.__done) window.__done = JSON.stringify({ ...R, ch
         Math.random = () => r;
         try { drop0(pos, bonus); } finally { Math.random = rnd; }
       };
-      const eatN = async (type, n) => { seqI = 0; drops = 0; bonuses.length = 0; for (let i = 0; i < n; i++) { const x = spawnAt(type, new V3(0, -10, 0)); if (x) { g.hole.combo = 0; g.hole.consume(x); } } return { drops, bonuses: [...new Set(bonuses)] }; };
+      // hand: thrownBy 'player' as a player throw sets it (no throwPos, so no trick bonus); otherwise the gnome counts
+      // as fed (walk-in/robot/machine) and drops at 1/4 (PP 2026-10-22 "g8. a")
+      const eatN = async (type, n, hand = true) => { seqI = 0; drops = 0; bonuses.length = 0; for (let i = 0; i < n; i++) { const x = spawnAt(type, new V3(0, -10, 0)); if (x) { if (hand) x.thrownBy = 'player'; g.hole.combo = 0; g.hole.consume(x); } } return { drops, bonuses: [...new Set(bonuses)] }; };
       clearGnomes();
       const classic = await eatN('classic', 200);
       const golden = await eatN('golden', 200);
       const wizard = await eatN('wizard', 200);
-      ok('C1', golden.drops === classic.drops && golden.bonuses.join() === '1', `golden ${golden.drops} == classic ${classic.drops} drops, bonus ${golden.bonuses}`);
-      ok('C2', wizard.drops === 6 * classic.drops, `wizard ${wizard.drops} = 6x ${classic.drops}`);
+      const fedIn = await eatN('classic', 200, false);
+      ok('C1', classic.bonuses.join() === '1' && golden.drops === classic.drops && golden.bonuses.join() === '1', `golden ${golden.drops} == classic ${classic.drops} drops, bonus ${golden.bonuses}`);
+      ok('C2', classic.drops > 0 && wizard.drops === 6 * classic.drops, `wizard ${wizard.drops} = 6x ${classic.drops}`);
+      ok('C4', fedIn.bonuses.join() === '0.25' && fedIn.drops < classic.drops, `fed-in bonus ${fedIn.bonuses} = 1/4 of hand ${classic.bonuses}, drops ${fedIn.drops} < ${classic.drops}`);
       // C3: Golden Hour retypes classic gnomes into golden ones: each pays the classic chance
       clearGnomes();
       const l = []; for (let i = 0; i < 10; i++) l.push(spawnAt('classic', ahead(4 + i * 0.3, 2, 0.5), { awake: false }));
@@ -279,7 +283,7 @@ setTimeout(() => { if (!window.__done) window.__done = JSON.stringify({ ...R, ch
       await gameWait(0.8);
       const gold = g.gnomes.list.filter((x) => x.type.id === 'golden');
       bonuses.length = 0;
-      for (const x of gold) g.hole.consume(x);
+      for (const x of gold) { x.thrownBy = 'player'; g.hole.consume(x); }
       const per = bonuses.map((b) => 0.025 * (1 + (U().mushChance ?? 0) * 0.3) * b);
       g.events.goldenHour = 0.001; await frames(3);
       ok('C3', gold.length === 10 && per.every((p) => near(p, 0.025)), `goldenHour per-gnome ${[...new Set(per)]} n ${gold.length}`);
@@ -341,7 +345,7 @@ setTimeout(() => { if (!window.__done) window.__done = JSON.stringify({ ...R, ch
       const desc0 = g.shop.rowData(UPGRADE_BY_ID.frenzy).desc;
       const prices = []; for (let i = 0; i < 5; i++) { const m0 = S().money; g.shop.buy('frenzy'); prices.push(Math.round(m0 - S().money)); }
       const frU = UPGRADE_BY_ID.frenzy;
-      ok('D8', !!node && frU.hole === 4 && prices.join() === '2000,4400,9681,21297,46852' && desc0.includes('now: 3% massive'), `prices ${prices} hole ${frU.hole} node ${!!node} effect "${desc0.match(/\(now:.*\)/)?.[0]}"`);
+      ok('D8', !!node && frU.hole === 4 && prices.join() === '2000,10000,45000,210000,1000000' && desc0.includes('now: 3% massive'), `prices ${prices} hole ${frU.hole} node ${!!node} effect "${desc0.match(/\(now:.*\)/)?.[0]}"`);
       U().frenzy = 0;
       // D9: an old save without the key
       const KEY = 'gnome-boozed-save-v1';

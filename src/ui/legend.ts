@@ -41,7 +41,7 @@ const KEYS: [string, string][] = [
 const TEXT: Record<string, string> = {
   classic: 'Wanders around the yard. The bread and butter of the hole.',
   blue: 'Same as the classic gnome, only blue.',
-  golden: 'Runs away from you, fast. Very valuable. Comes with Gold Fever, the Golden Hour mushroom and late hole levels.',
+  golden: 'Runs away from you, fast. Very valuable. Comes with Gold Fever, the Golden Hour mushroom and late hole levels. Gnomes the Golden Hour turned gold pay a tenth of a real golden gnome.',
   greedy: 'Steals coins lying on the ground and runs for the fence. Eat it before it escapes to get the coins back.',
   boom: 'Looks normal but has a burning fuse. Explodes when the hole eats it and throws nearby gnomes off the rim.',
   angry: 'Charges you and knocks you back. When bored it kicks other gnomes around.',

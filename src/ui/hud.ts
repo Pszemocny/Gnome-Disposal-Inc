@@ -5,6 +5,7 @@ import { holeLevel, MAX_HOLE_LEVEL } from '../data/holeLevels';
 import { TOOL_IDS, UPGRADE_BY_ID } from '../data/upgrades';
 import type { Gnome } from '../entities/gnomes';
 import { crateCap, fuseCount } from '../entities/machines';
+import { typeValue } from '../systems/hole';
 import { inQuad, outBack, outCubic } from '../core/ease';
 import { loadNotes } from '../core/state';
 import { GEARS, type Gear } from '../player/sweeper';
@@ -488,7 +489,7 @@ export class Hud {
       ? `MAGNET GUN ${sw.length} gnomes · ball ${p.ballR.toFixed(1)} m`
       : `MAGNET · ${g ? `${g.type.name} <b class="tier t-${g.tier.id}">${g.tier.id}</b>` : h?.crate ? `Crate ${h.crate.queue.length}/${crateCap()}` : h?.prop ? (h.prop.kind === 'letter' ? `Letter ${h.prop.letter}` : 'Garden prop') : 'nothing'}`;
     // what the hole would pay for it right now (no trick shot bonus)
-    const gnomeWorth = (x: Gnome) => x.type.value * x.tier.value * hole.valueScale * hole.comboMult;
+    const gnomeWorth = (x: Gnome) => typeValue(x) * x.tier.value * hole.valueScale * hole.comboMult;
     const total = sw.length ? sw.reduce((s, x) => s + gnomeWorth(x), 0) : g ? gnomeWorth(g) : 0;
     const worth = total ? ` · worth <b class="worth">${money(total)}</b>` : '';
     const mass = h ? h.body.mass() : 0;

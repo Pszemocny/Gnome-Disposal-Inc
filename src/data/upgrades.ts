@@ -13,6 +13,7 @@ export interface Upgrade {
   requires?: string; // id of an upgrade that must be owned first
   currency?: 'money' | 'shards';
   downgrade?: boolean; // right-click in the shop lowers the level by 1, paid like the next level
+  prices?: number[]; // fixed price per level, instead of cost x growth
 }
 
 const U = (id: string, tab: Tab, name: string, desc: string, max: number, cost: number, growth: number, hole = 1, requires?: string): Upgrade => ({ id, tab, name, desc, max, cost, growth, hole, requires });
@@ -49,7 +50,8 @@ const BEFORE_TOOLS: Upgrade[] = [
   // 3 levels (F11): awake gnomes barely matter once machines ragdoll them
   U('glue', 'Factory', 'Gnome Glue', 'Statues wake up 15% less often.', 3, 400, 1.8, 3),
   // PP 2026-10-24: 5 levels raise the Massive share to 100 %, no off switch
-  U('frenzy', 'Factory', 'Feeding Frenzy', 'Every level makes the factory turn out more Massive gnomes (3 kg, x2.3 money); level 5: all of them.', 5, 2000, 2.2, 4),
+  // the last level costs $1m (PP 2026-10-22 "podroz to tak aby max kosztowal 1m"); it paid for itself in minutes at $47k
+  { ...U('frenzy', 'Factory', 'Feeding Frenzy', 'Every level makes the factory turn out more Massive gnomes (3 kg, x2.3 money); level 5: all of them.', 5, 2000, 2.2, 4), prices: [2000, 10000, 45000, 210000, 1000000] },
 
   U('speed', 'Movement', 'Running Shoes', '+12% move speed.', 5, 20, 1.6),
   U('jump', 'Movement', 'Spring Socks', '+15% jump height.', 3, 30, 1.7),
@@ -111,8 +113,10 @@ const AFTER_TOOLS: Upgrade[] = [
   U('lucky', 'Bonuses', 'Four-leaf Clover', 'Events happen more often.', 3, 1000, 1.9, 2),
   // endgame rows (PP 2026-10-21: level 10, $70M, nothing to buy; "od 8 poziomu ceny podwójne"): hole 8, about $213M together
   U('xpBoost', 'Bonuses', 'Bottomless Hunger', '+25% hole XP (needs Hole Hunger).', 5, 800000, 2.5, 8, 'hunger'),
-  U('mushStorm', 'Bonuses', 'Spore Storm', '+50% mushroom drop chance (needs the Spore Bag).', 5, 500000, 2.5, 8, 'mushChance'),
-  U('goldSpores', 'Bonuses', 'Midas Spores', '+18% of all mushrooms come out as Gold Midas (needs the Spore Storm).', 5, 2000000, 2.5, 8, 'mushStorm'),
+  U('mushStorm', 'Bonuses', 'Spore Storm', '+15% mushroom drop chance (needs the Spore Bag).', 5, 500000, 2.5, 8, 'mushChance'),
+  // fixed prices: the dearer of PP's list (2, 6, 12, 18 m) and the old $2m x2.5 curve per level
+  // (PP 2026-10-22 "niech pierwsze poziomy tego beda drozsze [...] a reszta tak jak bylo")
+  { ...U('goldSpores', 'Bonuses', 'Midas Spores', '+5% of all mushrooms come out as Gold Midas (needs the Spore Storm).', 5, 2000000, 2.5, 8, 'mushStorm'), prices: [2e6, 6e6, 12.5e6, 31.25e6, 78.125e6] },
 
   // caps raised (PP 2026-10-20 "wiecej poziomow" for shards): a post-batch run gives 30-90 shards, the old catalogue (302) was gone in a few rebirths
   { id: 'dValue', tab: 'Deep', name: 'Deep Value', desc: '+20% money forever.', max: 15, cost: 1, growth: 1.5, currency: 'shards' },
@@ -137,6 +141,7 @@ export const KEEP_TOOL_IDS = [...UPGRADES.filter((u) => u.tab === 'Tools').map((
 export const LATE_PRICE = 1.3;
 
 export function upgradeCost(u: Upgrade, level: number): number {
+  if (u.prices) return u.prices[Math.min(level, u.prices.length - 1)];
   // placeable tools stay off the late surcharge: 20 fans at x1.4 already end late (PP 2026-10-21 "wiecej wiatrakow")
   return Math.ceil(u.cost * Math.pow(u.growth, level) * (u.growth > 1 && u.currency !== 'shards' && !TOOL_IDS.includes(u.id) ? Math.pow(LATE_PRICE, Math.max(0, level - 4)) : 1));
 }

@@ -4,6 +4,7 @@ import { ctx, drawPose, G, groups, lvl, rand, savePose } from '../core/context';
 import type { PlacedMachine } from '../core/state';
 import { money } from '../core/format';
 import { FUSE_TOOLS, UPGRADE_BY_ID } from '../data/upgrades';
+import { KING_FAN } from '../data/gnomeTypes';
 import { build, crateGeometry, fuseBoxGeometry, fuseGeometry, vcMat } from '../world/models';
 import { tex } from '../world/textures';
 import { GNOME_DAMPING, isFree, type Gnome } from './gnomes';
@@ -1040,7 +1041,8 @@ export class Machines {
           // 55 m/s² near the fan easily beats grass friction (0.7 x gravity 20); a little lift makes them tumble along.
           // Doubled after playtest (PP: "fany niech działają mocniej, bo teraz niewiele dają").
           // the fan's own power (key N) scales the whole push, lift included: never more lift than at 100 %
-          const strength = 55 * m.power * (1 - d / FAN_RANGE) * g.body.mass();
+          // ...except the King, visibly heavier for fans (KING_FAN)
+          const strength = 55 * m.power * (1 - d / FAN_RANGE) * g.body.mass() * (g.type.id === 'king' ? KING_FAN : 1);
           if (g.state === 'walk' || g.state === 'statue') {
             // a tripped gnome rolls out to about 9.9 m; tripping it again there would pin it as a ragdoll for ever
             // (a weaker fan trips only as far as its push still moves a gnome)

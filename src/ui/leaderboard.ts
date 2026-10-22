@@ -1,5 +1,6 @@
 import { ctx } from '../core/context';
 import { clock, money } from '../core/format';
+import { TYPE_BY_ID } from '../data/gnomeTypes';
 import { MAX_HOLE_LEVEL } from '../data/holeLevels';
 import { daily } from '../systems/daily';
 import * as progress from '../systems/progress';
@@ -187,9 +188,15 @@ export function nameError(label: string, name: string): string | null {
   return null;
 }
 
+// each tab name in a gnome hat colour (PP 2026-10-22)
+const hat = (id: string) => '#' + TYPE_BY_ID[id].hat.toString(16).padStart(6, '0');
+
 const CSS = `
 .leaderboard { z-index: 60; }
-.leaderboard .shop-win { width: min(620px, 94vw); }
+.leaderboard .shop-win { width: min(760px, 94vw); }
+.leaderboard .shop-tabs { flex-wrap: nowrap; }
+.leaderboard .tab { color: var(--c); opacity: .7; white-space: nowrap; font-size: clamp(11px, 1.9vw, 16px); padding: 8px clamp(6px, 1.1vw, 14px); }
+.leaderboard .tab.on { color: var(--c); border-color: var(--c); opacity: 1; }
 .leaderboard .row { grid-template-columns: 1fr 110px 70px 110px; }
 .leaderboard .lb-form { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; padding: 10px 18px; border-top: 2px solid #3a3f46; }
 .leaderboard .lb-run { width: 100%; opacity: .8; }
@@ -224,7 +231,7 @@ export class Leaderboard {
     // static markup only; user text goes in through textContent
     this.el.innerHTML = `<div class="shop-win">
       <div class="shop-head"><span class="lb-title"></span><button class="x" data-close>✕</button></div>
-      <div class="shop-tabs"><button class="tab" type="button" data-tab="main">MOST MONEY</button><button class="tab" type="button" data-tab="${daily.board}">DAILY ${daily.date}</button><button class="tab" type="button" data-tab="${SPEED}">FASTEST LVL 12</button><button class="tab" type="button" data-tab="${COMBO}">BIGGEST COMBO</button></div>
+      <div class="shop-tabs"><button class="tab" type="button" data-tab="main" style="--c:${hat('golden')}">MOST MONEY</button><button class="tab" type="button" data-tab="${daily.board}" style="--c:${hat('greedy')}">DAILY ${daily.date}</button><button class="tab" type="button" data-tab="${SPEED}" style="--c:${hat('blue')}">FASTEST LVL 12</button><button class="tab" type="button" data-tab="${COMBO}" style="--c:${hat('classic')}">BIGGEST COMBO</button></div>
       <div class="shop-rows lb-rows"></div>
       <form class="lb-form">
         <div class="lb-run"></div>

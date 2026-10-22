@@ -93,6 +93,12 @@ export const GNOME_TYPES: GnomeType[] = [
 export const TYPE_BY_ID: Record<string, GnomeType> = Object.fromEntries(GNOME_TYPES.map((t) => [t.id, t]));
 
 // Share of factory and rain gnomes that come out as Boom Gnomes (from its unlock level).
+// a gnome the Golden Hour turned gold (`goldFrom` set) pays x10 and 5 XP, a natural golden keeps x100 and 10 XP
+// (PP 2026-10-22 "g7 tak zrob b, ale xp niech bedzie 5"): x100 on a whole yard made $107k → $8.5m in a minute
+export const GOLD_HOUR = { value: 10, xp: 5 };
+// the King in front of a fan gets 1/5 of every other gnome's push (PP 2026-10-22 "dla wiatrakow jest wyraznie ciezszy tak x5")
+export const KING_FAN = 0.2;
+
 export const BOOM_CHANCE = 0.015;
 // Boom Gnome blast: gnomes this far outside the hole edge fly off at this speed (m/s, outwards and up).
 export const BOOM = { reach: 4, out: 8, up: 6, shake: 0.3 };

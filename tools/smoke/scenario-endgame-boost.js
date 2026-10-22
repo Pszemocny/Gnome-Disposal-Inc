@@ -105,7 +105,7 @@ setTimeout(() => { if (!window.__done) window.__done = JSON.stringify({ ...R, ch
       U().hunger = 0; S().holeLevel = 10;
       R.E3 = { locked7, boughtAt7, needs8, afford8, prices };
       ok('E3a', locked7.every((c) => c === 'locked') && boughtAt7 === 0, JSON.stringify(R.E3));
-      ok('E3b', needs8 === 'needs' && afford8 === 'afford' && prices.xpBoost === '$800k $2m $5m $12.5m $31.3m' && prices.mushStorm === '$500k $1.25m $3.13m $7.81m $19.5m' && prices.goldSpores === '$2m $5m $12.5m $31.3m $78.1m', JSON.stringify(R.E3));
+      ok('E3b', needs8 === 'needs' && afford8 === 'afford' && prices.xpBoost === '$800k $2m $5m $12.5m $31.3m' && prices.mushStorm === '$500k $1.25m $3.13m $7.81m $19.5m' && prices.goldSpores === '$2m $6m $12.5m $31.3m $78.1m', JSON.stringify(R.E3));
     }
     // E4: Bottomless Hunger multiplies hole XP
     {
@@ -167,7 +167,8 @@ setTimeout(() => { if (!window.__done) window.__done = JSON.stringify({ ...R, ch
       const rate = (storm) => { U().mushChance = 5; U().mushStorm = storm; drops = 0; for (let i = 0; i < 2000; i++) g.mushrooms.maybeDrop(new V3(0, 0, 0)); return drops / 2000; };
       R.E8 = { storm5: rate(5), storm0: rate(0) };
       g.mushrooms.spawn = spawn0; U().mushChance = 0; U().mushStorm = 0;
-      ok('E8', inR(R.E8.storm5, 0.19, 0.25) && inR(R.E8.storm0, 0.045, 0.08), JSON.stringify(R.E8));
+      // Spore Storm +15 % per level (PP 2026-10-22 "mniej procentow"): 0.025 x 2.5 x 1.75 = 0.109 at Spore Bag 5 + Storm 5
+      ok('E8', inR(R.E8.storm5, 0.09, 0.13) && inR(R.E8.storm0, 0.045, 0.08), JSON.stringify(R.E8));
     }
     // E9, E17: Midas Spores share, every source through pickDef, never below the gold level
     {
@@ -191,9 +192,65 @@ setTimeout(() => { if (!window.__done) window.__done = JSON.stringify({ ...R, ch
       }
       g.mushrooms.spawn = spawn0; g.hole.combo = 0; g.hole.comboTimer = 0; U().goldSpores = 0;
       R.E9 = { h10s5, h10s0, comboMidas }; R.E17 = { h3s5, h6s5 };
-      // 90 % + 10 % x 12/118 of the plain draw = 0.910, 1000 draws: ±3 sigma is 0.883-0.937
-      ok('E9', inR(h10s5.midas / 1000, 0.88, 0.94) && h10s5.other + h10s5.rainbow >= 1 && inR(h10s0.midas / 1000, 0.08, 0.14) && comboMidas >= 40, JSON.stringify(R.E9));
-      ok('E17', h3s5.midas === 0 && h3s5.rainbow === 0 && inR(h6s5.midas / 1000, 0.88, 0.94), JSON.stringify(R.E17));
+      // Midas Spores +5 % per level: 25 % forced + 75 % x the natural Midas share (~0.11) = ~0.33 at level 5;
+      // the 50 combo-text mushrooms: ~16.5 Midas, ±3 sigma about 6-27
+      ok('E9', inR(h10s5.midas / 1000, 0.28, 0.38) && h10s5.other + h10s5.rainbow >= 1 && inR(h10s0.midas / 1000, 0.08, 0.14) && inR(comboMidas, 6, 30), JSON.stringify(R.E9));
+      ok('E17', h3s5.midas === 0 && h3s5.rainbow === 0 && inR(h6s5.midas / 1000, 0.28, 0.38), JSON.stringify(R.E17));
+    }
+    // E21: a gnome the Golden Hour turned gold pays x10 and 5 XP, a natural golden x100 and 10 XP (PP 2026-10-22 "g7 b, xp 5")
+    {
+      clearGnomes(); S().holeLevel = 10; U().hunger = 0; U().xpBoost = 0;
+      const burst0 = g.coins.burst;
+      let paid = 0;
+      g.coins.burst = (v, ...a) => { paid = v; return burst0.call(g.coins, v, ...a); };
+      const eat = (n) => {
+        g.hole.combo = 0; g.hole.comboTimer = 0; S().holeXp = 0; paid = 0;
+        // touched the ground: no AIR trick, whose flat bonus does not follow the gnome's price
+        n.thrownBy = 'player'; n.throwPos = g.env.hole.clone().add(new V3(2, 1, 0)); n.touchedGround = true;
+        g.hole.consume(n);
+        return { paid, xp: S().holeXp };
+      };
+      const natural = eat(spawnAt('golden', g.env.hole.clone().setY(1)));
+      // the real swap wave: a free classic far from the hole turns gold
+      spawnAt('classic', new V3(-12, 0.7, -12), { awake: true });
+      g.events.start('golden');
+      let gold = null;
+      for (let i = 0; i < 40 && !gold; i++) { await frames(1); gold = g.gnomes.list.find((x) => x.type.id === 'golden' && x.goldFrom); }
+      // the Golden Hour ends now so nothing else turns gold; the eaten gnome is the marked one
+      g.events.goldenHour = 0; g.events.swaps = [];
+      const retyped = gold ? (gold.body.setTranslation(g.env.hole.clone().setY(1), true), eat(gold)) : null;
+      g.coins.burst = burst0; clearGnomes(); g.hole.combo = 0; S().holeXp = 0;
+      R.E21 = { natural, retyped, from: gold?.goldFrom ?? null };
+      ok('E21', !!retyped && R.E21.from === 'classic' && near(retyped.paid / natural.paid, 0.1, 1e-9) && near(natural.xp, 10) && near(retyped.xp, 5), JSON.stringify(R.E21));
+    }
+    // E22: a gnome fed at FEED_XP (machine, robot, kick...) drops mushrooms at 1/4; hand throw, crate, King keep x1; the lesson stays
+    {
+      clearGnomes(); S().holeLevel = 10;
+      const drop0 = g.mushrooms.maybeDrop;
+      const spawn0 = g.mushrooms.spawn;
+      let bonus = null; let spawned = 0;
+      g.mushrooms.maybeDrop = function (p, b) { bonus = b; return drop0.call(this, p, b); };
+      g.mushrooms.spawn = () => { spawned++; };
+      const eat = (type, machine, hand) => {
+        g.hole.combo = 0; g.hole.comboTimer = 0; bonus = null;
+        const n = spawnAt(type, g.env.hole.clone().setY(1));
+        if (hand) { n.thrownBy = 'player'; n.throwPos = g.env.hole.clone().add(new V3(2, 1, 0)); }
+        g.hole.consume(n, undefined, machine);
+        return bonus;
+      };
+      // wantsMushroom is a getter: pin it on the instance
+      const want = (v) => Object.defineProperty(g.goals, 'wantsMushroom', { value: v, configurable: true });
+      want(false);
+      const b = { hand: eat('classic', false, true), machine: eat('classic', true), crate: eat('classic', 'crate'), walkIn: eat('classic', false), king: eat('king', true), wizardMachine: eat('wizard', true) };
+      // the lesson: no mushroom on the grass, a machine eat still drops one
+      for (const m of [...g.mushrooms.list]) g.mushrooms.list.splice(g.mushrooms.list.indexOf(m), 1);
+      want(true); spawned = 0;
+      eat('classic', true);
+      const lesson = spawned;
+      delete g.goals.wantsMushroom;
+      g.mushrooms.maybeDrop = drop0; g.mushrooms.spawn = spawn0; clearGnomes(); g.hole.combo = 0; S().holeXp = 0;
+      R.E22 = { ...b, lesson };
+      ok('E22', b.hand === 1 && b.machine === 0.25 && b.crate === 1 && b.walkIn === 0.25 && b.king === 1 && b.wizardMachine === 1.5 && lesson === 1, JSON.stringify(R.E22));
     }
     // night for the Shadow checks
     S().holeLevel = 11; S().money = 1e6; g.env.dayClock = 170; g.env.night = 1;
@@ -224,6 +281,23 @@ setTimeout(() => { if (!window.__done) window.__done = JSON.stringify({ ...R, ch
       R.E10 = { alive, state, robotTargets, cone }; R.E11 = { after, eatenDelta: (S().gnomesEaten ?? 0) - eaten0 };
       ok('E10', alive && state === 'walk' && robotTargets === 0 && cone, JSON.stringify(R.E10));
       ok('E11', after === 'eaten' || after === 'ragdoll', JSON.stringify(R.E11));
+      clearGnomes(); g.machines.clearAll();
+    }
+    // E23: a robot never picks up the King (PP 2026-10-22 "g9 nie ruszaja go roboty"); a classic next to him it does take
+    {
+      const spot = new V3(-12, 0.7, -12);
+      placePlayer(-12, 4, 0, 0);
+      g.machines.place('robot', spot.clone().add(new V3(3, -0.7, 0)), Q());
+      const king = spawnAt('king', spot, { awake: true });
+      const robot = () => g.machines.list.find((m) => m.robot)?.robot;
+      let kingTargets = 0;
+      for (let i = 0; i < 60; i++) { await frames(1); if (robot()?.targetGnome === king) kingTargets++; }
+      const kingFree = g.gnomes.list.includes(king) && king.state !== 'stashed' && king.state !== 'gone';
+      const c = spawnAt('classic', spot.clone().add(new V3(1.5, 0, 1.5)));
+      let classicTaken = false;
+      for (let i = 0; i < 60 && !classicTaken; i++) { await frames(1); if (robot()?.targetGnome === c || c.state === 'stashed') classicTaken = true; }
+      R.E23 = { kingTargets, kingFree, classicTaken };
+      ok('E23', kingTargets === 0 && kingFree && classicTaken, JSON.stringify(R.E23));
       clearGnomes(); g.machines.clearAll();
     }
     // E12: 20 spawns 7-10 m behind the player, inside the fence, clear of the hole; pop, cue, screenshot
@@ -335,8 +409,11 @@ setTimeout(() => { if (!window.__done) window.__done = JSON.stringify({ ...R, ch
       const p = sh?.body.translation();
       const atShadow = !!p && calls.length > 0 && near(calls[0].x, p.x, 1e-3) && near(calls[0].z, p.z, 1e-3);
       calls.length = 0;
-      // the stare clicks with a 25 % chance per AI tick: watch up to 240 frames, stop at the first click
+      // the stare clicks with a 25 % chance per AI tick: the roll is forced under 0.25 for this window, so the check tests
+      // "a staring shadow clicks", not the dice (it was red in 1 of 3 runs)
+      const rnd0 = Math.random; Math.random = () => 0.1;
       for (let i = 0; i < 240 && sh && g.gnomes.list.includes(sh) && calls.length < 1; i++) { await frames(1); g.player.position.set(0, 1.2, 9); sh.life = Math.min(sh.life, 5); }
+      Math.random = rnd0;
       const staring = calls.length;
       calls.length = 0;
       for (let i = 0; i < 60 && sh && g.gnomes.list.includes(sh); i++) { await frames(1); g.player.position.set(0, 1.2, 9); sh.life = Math.max(sh.life, 25); }

@@ -2,6 +2,16 @@
 
 Newest build first. Each build lists what changed for the player. Shown in the start menu (button "What's new").
 
+## 2026-10-28 10:00
+
+- The second level of Midas Spores costs more, $6m instead of $5m; the other levels keep their prices.
+- Spore Storm and Midas Spores are weaker, so Gold Midas no longer runs almost nonstop with every upgrade bought.
+- Gnomes turned gold by the Golden Hour now pay a tenth of a real golden gnome and give half its XP.
+- Gnomes fed by machines, robots and kicks drop mushrooms less often.
+- Robots leave the King alone, and fans push him much less: he is heavy.
+- Feeding Frenzy costs more: its last level is now $1m.
+- The leaderboard is wider, so all four tabs fit on one line, each in a gnome hat colour.
+
 ## 2026-10-27 18:00
 
 - The online version now sends anonymous progress statistics: hole levels, money, purchases and achievements. No names unless you enter one on the leaderboard.

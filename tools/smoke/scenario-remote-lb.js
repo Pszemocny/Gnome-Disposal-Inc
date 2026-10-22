@@ -99,6 +99,42 @@ const step = async (name, fn) => { try { out[name] = await fn(); } catch (e) { o
     return r;
   });
 
+  // PP 2026-10-22: all four tabs on one line inside the window, each clickable, each in its own gnome hat colour
+  await step('R22_tabs_fit', async () => {
+    const cdp = async (method, params) => { const n = (window.__cdpDone ?? 0) + 1; (window.__cdp ??= []).push({ method, params }); while ((window.__cdpDone ?? 0) < n) await sleep(50); };
+    const shot = async (name) => { window.__shotDone = false; (window.__shots ??= []).push(name); while (!window.__shotDone) await sleep(50); };
+    const check = () => {
+      const win = ov.querySelector('.shop-win').getBoundingClientRect();
+      const tabs = [...ov.querySelectorAll('[data-tab]')];
+      const boxes = tabs.map((t) => t.getBoundingClientRect());
+      const inside = boxes.every((b) => b.width > 0 && b.left >= win.left && b.right <= win.right && b.top >= win.top && b.bottom <= win.bottom && b.right <= innerWidth && b.bottom <= innerHeight);
+      const oneLine = boxes.every((b) => Math.abs(b.top - boxes[0].top) < 1);
+      const hit = tabs.every((t, i) => document.elementFromPoint(boxes[i].left + boxes[i].width / 2, boxes[i].top + boxes[i].height / 2)?.closest('[data-tab]') === t);
+      const colours = tabs.map((t) => getComputedStyle(t).color);
+      return { inside, oneLine, hit, distinctColours: new Set(colours).size === tabs.length, labels: tabs.map((t) => t.textContent), win: Math.round(win.width) };
+    };
+    const r = {};
+    for (const [w, h] of [[1280, 720], [1920, 1080], [640, 360]]) {
+      await cdp('Emulation.setDeviceMetricsOverride', { width: w, height: h, deviceScaleFactor: 1, mobile: false });
+      await frames(2);
+      lb.open(); await settle();
+      const menu = check();
+      ov.querySelector('[data-tab="combo"]').click(); await settle();
+      const comboOn = ov.querySelector('.tab.on')?.dataset.tab === 'combo';
+      await shot(`lb-menu-${w}x${h}`);
+      lb.close();
+      offer(); await settle();
+      const form = check();
+      await shot(`lb-form-${w}x${h}`);
+      lb.close();
+      r[`${w}x${h}`] = { menu, form, comboOn, ok: [menu, form].every((c) => c.inside && c.oneLine && c.hit && c.distinctColours) && comboOn };
+    }
+    await cdp('Emulation.clearDeviceMetricsOverride', {});
+    await frames(2);
+    r.allOk = Object.values(r).every((x) => x.ok);
+    return r;
+  });
+
   // one old local row from before the change: never on the online board, visible only in the fallback
   localStorage.setItem(LB, JSON.stringify([{ first: 'Old', last: 'Local', score: 777, level: 2, at: 1, board: 'main' }]));
   const store = new M.RemoteStore('https://example.supabase.co', 'sb_publishable_test', 'test-salt');

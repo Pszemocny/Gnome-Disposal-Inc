@@ -42,10 +42,10 @@ const floats = []; const toasts = []; const bigs = [];
 
 // Fan push measured on the fan's own impulses: the gnome is pinned at `dist` m in front (same d every frame),
 // impulses along the axis summed over `n` frames and divided by the game time they cover.
-const pushRate = async (fan, dist, n = 10) => {
+const pushRate = async (fan, dist, n = 10, type = 'classic') => {
   const fwd = new V3(0, 0, 1).applyQuaternion(fan.quat);
   const at = fan.pos.clone().add(new V3(0, 1.4, 0)).addScaledVector(fwd, dist);
-  const x = spawn('classic', at);
+  const x = spawn(type, at);
   g.gnomes.ragdoll(x, 30);
   const orig = x.body.applyImpulse.bind(x.body);
   let sum = 0;
@@ -89,6 +89,9 @@ setTimeout(() => { if (!window.__done) window.__done = J({ ...R, checks, timeout
     await frames(3);
     const rate1 = await pushRate(fan, 3);
     R.A1 = { power: fan.power, rate: r2(rate1), today: r2(55 * (1 - 3 / 10)) };
+    // ---- KF the King gets 1/5 of the push (PP 2026-10-22 "dla wiatrakow jest wyraznie ciezszy tak x5"), per kg like the rest
+    const rateKing = await pushRate(fan, 3, 10, 'king');
+    R.KF = { king: r2(rateKing), classic: r2(rate1), ratio: r2(rateKing / rate1) };
 
     // ---- A2 / A3 key N while aiming at the fan (player 4 m west of it, level aim at the hub)
     await teleport(F0.x + 4, F0.z, yawTo(-1, 0), -Math.atan2(g.player.eye.y - 1.4, 4));
@@ -571,6 +574,7 @@ setTimeout(() => { if (!window.__done) window.__done = J({ ...R, checks, timeout
   }
 
   ok('A1', R.A1?.power === 1 && near(R.A1?.rate, R.A1?.today, R.A1?.today * 0.05), J(R.A1));
+  ok('KF', near(R.KF?.ratio, 0.2, 0.02), J(R.KF));
   ok('A2', R.A2?.looked && R.A2?.power === 0.75 && R.A2?.prompt.includes('N power 75%') && R.A2?.float === '75%', J(R.A2));
   ok('A3', J(R.A3?.seq) === '[0.5,0.25,1]', J(R.A3));
   ok('A4', R.A4?.ratio >= 0.2 && R.A4?.ratio <= 0.3 && R.A4?.distinct >= 3 && R.A4?.monotone, J(R.A4));
