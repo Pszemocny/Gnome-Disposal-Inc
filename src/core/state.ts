@@ -57,6 +57,7 @@ export interface GameState {
     trickShots: number; // player throws that bounced off a trampoline into the hole
     chairs: number; // armchairs the hole ate, every time (the pile in the ending)
     flamingos: number; // flamingos the hole ate, every time
+    ufos: number; // UFOs shot down (they lie on the heap in the ending)
   };
   goal: number;
   goalBase: number;
@@ -115,6 +116,7 @@ export function freshState(keep?: GameState): GameState {
       trickShots: 0,
       chairs: 0,
       flamingos: 0,
+      ufos: 0,
     },
     goal: keep?.goal ?? 0,
     goalBase: keep?.goalBase ?? 0,

@@ -1,5 +1,6 @@
 // 3D outro (The Deep) with the pile of fed armchairs, flamingos and GNOME letters (plan 2026-10-22-plan-outro-3d.md,
-// Done when 1-26 with PP's answers of 2026-10-22: no skipping, the heap line always, letters on the pile).
+// Done when 1-26 with PP's answers of 2026-10-22: no skipping, the heap line always, letters on the pile;
+// 27-32 from 2026-10-22-outro-dark-heap.md: darker shaft, the mound, UFOs and kings on it, the King who eats you).
 // Run: URL_QUERY='' FAKELOCK=1 MAXPOLL=4000 CDP_PORT=9811 DEV_PORT=<private> node tools/smoke/smoke.mjs <outDir> <this file>
 // The top page is Medium (no ?lowfx); Low, daily and the pile variants run in iframes.
 const frames = async (n) => { for (let i = 0; i < n; i++) await new Promise((r) => requestAnimationFrame(() => r())); };
@@ -58,17 +59,19 @@ setTimeout(() => { if (!window.__done) window.__done = out.join('\n') + '\nTIMEO
     const opens = [];
     window.open = (...a) => (opens.push(a), null);
 
-    // 6 old save without the two counters: both 0, no load note
+    // 6 old save without the counters: all 0, no load note (32a: the UFO counter too)
     {
       const s = freshState();
       delete s.stats.chairs;
       delete s.stats.flamingos;
+      delete s.stats.ufos;
       const keep = localStorage.getItem(KEY);
       localStorage.setItem(KEY, JSON.stringify(s));
       const n0 = loadNotes.length;
       const l = loadState();
       if (keep === null) localStorage.removeItem(KEY); else localStorage.setItem(KEY, keep);
       ok(6, l.stats.chairs === 0 && l.stats.flamingos === 0 && loadNotes.length === n0, `chairs=${l.stats.chairs} flamingos=${l.stats.flamingos} notes=${loadNotes.length - n0}`);
+      var oldUfos = l.stats.ufos;
     }
     // 7 rebirth keeps the counters
     {
@@ -99,11 +102,23 @@ setTimeout(() => { if (!window.__done) window.__done = out.join('\n') + '\nTIMEO
     const letter = props.find((p) => p.kind === 'letter');
     await into(letter);
     ok(11, g.state.stats.chairs === 2 && g.state.stats.flamingos === 1 && g.state.secrets.includes(`letter-${letter.letter}`), `chairs=${g.state.stats.chairs} flamingos=${g.state.stats.flamingos} secretsHasLetter=${g.state.secrets.includes(`letter-${letter.letter}`)}`);
+    // 32b a UFO that crashes counts once (the downed UFOs lie on the heap)
+    {
+      const u0 = g.state.stats.ufos;
+      g.events.spawnUfo();
+      g.events.ufo.crashing = true;
+      g.events.ufo.mesh.position.y = 0.3;
+      for (let i = 0; i < 60 && g.events.ufo; i++) await frames(1);
+      ok(32, oldUfos === 0 && u0 === 0 && g.state.stats.ufos === 1, `oldSave=${oldUfos} before=${u0} after=${g.state.stats.ufos}`);
+    }
 
     // ---- the outro on the top page: level 12, 3 armchairs, 12 flamingos and the letter fed, a coffee link
     g.state.holeLevel = 12;
     g.state.stats.chairs = 3;
     g.state.stats.flamingos = 12;
+    g.state.stats.gnomesEaten = 800;
+    g.state.stats.ufos = 1;
+    g.state.stats.typesEaten.king = 2;
     LINKS.coffee = 'https://example.invalid';
     const seen = watchLines(document);
     fallIn(g);
@@ -113,6 +128,21 @@ setTimeout(() => { if (!window.__done) window.__done = out.join('\n') + '\nTIMEO
     const c = g.outro.counts;
     const a1 = `active=${g.outro.active} paused=${g.paused} deep=${document.querySelectorAll('.deep').length} bodies=${c.bodies} fallers=${c.fallers} farEyes=${c.farEyes} letters=${c.letters}`;
     const pass1 = g.outro.active && g.paused && document.querySelectorAll('.deep').length === 1 && c.bodies === 900 && c.fallers === 8 && c.farEyes === 6000 && c.letters === 1;
+    // 27 darker: no white (beard) vertex on the shaft gnomes, no emissive on their material, eyes only faint
+    {
+      let white = 0, emissive = 0, meshes = 0;
+      for (const m of g.outro.drum.children) {
+        if (!m.isInstancedMesh) continue;
+        meshes++;
+        if (m.material.emissive.getHex() !== 0) emissive++;
+        const col = m.geometry.attributes.color.array;
+        for (let i = 0; i < col.length; i += 3) if (Math.min(col[i], col[i + 1], col[i + 2]) > 0.8) white++;
+      }
+      let eye = 0;
+      const nc = g.outro.near.col;
+      for (let i = 0; i < nc.length; i += 4) eye = Math.max(eye, nc[i], nc[i + 1], nc[i + 2]);
+      ok(27, meshes > 5 && white === 0 && emissive === 0 && eye <= 0.45, `meshes=${meshes} whiteVerts=${white} emissive=${emissive} eyeMax=${eye.toFixed(3)}`);
+    }
 
     // 25a black at the start
     await sleep(Math.max(0, 200 - (performance.now() - t0)));
@@ -189,16 +219,82 @@ setTimeout(() => { if (!window.__done) window.__done = out.join('\n') + '\nTIMEO
     await frames(3);
     ok(16, Math.abs(aspect - 800 / 360) < 0.01, `aspect=${aspect.toFixed(3)}`);
 
-    // 17 the heap line comes by itself after "It was lonely."; the camera turns down to the pile and back up
+    // 17 the heap line comes by itself after "It was lonely."; the camera turns down to the heap and stays there
+    // 30 the King rises from the heap and walks to the camera; 31 no cut from the heap to the bite
     await waitLine(document, (t) => t === FED);
     const prev17 = seen[seen.length - 2];
-    await sleep(2000);
-    const downPitch = g.outro.camera.rotation.x;
+    const D = (await import('/src/ui/outro.ts')).DEVOUR ?? { rise: 3.5, walk: 4.8, walkT: 3.6, bite: 9, done: 10.1 };
+    const rec = [];
+    const landedPos = [];
+    let stopRec = false;
+    {
+      const o = g.outro;
+      const V3 = o.camera.position.constructor, M4 = o.camera.matrix.constructor;
+      const m = new M4(), p = new V3(), s = new V3(), q = o.camera.quaternion.clone();
+      const fm = new M4(), drumM = new M4(), fp = new V3();
+      const sample = () => {
+        if (stopRec) return;
+        requestAnimationFrame(sample);
+        // 33 world position of every landed faller (fallers live in the spinning drum)
+        drumM.makeRotationY(o.drum.rotation.y);
+        o.fallers.forEach((f, i) => {
+          if (f.landed < 0) return;
+          o.fallerMesh.getMatrixAt(i, fm);
+          fp.setFromMatrixPosition(fm).applyMatrix4(drumM);
+          const l = (landedPos[i] ||= { first: fp.clone(), n: 0, drift: 0 });
+          l.n++;
+          l.drift = Math.max(l.drift, fp.distanceTo(l.first));
+        });
+        const k = o.heap.kings;
+        if (k) { k.getMatrixAt(0, m); m.decompose(p, q, s); }
+        rec.push({ t: o.heapT, cy: o.camera.position.y, cz: o.camera.position.z, pitch: o.camera.rotation.x, kz: k ? p.z : NaN, ks: k ? s.x : NaN, black: o.black?.visible ? o.black.material.opacity : 0, devoured: !!o.devoured, deep: line() === 'THE DEEP' });
+      };
+      requestAnimationFrame(sample);
+    }
+    const atT = async (T) => { for (let i = 0; i < 300 && !(g.outro.heapT >= T); i++) await sleep(50); };
+    await atT(2.5);
     await shot('outro-heap');
-    await waitLine(document, (t) => t.startsWith('You gained'));
-    await sleep(2000);
-    const upPitch = g.outro.camera.rotation.x;
-    ok(17, line().startsWith('You gained') && prev17 === 'It was lonely.' && downPitch < 0 && upPitch > 1.3, `heap="${FED}" before="${prev17}" down=${downPitch.toFixed(3)} up=${upPitch.toFixed(3)} pile=${c.chairs}/${c.flamingos}/${c.letters}`);
+    await atT(D.walk + D.walkT * 0.6);
+    await shot('outro-king');
+    await atT(D.bite - 0.3); // the screenshot lands about 0.3 s after the request: the pull-back and lunge
+    await shot('outro-devour');
+    await waitLine(document, (t) => t === 'THE DEEP');
+    await frames(5);
+    stopRec = true;
+    {
+      // one sample per game frame
+      const R = rec.filter((r, i) => typeof r.t === 'number' && (i === 0 || r.t !== rec[i - 1].t));
+      const near = (T) => R.reduce((b, r) => (Math.abs(r.t - T) < Math.abs(b.t - T) ? r : b), R[0] ?? { pitch: NaN });
+      const downPitch = near(2).pitch;
+      ok(17, seen.some((t) => t.startsWith('You gained')) && prev17 === 'It was lonely.' && downPitch < 0, `heap="${FED}" before="${prev17}" down=${downPitch?.toFixed(3)} samples=${R.length} pile=${c.chairs}/${c.flamingos}/${c.letters}`);
+
+      const full = near(D.walk + 0.5).ks;
+      const rise = R.filter((r) => r.t > D.rise && r.t < D.rise + 0.25 && r.ks > 0.01 && r.ks < full * 0.98);
+      const W = R.filter((r) => r.t >= D.walk && r.t <= D.walk + D.walkT);
+      const inc = W.length >= 10 && W.slice(1).every((r, i) => r.kz > W[i].kz);
+      const speed = (a, b) => { const S = W.filter((r) => r.t >= a && r.t <= b); return S.length > 1 ? (S[S.length - 1].kz - S[0].kz) / (S[S.length - 1].t - S[0].t) : NaN; };
+      const T3 = D.walkT / 3;
+      const v = [speed(D.walk, D.walk + T3), speed(D.walk + T3, D.walk + 2 * T3), speed(D.walk + 2 * T3, D.walk + D.walkT)];
+      ok(30, rise.length > 0 && inc && v[1] > v[0] * 1.3 && v[1] > v[2] * 1.3, `riseMid=${rise.length} full=${full?.toFixed(2)} walkSamples=${W.length} zStrictlyUp=${inc} z=${W[0]?.kz.toFixed(2)}..${W[W.length - 1]?.kz.toFixed(2)} v=${v.map((x) => x.toFixed(2))}`);
+
+      const end = R.findIndex((r) => r.devoured);
+      const H = end >= 0 ? R.slice(0, end + 1) : R;
+      const maxPitch = Math.max(...H.filter((r) => r.t > 0.5).map((r) => r.pitch));
+      const jump = Math.max(...H.slice(1).map((r, i) => Math.hypot(r.cy - H[i].cy, r.cz - H[i].cz)));
+      const blackEarly = Math.max(...H.filter((r) => r.t < D.bite).map((r) => r.black));
+      const zStop = near(D.bite - 0.05).kz;
+      const B = R.filter((r) => r.t >= D.bite && r.t <= D.bite + 0.7);
+      const iMin = B.reduce((b, r, i) => (r.kz < B[b].kz ? i : b), 0);
+      const iMax = B.reduce((b, r, i) => (r.kz > B[b].kz ? i : b), 0);
+      const zEnd = R[R.length - 1]?.kz;
+      const bite = B.length > 3 && iMin < iMax && B[iMin].kz < zStop - 0.1 && B[iMax].kz > zEnd + 0.03;
+      const deepFirst = R.findIndex((r) => r.deep);
+      // 33 a faller that landed on the heap stays put in the world while the drum spins on
+      const L = landedPos.filter((l) => l && l.n >= 10);
+      const drift = Math.max(...L.map((l) => l.drift));
+      ok(33, L.length > 0 && drift < 0.05, `landed=${L.length} samples=${L.map((l) => l.n)} maxDrift=${drift.toFixed(3)}`);
+      ok(31, end >= 0 && maxPitch < 0.8 && jump < 1 && blackEarly === 0 && R[end].black === 1 && bite && deepFirst >= end, `devouredAt=${R[end]?.t.toFixed(2)} maxPitch=${maxPitch.toFixed(3)} maxJump=${jump.toFixed(3)} blackEarly=${blackEarly} blackEnd=${R[end]?.black} bite=${B[iMin]?.kz.toFixed(2)}<${zStop?.toFixed(2)}..${B[iMax]?.kz.toFixed(2)}>${zEnd?.toFixed(2)} deepAfter=${deepFirst >= end}`);
+    }
 
     // 1 every frame of text played by itself, heap line included
     await waitLine(document, () => !!document.querySelector('.deep button'));
@@ -248,7 +344,7 @@ setTimeout(() => { if (!window.__done) window.__done = out.join('\n') + '\nTIMEO
       await sleep(2000);
       const pitchHeap = G.outro.camera.rotation.x;
       await waitLine(D, () => !!D.querySelector('.deep button'));
-      const heapMeshes = (G.outro.heap.chairs ? 1 : 0) + (G.outro.heap.flamingos ? 1 : 0) + (G.outro.heap.letters ? 1 : 0);
+      const heapMeshes = (G.outro.heap.chairs ? 1 : 0) + (G.outro.heap.flamingos ? 1 : 0) + (G.outro.heap.letters ? 1 : 0) + (G.outro.heap.mound ? 1 : 0);
       ok(3, dseen.length === 11 && dseen[7] === NONE && heapMeshes === 0 && pitchHeap > 1.4, `lines=${dseen.length} heapLine="${dseen[7]}" heapMeshes=${heapMeshes} pitchOnHeapLine=${pitchHeap.toFixed(3)} daily=${G.state.stats.chairs}/${G.state.stats.flamingos}`);
       const deepF = !!D.querySelector('.deep-f');
       D.querySelector('.deep button').click();
@@ -268,9 +364,9 @@ setTimeout(() => { if (!window.__done) window.__done = out.join('\n') + '\nTIMEO
         return f;
       };
       // each page reaches its heap line 18.2 s after its own start: wait on all three at once
-      const f4 = await open('?lowfx', { stats: { playTime: 30, chairs: 3, flamingos: 0 } }, 99990);
+      const f4 = await open('?lowfx', { stats: { playTime: 30, chairs: 3, flamingos: 0, gnomesEaten: 50 } }, 99990);
       const w4 = waitLine(f4.contentDocument, (t) => t === FED);
-      const f5 = await open('', { stats: { playTime: 30, chairs: 1, flamingos: 400 } }, 99991);
+      const f5 = await open('', { stats: { playTime: 30, chairs: 1, flamingos: 400, gnomesEaten: 5000, ufos: 2, typesEaten: { king: 3 } } }, 99991);
       const w5 = waitLine(f5.contentDocument, (t) => t === FED);
       const f26 = await open('?lowfx', { stats: { playTime: 30, chairs: 0, flamingos: 0 }, secrets: ['letter-G', 'letter-N', 'letter-O'] }, 99999);
       const [D4, D5, D26] = [f4, f5, f26].map((f) => f.contentDocument);
@@ -279,6 +375,11 @@ setTimeout(() => { if (!window.__done) window.__done = out.join('\n') + '\nTIMEO
       ok(4, r4.hit && G4.outro.heap.flamingos === null && G4.outro.counts.chairs === 3, `heapLine="${r4.line}" flamingoMesh=${G4.outro.heap.flamingos} chairs=${G4.outro.counts.chairs}`);
       const r5 = await w5.then((hit) => ({ hit, line: line(D5) }));
       ok(5, r5.hit && G5.outro.counts.flamingos === 300 && G5.outro.heap.flamingos?.count === 300, `flamingoInstances=${G5.outro.heap.flamingos?.count} line="${r5.line}"`);
+      // 28 the mound and the gnomes on it grow with the gnomes eaten (50 vs 5000)
+      const [m4, m5] = [G4, G5].map((G) => ({ r: G.outro.heap.mound?.scale.x, h: G.outro.heap.mound?.scale.y, n: G.outro.heap.gnomes?.count }));
+      ok(28, m4.r > 0 && m5.r > m4.r && m5.h > m4.h && m5.n > m4.n && G4.outro.counts.gnomes === m4.n, `r50=${m4.r?.toFixed(2)} r5000=${m5.r?.toFixed(2)} h=${m4.h?.toFixed(2)}/${m5.h?.toFixed(2)} gnomes=${m4.n}/${m5.n}`);
+      // 29 the downed UFOs and the eaten kings lie on the heap, plus the King who eats you
+      ok(29, G5.outro.heap.ufos?.count === 2 && G5.outro.counts.ufos === 2 && G5.outro.counts.kings === 3 && G5.outro.heap.kings?.count === 4 && G4.outro.heap.ufos === null && G4.outro.heap.kings?.count === 1, `ufos=${G5.outro.heap.ufos?.count} kings=${G5.outro.counts.kings} kingMesh=${G5.outro.heap.kings?.count} noUfo=${G4.outro.heap.ufos === null} soloKing=${G4.outro.heap.kings?.count}`);
       f4.remove(); f5.remove();
       const hit26 = await waitLine(D26, (t) => t === FED);
       await sleep(2000);

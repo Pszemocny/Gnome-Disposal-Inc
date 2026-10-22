@@ -7,11 +7,17 @@ import { BUILD } from '../ui/crash';
 
 const KEY = 'gnome-boozed-player';
 const QUEUE_MAX = 30;
-const BUY_MAX = 120; // the last entry counts the dropped ones: { id: 'more', lvl: 0, cost: n }
+// purchases per row; the last entry counts the dropped ones: { id: 'more', lvl: 0, cost: n }.
+// 100, not the table's 120: the 'owned' entry goes first and every entry carries hole and money, and the column holds 12000 chars
+const BUY_MAX = 100;
+const PURCHASES_MAX = 120; // supabase/progress.sql
 const UA_MAX = 300;
 
 type Kind = 'level' | 'rebirth' | 'daily' | 'reset';
-type Buy = { id: string; lvl: number; cost: number };
+// hole: hole level at the buy, money: money after it (rounded), or shards: shards after a Deep buy; a downgrade is a buy with the lower lvl
+type Buy = { id: string; lvl: number; cost: number; hole?: number; money?: number; shards?: number };
+// purchases[0] of every row: what the player owns when the row is written (non-zero shop and Deep levels, placed machines per type)
+type Owned = { id: 'owned'; lvl: 0; cost: 0; owned: Record<string, number>; placed: Record<string, number> };
 type Ach = { id: string; run_time: number; level: number };
 type Buffers = { buy: Buy[]; ach: Ach[] };
 type Row = {
@@ -30,7 +36,7 @@ type Row = {
   gnomes: number;
   gnomes_total: number;
   land: number;
-  purchases: Buy[];
+  purchases: (Owned | Buy)[];
   achievements: Ach[];
   build: string;
   ua: string;
@@ -103,6 +109,20 @@ async function flush(): Promise<void> {
   }
 }
 
+function owned(): Owned {
+  const s = ctx.state;
+  const placed: Record<string, number> = {};
+  for (const m of ctx.machines.list) placed[m.type] = (placed[m.type] ?? 0) + 1;
+  return { id: 'owned', lvl: 0, cost: 0, owned: Object.fromEntries(Object.entries({ ...s.upgrades, ...s.deep }).filter(([, v]) => v > 0)), placed };
+}
+
+// a buffer of up to 120 from a build before the 'owned' entry: keep PURCHASES_MAX - 1 entries, the last one 'more' counting every dropped buy
+function cap(buy: Buy[]): Buy[] {
+  if (buy.length < PURCHASES_MAX) return buy;
+  const dropped = buy.slice(PURCHASES_MAX - 2).reduce((n, x) => n + (x.id === 'more' ? x.cost : 1), 0);
+  return [...buy.slice(0, PURCHASES_MAX - 2), { id: 'more', lvl: 0, cost: dropped }];
+}
+
 function push(kind: Kind, keepalive: boolean): void {
   try {
     if (!sink) return;
@@ -126,7 +146,7 @@ function push(kind: Kind, keepalive: boolean): void {
         gnomes: s.stats.gnomesEaten - (s.runEatenStart ?? 0),
         gnomes_total: s.stats.gnomesEaten,
         land: s.land,
-        purchases: b.buy,
+        purchases: [owned(), ...cap(b.buy)],
         achievements: b.ach,
         build: BUILD,
         ua: navigator.userAgent.slice(0, UA_MAX),
@@ -162,8 +182,11 @@ export function init(): void {
 export function bought(id: string, lvl: number, cost: number): void {
   try {
     if (!sink) return;
+    const s = ctx.state;
     remember((b) => {
-      if (b.buy.length < BUY_MAX - 1) b.buy.push({ id, lvl, cost });
+      // a Deep upgrade is paid in shards (src/ui/shop.ts): log the shards left, not the money
+      const left = id in s.deep ? { shards: s.shards } : { money: Math.round(s.money) };
+      if (b.buy.length < BUY_MAX - 1) b.buy.push({ id, lvl, cost, hole: s.holeLevel, ...left });
       else if (b.buy[b.buy.length - 1].id === 'more') b.buy[b.buy.length - 1].cost++;
       else b.buy.push({ id: 'more', lvl: 0, cost: 1 });
     });

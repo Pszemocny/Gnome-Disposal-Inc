@@ -2,6 +2,10 @@
 
 Newest build first. Each build lists what changed for the player. Shown in the start menu (button "What's new").
 
+## 2026-10-28 23:30
+
+- The ending is darker and the heap of everything you fed is a real pile with your downed UFOs and kings on it. Stay for the end: the King climbs off the pile and eats you.
+
 ## 2026-10-28 22:00
 
 - The hole no longer pulls gnomes in: a gnome flying over it keeps flying, only a real hit falls in.

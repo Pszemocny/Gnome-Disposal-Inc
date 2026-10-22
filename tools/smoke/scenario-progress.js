@@ -51,13 +51,31 @@ const GRANT = 'rid,player,name,seq,kind,daily,level,run,run_time,play_time,money
     // rows 3, 4, 5, 8: one level row with the buffers since the previous row
     await step('P2', async () => {
       buy('kick');
+      const afterKick = { hole: g.state.holeLevel, money: Math.round(g.state.money) };
       buy('speed');
+      const afterSpeed = { hole: g.state.holeLevel, money: Math.round(g.state.money) };
+      buy('fan');
+      g.machines.place('fan', g.camera.position.clone().setY(0).add(new g.camera.position.constructor(3, 0, 3)), new g.camera.quaternion.constructor());
       g.achievements.unlock('booze');
       lvl();
       await sleep(1000);
       const c = calls[0];
       const b = c?.body ?? {};
       out.P2_id = stored()?.id;
+      // what the player owns when the row is written: every non-zero shop and Deep level, placed machines per type
+      const ownNow = Object.fromEntries(Object.entries({ ...g.state.upgrades, ...g.state.deep }).filter(([, v]) => v > 0));
+      const placedNow = {};
+      for (const m of g.machines.list) placedNow[m.type] = (placedNow[m.type] ?? 0) + 1;
+      const snap = (b.purchases ?? [])[0] ?? {};
+      const buys = (b.purchases ?? []).slice(1);
+      out.P2_fields = {
+        kick: buys.find((p) => p.id === 'kick'), speed: buys.find((p) => p.id === 'speed'), afterKick, afterSpeed,
+      };
+      out.P2_owned = {
+        id: snap.id, lvl: snap.lvl, cost: snap.cost, owned: snap.owned, ownNow, placed: snap.placed, placedNow,
+        sameOwned: JSON.stringify(snap.owned) === JSON.stringify(ownNow), samePlaced: JSON.stringify(snap.placed) === JSON.stringify(placedNow),
+        noZero: Object.values(snap.owned ?? {}).every((v) => v > 0), hasKick: (snap.owned ?? {}).kick === g.state.upgrades.kick,
+      };
       return {
         posts: calls.length, url: c?.url.endsWith('/rest/v1/progress'), method: c?.method, prefer: c?.headers.Prefer, keepalive: c?.keepalive,
         keys: Object.keys(b).join(','), keysOk: Object.keys(b).join(',') === GRANT, kind: b.kind, seq: b.seq, daily: b.daily,
@@ -77,10 +95,17 @@ const GRANT = 'rid,player,name,seq,kind,daily,level,run,run_time,play_time,money
       buy('dStart');
       buy('throw', 1);
       buy('throw', -1);
+      const afterDown = { hole: g.state.holeLevel, money: Math.round(g.state.money) };
       lvl();
       await sleep(1000);
       const p = calls.slice(n0)[0]?.body.purchases ?? [];
-      return { dStart: p.some((x) => x.id === 'dStart' && x.lvl === 1), throw: p.filter((x) => x.id === 'throw').map((x) => x.lvl), repeated: p.some((x) => x.id === 'kick' || x.id === 'speed') };
+      const down = p.filter((x) => x.id === 'throw')[1];
+      const deepBuy = p.find((x) => x.id === 'dStart');
+      return {
+        deepBuy, shardsLeft: g.state.shards,
+        dStart: p.some((x) => x.id === 'dStart' && x.lvl === 1), throw: p.filter((x) => x.id === 'throw').map((x) => x.lvl), repeated: p.slice(1).some((x) => x.id === 'kick' || x.id === 'speed'),
+        down, afterDown, ownedDeep: p[0]?.owned?.dStart, ownedThrow: p[0]?.owned?.throw,
+      };
     });
 
     // row 12: the nickname from the leaderboard goes into every later row
@@ -158,7 +183,7 @@ const GRANT = 'rid,player,name,seq,kind,daily,level,run,run_time,play_time,money
       await sleep(1000);
       const c = calls.slice(n0);
       const b = c[0]?.body ?? {};
-      return { posts: c.length, kind: b.kind, keepalive: c[0]?.keepalive, runOk: b.run === g.state.stats.rebirths };
+      return { posts: c.length, kind: b.kind, keepalive: c[0]?.keepalive, runOk: b.run === g.state.stats.rebirths, owned: b.purchases?.[0]?.id === 'owned' && b.purchases[0].owned?.kick === g.state.upgrades.kick };
     });
 
     // row 11 on a fresh module instance (the main one already ended its page)
@@ -201,6 +226,19 @@ const GRANT = 'rid,player,name,seq,kind,daily,level,run,run_time,play_time,money
       buy('speed');
       return { yardBuy: stored()?.buy.map((x) => x.id) };
     });
+
+    // a 120-entry buffer from a build before the 'owned' entry: the row stays within 120 and still ends with the 'more' counter
+    await step('P10', async () => {
+      const legacy = Array.from({ length: 120 }, (_, i) => ({ id: 'kick', lvl: i, cost: 1 }));
+      localStorage.setItem(KEY, JSON.stringify({ ...stored(), buy: legacy, queue: [] }));
+      const n0 = calls.length;
+      M.level();
+      await sleep(1000);
+      const p = calls.slice(n0)[0]?.body.purchases ?? [];
+      const last = p[p.length - 1] ?? {};
+      const real = p.slice(1).filter((x) => x.id !== 'more').length;
+      return { length: p.length, first: p[0]?.id, last, total: real + (last.id === 'more' ? last.cost : 0) };
+    });
   } else {
     // the yard's entry as the yard page leaves it: a known player and one purchase waiting for the next yard row
     const d1 = { id: '11111111-2222-4333-8444-555555555555', buy: [{ id: 'speed', lvl: 3, cost: 99 }] };
@@ -233,21 +271,31 @@ const GRANT = 'rid,player,name,seq,kind,daily,level,run,run_time,play_time,money
     const p2 = o('P2');
     ok('P2_shape', p2.posts === 1 && p2.url && p2.method === 'POST' && p2.prefer === 'return=minimal' && p2.keepalive === false && p2.keysOk && p2.kind === 'level' && p2.seq === 1 && p2.daily === false, p2.keys);
     ok('P2_values', p2.ridOk && p2.playerOk && p2.name === null && p2.levelOk && p2.gnomesOk && p2.moneyOk && p2.landOk && p2.buffersEmpty && p2.queue === 0, j('P2'));
-    ok('P2_purchases', JSON.stringify((p2.purchases ?? []).map((x) => x[0])) === '["kick","speed"]' && (p2.purchases ?? []).every((x) => x[2] === 'number'), JSON.stringify(p2.purchases));
+    ok('P2_purchases', JSON.stringify((p2.purchases ?? []).map((x) => x[0])) === '["owned","kick","speed","fan"]' && (p2.purchases ?? []).every((x) => x[2] === 'number'), JSON.stringify(p2.purchases));
+    const f = o('P2_fields');
+    ok('P2_buy_fields', f.kick?.hole === f.afterKick?.hole && f.kick?.money === f.afterKick?.money && f.speed?.hole === f.afterSpeed?.hole && f.speed?.money === f.afterSpeed?.money && f.kick?.money > f.speed?.money, j('P2_fields'));
+    const w = o('P2_owned');
+    ok('P2_owned', w.id === 'owned' && w.lvl === 0 && w.cost === 0 && w.sameOwned && w.noZero && w.hasKick && w.samePlaced && (w.placed ?? {}).fan >= 1, j('P2_owned'));
     ok('P2_achievements', (p2.achievements ?? []).length === 1 && p2.achievements[0][0] === 'booze' && p2.achievements[0][1] === 'number' && typeof p2.achievements[0][2] === 'number', JSON.stringify(p2.achievements));
     ok('P3', o('P3').dStart === true && JSON.stringify(o('P3').throw) === '[1,0]' && o('P3').repeated === false, j('P3'));
+    const d = o('P3');
+    ok('P3_downgrade', d.down?.lvl === 0 && d.down?.hole === d.afterDown?.hole && d.down?.money === d.afterDown?.money && typeof d.down?.cost === 'number' && d.ownedDeep === 1 && d.ownedThrow === undefined, j('P3'));
     ok('P4', o('P4').stored === 'Tester' && o('P4').rowName === 'Tester' && o('P4').earlierNull === true, j('P4'));
     ok('P5', o('P5').queuedAfterNet === 1 && o('P5').timeAdvanced && o('P5').sentAfter === 2 && o('P5').seqOrder && o('P5').queueAfter === 0, j('P5'));
     ok('P6', o('P6').posts === 1 && o('P6').queueAfter400 === 0 && o('P6').queueAfter404 === 1 && o('P6').queueAfterRetry === 0, j('P6'));
     ok('P7', o('P7').posts === 1 && o('P7').kind === 'rebirth' && o('P7').keepalive === true && o('P7').runOk, j('P7'));
+    ok('P7_owned', o('P7').owned === true, j('P7'));
     ok('P7b', o('P7b').kind === 'reset' && o('P7b').keepalive === true && o('P7b').name === 'Tester', j('P7b'));
     ok('P8', o('P8').rows > 1 && o('P8').rows === o('P8').distinctRids && o('P8').allUuid && o('P8').sameSeqTwice && o('P8').sameRid && o('P8').queue === 0, j('P8'));
-    ok('P9', o('P9').sameId && o('P9').blockedPost === 1 && o('P9').blockedPurchases === 1 && o('P9').threw === false, j('P9'));
+    ok('P9', o('P9').sameId && o('P9').blockedPost === 1 && o('P9').blockedPurchases === 2 && o('P9').threw === false, j('P9'));
     ok('D1', JSON.stringify(o('D1').yardBuy) === '["speed"]', j('D1'));
+    ok('P3_deep_shards', d.deepBuy?.shards === d.shardsLeft && !('money' in (d.deepBuy ?? {})), j('P3'));
+    const t = o('P10');
+    ok('P10_legacy_cap', t.length <= 120 && t.first === 'owned' && t.last?.id === 'more' && t.total === 120, j('P10'));
   } else {
     const d2 = o('D2');
     ok('D2_yard_untouched', d2.yardBufferUntouched === true, j('D2'));
-    ok('D2_daily_row', d2.levelDaily === true && JSON.stringify(d2.levelPurchases) === '["kick"]' && d2.samePlayer === true, j('D2'));
+    ok('D2_daily_row', d2.levelDaily === true && JSON.stringify(d2.levelPurchases) === '["owned","kick"]' && d2.samePlayer === true, j('D2'));
     ok('D2_end', d2.end?.kind === 'daily' && d2.end?.daily === true && d2.end?.keepalive === true, JSON.stringify(d2.end));
   }
   window.__done = JSON.stringify({ ...out, checks }, null, 1);

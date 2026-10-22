@@ -63,6 +63,13 @@ select player, seq, kind, daily, level, run, run_time, play_time, money, earned,
 from public.progress where player in (select player from public.progress where name = '<nickname>') order by player, seq, created_at;
 ```
 
+What players owned at each hole level (`purchases[0]` is `{ id: 'owned', owned: { <upgrade>: <level> }, placed: { <machine>: <count> } }`; the other entries are the buys since the previous row, each with `hole` and `money` after it):
+
+```sql
+select player, seq, kind, level, run, purchases->0->'owned' as owned, purchases->0->'placed' as placed, created_at
+from public.progress where purchases->0->>'id' = 'owned' order by player, seq;
+```
+
 Who is who:
 
 ```sql

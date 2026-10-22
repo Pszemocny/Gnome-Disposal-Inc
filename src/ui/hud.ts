@@ -347,14 +347,15 @@ export class Hud {
 
   deep(shards: number, done: () => void): void {
     ctx.paused = true;
-    const { chairs, flamingos } = ctx.state.stats;
+    const { chairs, flamingos, ufos, gnomesEaten, typesEaten } = ctx.state.stats;
     const letters = ctx.state.secrets.filter((s) => s.startsWith('letter-')).map((s) => s.slice(7));
-    ctx.outro.start(chairs, flamingos, letters);
+    ctx.outro.start({ chairs, flamingos, letters, gnomes: gnomesEaten, ufos, kings: typesEaten.king ?? 0 });
     const el = h('div', 'deep', document.body);
     h('div', 'deep-fade', el);
-    // always a line, no numbers (PP 2026-10-22, O2 b); the camera turns to the pile only when there is one
-    const pile = chairs + flamingos + letters.length > 0;
-    const heapLine = pile ? 'It kept everything you gave.' : 'It kept nothing else.';
+    // always a line, no numbers (PP 2026-10-22, O2 b); the camera goes to the heap only when there is one
+    const fed = chairs + flamingos + letters.length > 0;
+    const heap = ctx.outro.hasHeap;
+    const heapLine = fed ? 'It kept everything you gave.' : 'It kept nothing else.';
     const lines = [
       'You fall.',
       'Past the dirt. Past the roots. Past the gnomes.',
@@ -381,7 +382,11 @@ export class Hud {
     // no skipping: every line plays its 2.6 s (PP 2026-10-22, O1 c "bez pomijania")
     const next = () => {
       if (i >= lines.length) {
-        ctx.outro.lookAtHeap(false);
+        // the end card only after the King's bite
+        if (heap && !ctx.outro.devoured) {
+          setTimeout(next, 100);
+          return;
+        }
         lineEl.innerHTML = '<div class="deep-line">THE DEEP</div><button class="btn">Be reborn</button>';
         lineEl.querySelector('button')!.addEventListener('click', () => {
           window.removeEventListener('keydown', onF);
@@ -389,7 +394,9 @@ export class Hud {
         });
         return;
       }
-      ctx.outro.lookAtHeap(pile && lines[i] === heapLine);
+      // the heap stays on screen to the end: it holds the heap line twice as long (PP 2026-10-22 "dluzej")
+      const onHeap = heap && lines[i] === heapLine;
+      if (onHeap) ctx.outro.showHeap();
       // born with the second line: a kick-F tapped right after falling in cannot open the tab
       if (i === 1 && LINKS.coffee && !f) {
         f = h('div', 'deep-f', el);
@@ -398,7 +405,7 @@ export class Hud {
       }
       lineEl.innerHTML = `<div class="deep-line">${lines[i++]}</div>`;
       ctx.audio.whisper();
-      setTimeout(next, 2600);
+      setTimeout(next, onHeap ? 5200 : 2600);
     };
     ctx.input.unlock();
     next();

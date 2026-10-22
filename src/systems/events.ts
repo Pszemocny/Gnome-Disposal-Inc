@@ -326,6 +326,7 @@ export class Events {
         ctx.hole.addXp(xp);
         ctx.hud.bigText('UFO DOWN!', '#9affa0', xp ? '+' + xp + ' XP' : '');
         ctx.achievements.unlock('ufo');
+        ctx.state.stats.ufos++;
         this.removeUfo();
       }
       return;
