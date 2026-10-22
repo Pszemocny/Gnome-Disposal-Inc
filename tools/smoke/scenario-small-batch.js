@@ -701,7 +701,7 @@ setTimeout(() => { if (!window.__done) window.__done = JSON.stringify({ ...R, ch
           const lv0 = S().holeLevel; const shares = [];
           for (const lv of [1, 2, 4, 6]) {
             S().holeLevel = lv;
-            const one = (bull) => { g.hole.combo = 0; paid = 0; const x = spawnAt('classic', ahead(3, 0, 0.5), { awake: false }); x.bullseye = bull; g.hole.consume(x); return paid; };
+            const one = (bull) => { g.hole.combo = 0; paid = 0; const x = spawnAt('classic', ahead(3, 0, 0.5), { awake: false }); x.bullseye = bull; x.bullseyeAt = g.time; g.hole.consume(x); return paid; };
             const plain = one(false); const hoop = one(true);
             shares.push(+((hoop - 5 * plain) / (60 * g.hole.valueScale)).toFixed(3));
           }
@@ -712,6 +712,51 @@ setTimeout(() => { if (!window.__done) window.__done = JSON.stringify({ ...R, ch
       }
       g.coins.clearAll();
       setState(keep);
+    }
+    // H1, H2: BULLSEYE counts only when the gnome reaches the hole within 2 s after the hoop (PP 2026-10-22)
+    {
+      clearGnomes(); g.hole.combo = 0;
+      const throughHoop = async () => {
+        await frames(1);
+        const side = (k) => {
+          const c = g.hole.ring.position;
+          const n = g.env.hole.clone().sub(c).setY(0).normalize();
+          return c.clone().addScaledVector(n, k);
+        };
+        const x = spawnAt('classic', side(-0.3));
+        g.gnomes.ragdoll(x, 10, 'player');
+        x.throwPos = side(-6); x.touchedGround = true;
+        await frames(1);
+        x.body.setTranslation(side(0.3), true); x.body.setLinvel({ x: 0, y: 0, z: 0 }, true);
+        await frames(1);
+        return x;
+      };
+      const eat = async (x) => {
+        const h = g.env.hole;
+        x.body.setTranslation({ x: h.x, y: 0.5, z: h.z }, true); x.body.setLinvel({ x: 0, y: -5, z: 0 }, true);
+        const t0 = g.time;
+        for (let i = 0; i < 300 && x.state !== 'gone'; i++) await frames(1);
+        return +(g.time - t0).toFixed(2);
+      };
+      const run = async (grassSec) => {
+        const b0 = S().stats.bullseyes; bigTexts.length = 0;
+        const x = await throughHoop();
+        const t0 = g.time;
+        const flag = x.bullseye;
+        if (grassSec) {
+          const h = g.env.hole;
+          x.body.setTranslation({ x: h.x + g.env.holeRadius + 6, y: 0.5, z: h.z }, true); x.body.setLinvel({ x: 0, y: 0, z: 0 }, true);
+          await gameWait(grassSec);
+        }
+        const fallT = await eat(x);
+        return { flag, sinceHoop: +(g.time - t0).toFixed(2), fallT, eaten: x.state === 'gone', bull: bigTexts.some((t) => String(t).includes('BULLSEYE')), stat: S().stats.bullseyes - b0 };
+      };
+      const h1 = await run(0);
+      const h2 = await run(3);
+      R.H1 = h1; R.H2 = h2;
+      ok('H1', h1.flag && h1.eaten && h1.sinceHoop < 2 && h1.bull && h1.stat === 1, JSON.stringify(h1));
+      ok('H2', h2.flag && h2.eaten && h2.sinceHoop > 2 && !h2.bull && h2.stat === 0, JSON.stringify(h2));
+      clearGnomes(); g.hole.combo = 0;
     }
   } catch (e) {
     checks.push('FAIL exception ' + (e?.stack ?? e));

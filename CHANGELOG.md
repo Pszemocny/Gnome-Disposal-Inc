@@ -2,6 +2,11 @@
 
 Newest build first. Each build lists what changed for the player. Shown in the start menu (button "What's new").
 
+## 2026-10-28 20:00
+
+- A gnome the UFO beam catches no longer counts as a hit, even when the beam pulls it up into the UFO.
+- BULLSEYE counts only when the gnome falls into the hole right after the golden hoop, not when you drop it in by hand later.
+
 ## 2026-10-28 18:00
 
 - Every new land now pushes the hole much further from the factory, so your machines have a longer way to go.

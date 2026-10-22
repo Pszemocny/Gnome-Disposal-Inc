@@ -115,6 +115,8 @@ export class Hole {
     // trick shots: only for gnomes the player threw (not dropped, not machine-fed)
     const tricks: string[] = [];
     let trick = 1;
+    // through the hoop, onto the grass and in by hand later is no BULLSEYE (PP 2026-10-22 "przez 2s po przejsciu przez krag")
+    if (g.bullseye && ctx.time - g.bullseyeAt > 2) g.bullseye = false;
     // a gnome is worth only $1 early on, so a multiplier alone pays almost nothing: every trick also pays
     // a flat bonus (x hole multiplier), so a few trick shots beat dumping the armchair (PP 2026-10-20)
     let bonus = 0;
@@ -584,6 +586,7 @@ export class Hole {
       const hit = prev.clone().lerp(p, a / (a - b || 1));
       if (hit.distanceTo(c) < Hole.RING_RADIUS) {
         g.bullseye = true;
+        g.bullseyeAt = ctx.time;
         ctx.fx.burst(c.clone(), 0xffd23f, 30);
         ctx.audio.magic();
       }

@@ -331,7 +331,7 @@ setTimeout(() => { if (!window.__done) window.__done = JSON.stringify({ ...R, ch
       R.rumbleMoments = rumbles;
       g.audio.rumble = rumble0;
       await sleep(5500);
-      const be = hand(); be.bullseye = true; fall([be]); await waitGone([be]);
+      const be = hand(); be.bullseye = true; be.bullseyeAt = g.time; fall([be]); await waitGone([be]);
       R.bullseye = await sample();
     }
     {

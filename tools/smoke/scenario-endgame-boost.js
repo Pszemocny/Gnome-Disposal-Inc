@@ -158,6 +158,38 @@ setTimeout(() => { if (!window.__done) window.__done = JSON.stringify({ ...R, ch
       ok('E6', a.gone && near(a.xp, 1000) && a.level === 10 && a.big?.sub === '+1000 XP' && a.ach && b.level === 11 && near(b.xp, 500), JSON.stringify(R.E6));
       ok('E7', near(c.xp, 0) && c.finite && c.big && c.big.sub === '' && d.left && near(d.xp, 0), JSON.stringify(R.E7));
     }
+    // E24, E25: a thrown gnome the beam takes never counts as a hit, a direct throw does (PP 2026-10-22)
+    {
+      clearGnomes();
+      g.events.start('ufo');
+      const u = g.events.ufo;
+      const spot = u.target.clone();
+      u.mesh.position.copy(spot);
+      const thrown = (dx, dy) => {
+        const m = u.mesh.position;
+        const x = spawnAt('classic', new V3(m.x + dx, m.y + dy, m.z));
+        g.gnomes.ragdoll(x, 10, 'player');
+        x.throwPos = new V3(m.x + 10, 1, m.z);
+        return x;
+      };
+      const beamed = thrown(0.5, -3);
+      let lifted = 0;
+      for (let i = 0; i < 300 && beamed.state !== 'gone' && g.events.ufo; i++) {
+        u.target.copy(spot); u.mesh.position.copy(spot);
+        await frames(1);
+        lifted = Math.max(lifted, beamed.state === 'gone' ? 0 : beamed.body.translation().y);
+      }
+      const e20 = { hits: u.hits, abducted: beamed.state === 'gone', lifted: +lifted.toFixed(2), ufoY: spot.y };
+      const direct = thrown(2, 0);
+      const hits0 = u.hits;
+      for (let i = 0; i < 60 && u.hits === hits0; i++) { u.target.copy(spot); u.mesh.position.copy(spot); await frames(1); }
+      const e21 = { before: hits0, after: u.hits, toast: toasts.includes(`UFO hit! ${hits0 + 1}/3`) };
+      if (direct.state !== 'gone') g.gnomes.remove(direct);
+      g.events.removeUfo();
+      R.E24 = e20; R.E25 = e21;
+      ok('E24', e20.hits === 0 && e20.abducted, JSON.stringify(e20));
+      ok('E25', e21.after === e21.before + 1 && e21.toast, JSON.stringify(e21));
+    }
     // E8: Spore Storm raises the drop chance of every eaten gnome
     {
       const spawn0 = g.mushrooms.spawn;

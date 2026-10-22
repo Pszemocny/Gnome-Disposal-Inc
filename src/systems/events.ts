@@ -366,6 +366,7 @@ export class Events {
       }
       if (beamOn && dh < 3 && p.y < m.position.y) {
         if (g.state !== 'ragdoll') ctx.gnomes.ragdoll(g, 3);
+        g.thrownBy = null; // the beam took it: lifted into the UFO it is no hit (PP 2026-10-22)
         g.body.setLinvel({ x: -dx * 0.5, y: 4, z: -dz * 0.5 }, true);
         if (p.y > m.position.y - 1.2) abducted.push(g);
       }

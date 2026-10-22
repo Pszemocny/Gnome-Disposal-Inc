@@ -38,6 +38,7 @@ export interface Gnome {
   touchedGround: boolean;
   bounced: boolean;
   bullseye: boolean;
+  bullseyeAt: number; // ctx.time of the hoop pass: BULLSEYE pays only within 2 s of it (PP 2026-10-22)
   volley: Volley | null; // shared by every gnome of one throw (a Magnet Gun ball throws many at once)
   xpGroup: { n: number } | null; // one Magnet Gun hold: every gnome of the ball shares it, XP x1/sqrt(n) (PP 2026-10-20 10a); null = hands
   fullXp: boolean; // shot by a funnel the player fed it into: the player's XP (PP F3 b), but no trick shot
@@ -251,7 +252,7 @@ export class Gnomes {
       id: this.nextId++, type, body, collider, slot: slots.length, state: awake ? 'walk' : 'statue', awake,
       timer: 0, think: rand(0, 0.5), target: null, yaw, scale, loot: 0, valueMult: 1, cooldown: 0, angryOverride: false,
       parade: -1, life: 0, thrownBy: null, noGrabUntil: 0, tier, xpTier,
-      throwPos: null, touchedGround: false, bounced: false, bullseye: false, volley: null, xpGroup: null, fullXp: false,
+      throwPos: null, touchedGround: false, bounced: false, bullseye: false, bullseyeAt: 0, volley: null, xpGroup: null, fullXp: false,
       prevVy: 0, squash: 0, screamed: false, pop: 0, goldFrom, scared: 0, fleeing: false,
       prevPos: new THREE.Vector3(pos.x, pos.y, pos.z), prevRot: tmpQ.clone(), ph: 0,
       lag: this.parts.has(typeId) ? { yaw, swing: 0, hatP: 0, hatY: 0, beardP: 0, beardY: 0, beardVP: 0, beardVY: 0, roll: 0, hatR: 0 } : null,
@@ -301,6 +302,7 @@ export class Gnomes {
     n.touchedGround = g.touchedGround;
     n.bounced = g.bounced;
     n.bullseye = g.bullseye;
+    n.bullseyeAt = g.bullseyeAt;
     n.volley = g.volley;
     n.fullXp = g.fullXp;
     n.xpGroup = g.xpGroup;
